@@ -1,0 +1,3 @@
+{
+  "extends": "@unokit/typescript/base.json"
+}

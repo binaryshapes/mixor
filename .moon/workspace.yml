@@ -1,0 +1,14 @@
+projects:
+  - './packages/*'
+
+vcs:
+  manager: 'git'
+  defaultBranch: 'main'
+
+runner:
+  archivableTargets:
+    - ':build'
+    - ':lint'
+    - ':test'
+    - ':format'
+  logRunningCommand: true
