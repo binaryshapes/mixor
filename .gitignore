@@ -1,0 +1,36 @@
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# System Files.
+.DS_Store
+Thumbs.db
+*.pem
+
+# Environment Files.
+.env
+.env.*
+
+# Moonrepo.
+.moon/cache
+.moon/docker
+
+# moon
+.moon/cache
+.moon/docker
+
+# Node Modules.
+node_modules
+
+# Coverage.
+coverage
+
+# Builds.
+dist
+
+# Eslint.
+eslint
+!packages/eslint
