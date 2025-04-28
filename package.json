@@ -4,6 +4,7 @@
   "description": "A library for building modern backend applications using clean architecture and advanced design patterns",
   "author": "Carlos Cosming",
   "license": "MIT",
+  "private": true,
   "keywords": [
     "clean architecture",
     "design patterns",
@@ -13,13 +14,25 @@
     "deno"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "clean": "pnpx rimraf node_modules packages/*/node_modules pnpm-lock.yaml",
+    "commitlint": "commitlint --edit",
+    "commit": "commit",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "@commitlint/prompt-cli": "^19.8.0",
+    "@commitlint/types": "^19.8.0",
     "@types/node": "^22.15.2",
     "@unokit/eslint": "^1.0.0",
     "@unokit/prettier": "^1.0.0",
     "@unokit/typescript": "^1.0.0",
+    "husky": "^9.1.7",
     "typescript": "^5.8.3"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": "20.19.0"
   }
 }
