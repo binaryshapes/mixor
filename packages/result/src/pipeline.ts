@@ -9,6 +9,11 @@
 import type { Result } from './result';
 import { fail, isFail, isSuccess, success } from './result';
 
+type PipelineStep = {
+  type: 'mapSuccess' | 'mapFailure' | 'mapBoth' | 'tap' | 'bind';
+  description: string;
+};
+
 /**
  * Helper function to handle both synchronous and asynchronous operations on a Result.
  */
@@ -28,6 +33,7 @@ class Pipeline<S, F> {
       | Result<S, F>
       | Promise<Result<S, F>>
       | (() => Result<S, F> | Promise<Result<S, F>>),
+    private readonly steps: PipelineStep[] = [],
   ) {}
 
   /**
@@ -36,14 +42,24 @@ class Pipeline<S, F> {
   static from<S, F>(
     result: Result<S, F> | Promise<Result<S, F>> | (() => Result<S, F> | Promise<Result<S, F>>),
   ): Pipeline<S, F> {
-    return new Pipeline(result);
+    return new Pipeline(result, [
+      {
+        type: 'mapSuccess',
+        description: 'Initial value',
+      },
+    ]);
   }
 
   /**
    * Creates a new Pipeline from a function that returns a Result.
    */
   static fromFunction<S, F>(fn: () => Result<S, F> | Promise<Result<S, F>>): Pipeline<S, F> {
-    return new Pipeline(fn);
+    return new Pipeline(fn, [
+      {
+        type: 'mapSuccess',
+        description: 'Initial function',
+      },
+    ]);
   }
 
   /**
@@ -60,7 +76,7 @@ class Pipeline<S, F> {
    * Maps the success value to a new value.
    */
   mapSuccess<NS>(fn: (value: S) => NS | Promise<NS>): Pipeline<NS, F> {
-    return Pipeline.from(async () => {
+    return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, NS, F>(result, async (r) => {
         if (isSuccess(r)) {
@@ -69,14 +85,20 @@ class Pipeline<S, F> {
         }
         return r as Result<NS, F>;
       });
-    });
+    }, [
+      ...this.steps,
+      {
+        type: 'mapSuccess',
+        description: `Transform success value`,
+      },
+    ]);
   }
 
   /**
    * Maps the failure value to a new value.
    */
   mapFailure<NF>(fn: (failure: F) => NF | Promise<NF>): Pipeline<S, NF> {
-    return Pipeline.from(async () => {
+    return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, S, NF>(result, async (r) => {
         if (isFail(r)) {
@@ -85,7 +107,13 @@ class Pipeline<S, F> {
         }
         return r as Result<S, NF>;
       });
-    });
+    }, [
+      ...this.steps,
+      {
+        type: 'mapFailure',
+        description: `Transform failure value`,
+      },
+    ]);
   }
 
   /**
@@ -95,7 +123,7 @@ class Pipeline<S, F> {
     successFn: (value: S) => NS | Promise<NS>,
     failureFn: (failure: F) => NF | Promise<NF>,
   ): Pipeline<NS, NF> {
-    return Pipeline.from(async () => {
+    return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, NS, NF>(result, async (r) => {
         if (isSuccess(r)) {
@@ -105,14 +133,20 @@ class Pipeline<S, F> {
         const newFailure = await failureFn(r.isFailure);
         return fail(newFailure);
       });
-    });
+    }, [
+      ...this.steps,
+      {
+        type: 'mapBoth',
+        description: `Transform both success and failure values`,
+      },
+    ]);
   }
 
   /**
    * Performs a side effect on the success value without modifying it.
    */
   tap(fn: (value: S) => void | Promise<void>): Pipeline<S, F> {
-    return Pipeline.from(async () => {
+    return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, S, F>(result, async (r) => {
         if (isSuccess(r)) {
@@ -120,7 +154,13 @@ class Pipeline<S, F> {
         }
         return r;
       });
-    });
+    }, [
+      ...this.steps,
+      {
+        type: 'tap',
+        description: `Perform side effect`,
+      },
+    ]);
   }
 
   /**
@@ -130,7 +170,7 @@ class Pipeline<S, F> {
     key: K,
     fn: (value: S) => Result<NS, F> | Promise<Result<NS, F>>,
   ): Pipeline<S & { [P in K]: NS }, F> {
-    return Pipeline.from(async () => {
+    return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, S & { [P in K]: NS }, F>(result, async (r) => {
         if (isSuccess(r)) {
@@ -146,7 +186,13 @@ class Pipeline<S, F> {
         }
         return r as Result<S & { [P in K]: NS }, F>;
       });
-    });
+    }, [
+      ...this.steps,
+      {
+        type: 'bind',
+        description: `Bind value to key: ${key}`,
+      },
+    ]);
   }
 
   /**
@@ -168,6 +214,15 @@ class Pipeline<S, F> {
    */
   async run(): Promise<Result<S, F>> {
     return this.getCurrentResult();
+  }
+
+  /**
+   * Returns a string representation of the pipeline steps.
+   */
+  toString(): string {
+    return this.steps
+      .map((step, index) => `${index + 1}. ${step.type}: ${step.description}`)
+      .join('\n');
   }
 }
 
