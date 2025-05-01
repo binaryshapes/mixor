@@ -23,41 +23,69 @@ function handleResult<S, F, NS, NF>(
  * A class that provides a fluent API for working with Result types.
  */
 class Pipeline<S, F> {
-  private constructor(private readonly result: Result<S, F> | Promise<Result<S, F>>) {}
+  private constructor(
+    private readonly result:
+      | Result<S, F>
+      | Promise<Result<S, F>>
+      | (() => Result<S, F> | Promise<Result<S, F>>),
+  ) {}
 
   /**
-   * Creates a new Pipeline from a Result.
+   * Creates a new Pipeline from a Result or a function that returns a Result.
    */
-  static from<S, F>(result: Result<S, F> | Promise<Result<S, F>>): Pipeline<S, F> {
+  static from<S, F>(
+    result: Result<S, F> | Promise<Result<S, F>> | (() => Result<S, F> | Promise<Result<S, F>>),
+  ): Pipeline<S, F> {
     return new Pipeline(result);
+  }
+
+  /**
+   * Creates a new Pipeline from a function that returns a Result.
+   */
+  static fromFunction<S, F>(fn: () => Result<S, F> | Promise<Result<S, F>>): Pipeline<S, F> {
+    return new Pipeline(fn);
+  }
+
+  /**
+   * Gets the current result value, executing the function if necessary.
+   */
+  private async getCurrentResult(): Promise<Result<S, F>> {
+    if (typeof this.result === 'function') {
+      return this.result();
+    }
+    return this.result;
   }
 
   /**
    * Maps the success value to a new value.
    */
   mapSuccess<NS>(fn: (value: S) => NS | Promise<NS>): Pipeline<NS, F> {
-    const newResult = handleResult<S, F, NS, F>(this.result, (r) => {
-      if (isSuccess(r)) {
-        return Promise.resolve(fn(r.isValue)).then(success);
-      }
-      return r as Result<NS, F>;
+    return Pipeline.from(async () => {
+      const result = await this.getCurrentResult();
+      return handleResult<S, F, NS, F>(result, async (r) => {
+        if (isSuccess(r)) {
+          const newValue = await fn(r.isValue);
+          return success(newValue);
+        }
+        return r as Result<NS, F>;
+      });
     });
-
-    return Pipeline.from(newResult);
   }
 
   /**
    * Maps the failure value to a new value.
    */
   mapFailure<NF>(fn: (failure: F) => NF | Promise<NF>): Pipeline<S, NF> {
-    const newResult = handleResult<S, F, S, NF>(this.result, (r) => {
-      if (isFail(r)) {
-        return Promise.resolve(fn(r.isFailure)).then(fail);
-      }
-      return r as Result<S, NF>;
+    return Pipeline.from(async () => {
+      const result = await this.getCurrentResult();
+      return handleResult<S, F, S, NF>(result, async (r) => {
+        if (isFail(r)) {
+          const newFailure = await fn(r.isFailure);
+          return fail(newFailure);
+        }
+        return r as Result<S, NF>;
+      });
     });
-
-    return Pipeline.from(newResult);
   }
 
   /**
@@ -67,28 +95,32 @@ class Pipeline<S, F> {
     successFn: (value: S) => NS | Promise<NS>,
     failureFn: (failure: F) => NF | Promise<NF>,
   ): Pipeline<NS, NF> {
-    const newResult = handleResult<S, F, NS, NF>(this.result, (r) => {
-      if (isSuccess(r)) {
-        return Promise.resolve(successFn(r.isValue)).then(success);
-      }
-      return Promise.resolve(failureFn(r.isFailure)).then(fail);
+    return Pipeline.from(async () => {
+      const result = await this.getCurrentResult();
+      return handleResult<S, F, NS, NF>(result, async (r) => {
+        if (isSuccess(r)) {
+          const newValue = await successFn(r.isValue);
+          return success(newValue);
+        }
+        const newFailure = await failureFn(r.isFailure);
+        return fail(newFailure);
+      });
     });
-
-    return Pipeline.from(newResult);
   }
 
   /**
    * Performs a side effect on the success value without modifying it.
    */
   tap(fn: (value: S) => void | Promise<void>): Pipeline<S, F> {
-    const newResult = handleResult<S, F, S, F>(this.result, async (r) => {
-      if (isSuccess(r)) {
-        await fn(r.isValue);
-      }
-      return r;
+    return Pipeline.from(async () => {
+      const result = await this.getCurrentResult();
+      return handleResult<S, F, S, F>(result, async (r) => {
+        if (isSuccess(r)) {
+          await fn(r.isValue);
+        }
+        return r;
+      });
     });
-
-    return Pipeline.from(newResult);
   }
 
   /**
@@ -98,22 +130,23 @@ class Pipeline<S, F> {
     key: K,
     fn: (value: S) => Result<NS, F> | Promise<Result<NS, F>>,
   ): Pipeline<S & { [P in K]: NS }, F> {
-    const newResult = handleResult<S, F, S & { [P in K]: NS }, F>(this.result, async (r) => {
-      if (isSuccess(r)) {
-        const boundResult = await fn(r.isValue);
-        if (isSuccess(boundResult)) {
-          const newValue = {
-            ...r.isValue,
-            [key]: boundResult.isValue,
-          } as S & { [P in K]: NS };
-          return success(newValue);
+    return Pipeline.from(async () => {
+      const result = await this.getCurrentResult();
+      return handleResult<S, F, S & { [P in K]: NS }, F>(result, async (r) => {
+        if (isSuccess(r)) {
+          const boundResult = await fn(r.isValue);
+          if (isSuccess(boundResult)) {
+            const newValue = {
+              ...r.isValue,
+              [key]: boundResult.isValue,
+            } as S & { [P in K]: NS };
+            return success(newValue);
+          }
+          return boundResult as Result<S & { [P in K]: NS }, F>;
         }
-        return boundResult as Result<S & { [P in K]: NS }, F>;
-      }
-      return r as Result<S & { [P in K]: NS }, F>;
+        return r as Result<S & { [P in K]: NS }, F>;
+      });
     });
-
-    return Pipeline.from(newResult);
   }
 
   /**
@@ -123,7 +156,7 @@ class Pipeline<S, F> {
     successFn: (value: S) => NS | Promise<NS>,
     failureFn: (failure: F) => NF | Promise<NF>,
   ): Promise<NS | NF> {
-    const result = await this.result;
+    const result = await this.getCurrentResult();
     if (isSuccess(result)) {
       return successFn(result.isValue);
     }
@@ -131,10 +164,10 @@ class Pipeline<S, F> {
   }
 
   /**
-   * Gets the underlying result value.
+   * Executes the pipeline and returns the result.
    */
-  async getResult(): Promise<Result<S, F>> {
-    return this.result;
+  async run(): Promise<Result<S, F>> {
+    return this.getCurrentResult();
   }
 }
 
