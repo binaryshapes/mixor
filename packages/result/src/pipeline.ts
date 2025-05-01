@@ -10,6 +10,16 @@ import type { Result } from './result';
 import { fail, isFail, isSuccess, success } from './result';
 
 /**
+ * Helper function to handle both synchronous and asynchronous operations on a Result.
+ */
+function handleResult<S, F, NS, NF>(
+  result: Result<S, F> | Promise<Result<S, F>>,
+  handler: (r: Result<S, F>) => Result<NS, NF> | Promise<Result<NS, NF>>,
+): Promise<Result<NS, NF>> {
+  return result instanceof Promise ? result.then(handler) : Promise.resolve(handler(result));
+}
+
+/**
  * A class that provides a fluent API for working with Result types.
  */
 class Pipeline<S, F> {
@@ -26,22 +36,12 @@ class Pipeline<S, F> {
    * Maps the success value to a new value.
    */
   mapSuccess<NS>(fn: (value: S) => NS | Promise<NS>): Pipeline<NS, F> {
-    const newResult =
-      this.result instanceof Promise
-        ? this.result.then(async (r) => {
-            if (isSuccess(r)) {
-              const newValue = await fn(r.isValue);
-              return success(newValue);
-            }
-            return r as Result<NS, F>;
-          })
-        : (() => {
-            const r = this.result as Result<S, F>;
-            if (isSuccess(r)) {
-              return Promise.resolve(fn(r.isValue)).then(success);
-            }
-            return r as Result<NS, F>;
-          })();
+    const newResult = handleResult<S, F, NS, F>(this.result, (r) => {
+      if (isSuccess(r)) {
+        return Promise.resolve(fn(r.isValue)).then(success);
+      }
+      return r as Result<NS, F>;
+    });
 
     return Pipeline.from(newResult);
   }
@@ -50,22 +50,12 @@ class Pipeline<S, F> {
    * Maps the failure value to a new value.
    */
   mapFailure<NF>(fn: (failure: F) => NF | Promise<NF>): Pipeline<S, NF> {
-    const newResult =
-      this.result instanceof Promise
-        ? this.result.then(async (r) => {
-            if (isFail(r)) {
-              const newFailure = await fn(r.isFailure);
-              return fail(newFailure);
-            }
-            return r as Result<S, NF>;
-          })
-        : (() => {
-            const r = this.result as Result<S, F>;
-            if (isFail(r)) {
-              return Promise.resolve(fn(r.isFailure)).then(fail);
-            }
-            return r as Result<S, NF>;
-          })();
+    const newResult = handleResult<S, F, S, NF>(this.result, (r) => {
+      if (isFail(r)) {
+        return Promise.resolve(fn(r.isFailure)).then(fail);
+      }
+      return r as Result<S, NF>;
+    });
 
     return Pipeline.from(newResult);
   }
@@ -77,23 +67,12 @@ class Pipeline<S, F> {
     successFn: (value: S) => NS | Promise<NS>,
     failureFn: (failure: F) => NF | Promise<NF>,
   ): Pipeline<NS, NF> {
-    const newResult =
-      this.result instanceof Promise
-        ? this.result.then(async (r) => {
-            if (isSuccess(r)) {
-              const newValue = await successFn(r.isValue);
-              return success(newValue);
-            }
-            const newFailure = await failureFn(r.isFailure);
-            return fail(newFailure);
-          })
-        : (() => {
-            const r = this.result as Result<S, F>;
-            if (isSuccess(r)) {
-              return Promise.resolve(successFn(r.isValue)).then(success);
-            }
-            return Promise.resolve(failureFn(r.isFailure)).then(fail);
-          })();
+    const newResult = handleResult<S, F, NS, NF>(this.result, (r) => {
+      if (isSuccess(r)) {
+        return Promise.resolve(successFn(r.isValue)).then(success);
+      }
+      return Promise.resolve(failureFn(r.isFailure)).then(fail);
+    });
 
     return Pipeline.from(newResult);
   }
@@ -102,21 +81,12 @@ class Pipeline<S, F> {
    * Performs a side effect on the success value without modifying it.
    */
   tap(fn: (value: S) => void | Promise<void>): Pipeline<S, F> {
-    const newResult =
-      this.result instanceof Promise
-        ? this.result.then(async (r) => {
-            if (isSuccess(r)) {
-              await fn(r.isValue);
-            }
-            return r;
-          })
-        : (() => {
-            const r = this.result as Result<S, F>;
-            if (isSuccess(r)) {
-              return Promise.resolve(fn(r.isValue)).then(() => r);
-            }
-            return r;
-          })();
+    const newResult = handleResult<S, F, S, F>(this.result, async (r) => {
+      if (isSuccess(r)) {
+        await fn(r.isValue);
+      }
+      return r;
+    });
 
     return Pipeline.from(newResult);
   }
@@ -128,38 +98,20 @@ class Pipeline<S, F> {
     key: K,
     fn: (value: S) => Result<NS, F> | Promise<Result<NS, F>>,
   ): Pipeline<S & { [P in K]: NS }, F> {
-    const newResult =
-      this.result instanceof Promise
-        ? this.result.then(async (r) => {
-            if (isSuccess(r)) {
-              const boundResult = await fn(r.isValue);
-              if (isSuccess(boundResult)) {
-                const newValue = {
-                  ...r.isValue,
-                  [key]: boundResult.isValue,
-                } as S & { [P in K]: NS };
-                return success(newValue);
-              }
-              return boundResult as Result<S & { [P in K]: NS }, F>;
-            }
-            return r as Result<S & { [P in K]: NS }, F>;
-          })
-        : (() => {
-            const r = this.result as Result<S, F>;
-            if (isSuccess(r)) {
-              return Promise.resolve(fn(r.isValue)).then((boundResult) => {
-                if (isSuccess(boundResult)) {
-                  const newValue = {
-                    ...r.isValue,
-                    [key]: boundResult.isValue,
-                  } as S & { [P in K]: NS };
-                  return success(newValue);
-                }
-                return boundResult as Result<S & { [P in K]: NS }, F>;
-              });
-            }
-            return r as Result<S & { [P in K]: NS }, F>;
-          })();
+    const newResult = handleResult<S, F, S & { [P in K]: NS }, F>(this.result, async (r) => {
+      if (isSuccess(r)) {
+        const boundResult = await fn(r.isValue);
+        if (isSuccess(boundResult)) {
+          const newValue = {
+            ...r.isValue,
+            [key]: boundResult.isValue,
+          } as S & { [P in K]: NS };
+          return success(newValue);
+        }
+        return boundResult as Result<S & { [P in K]: NS }, F>;
+      }
+      return r as Result<S & { [P in K]: NS }, F>;
+    });
 
     return Pipeline.from(newResult);
   }
