@@ -10,7 +10,7 @@ import type { Result } from './result';
 import { fail, isFail, isSuccess, success } from './result';
 
 type PipelineStep = {
-  type: 'mapSuccess' | 'mapFailure' | 'mapBoth' | 'tap' | 'bind';
+  type: 'mapSuccess' | 'mapFailure' | 'mapBoth' | 'tap' | 'bind' | 'pipeline';
   description: string;
 };
 
@@ -23,6 +23,11 @@ function handleResult<S, F, NS, NF>(
 ): Promise<Result<NS, NF>> {
   return result instanceof Promise ? result.then(handler) : Promise.resolve(handler(result));
 }
+
+type TryOptions<S, NF> = {
+  try: () => S | Promise<S>;
+  catch: (error: unknown) => NF;
+};
 
 /**
  * A class that provides a fluent API for working with Result types.
@@ -56,8 +61,27 @@ class Pipeline<S, F> {
   static fromFunction<S, F>(fn: () => Result<S, F> | Promise<Result<S, F>>): Pipeline<S, F> {
     return new Pipeline(fn, [
       {
-        type: 'mapSuccess',
-        description: 'Initial function',
+        type: 'pipeline',
+        description: 'Initial pipeline',
+      },
+    ]);
+  }
+
+  /**
+   * Executes a function that might throw an error and handles it gracefully.
+   */
+  static try<S, NF>(options: TryOptions<S, NF>): Pipeline<S, NF> {
+    return new Pipeline(async () => {
+      try {
+        const value = await options.try();
+        return success(value);
+      } catch (error) {
+        return fail(options.catch(error as Error));
+      }
+    }, [
+      {
+        type: 'pipeline',
+        description: 'Try operation',
       },
     ]);
   }
@@ -143,22 +167,25 @@ class Pipeline<S, F> {
   }
 
   /**
-   * Performs a side effect on the success value without modifying it.
+   * Executes a side effect on the success value and returns the same Result.
+   * If the side effect throws an error, the pipeline will fail with that error.
    */
   tap(fn: (value: S) => void | Promise<void>): Pipeline<S, F> {
     return new Pipeline(async () => {
-      const result = await this.getCurrentResult();
-      return handleResult<S, F, S, F>(result, async (r) => {
-        if (isSuccess(r)) {
-          await fn(r.isValue);
+      try {
+        const result = await this.getCurrentResult();
+        if (isSuccess(result)) {
+          await fn(result.isValue);
         }
-        return r;
-      });
+        return result;
+      } catch (error) {
+        return fail(error as F);
+      }
     }, [
       ...this.steps,
       {
-        type: 'tap',
-        description: `Perform side effect`,
+        type: 'pipeline',
+        description: 'Side effect',
       },
     ]);
   }
