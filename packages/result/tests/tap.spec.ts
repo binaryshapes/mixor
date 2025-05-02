@@ -1,5 +1,5 @@
-import { Pipeline } from '../../src/pipeline';
-import { fail, isFail, isSuccess, success } from '../../src/result';
+import { Pipeline } from '../src/pipeline';
+import { fail, isFail, isSuccess, success } from '../src/result';
 
 describe('Pipeline tap', () => {
   it('should execute tap on success value', async () => {

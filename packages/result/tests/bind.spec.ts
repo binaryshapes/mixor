@@ -1,5 +1,5 @@
-import { Pipeline } from '../../src/pipeline';
-import { isSuccess, success } from '../../src/result';
+import { Pipeline } from '../src/pipeline';
+import { isSuccess, success } from '../src/result';
 
 class User {
   constructor(
