@@ -14,6 +14,8 @@ type PipelineStep = {
   description: string;
 };
 
+type FlattenIntersection<T> = T extends infer U ? { [K in keyof U]: U[K] } : never;
+
 type BindValue<T> = {
   __bind: true;
   value: T;
@@ -105,7 +107,7 @@ class Pipeline<S, F> {
    * Maps the success value to a new value.
    */
   mapSuccess<NS>(
-    fn: (value: S extends BindValue<infer T> ? T : S) => NS | Promise<NS>,
+    fn: (value: S extends BindValue<infer T> ? FlattenIntersection<T> : S) => NS | Promise<NS>,
   ): Pipeline<NS, F> {
     return new Pipeline(async () => {
       const result = await this.getCurrentResult();
@@ -115,7 +117,9 @@ class Pipeline<S, F> {
             typeof r.isValue === 'object' && r.isValue !== null && 'value' in r.isValue
               ? r.isValue.value
               : r.isValue;
-          const newValue = await fn(value as S extends BindValue<infer T> ? T : S);
+          const newValue = await fn(
+            value as S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+          );
           return success(newValue);
         }
         return r as Result<NS, F>;
@@ -208,7 +212,9 @@ class Pipeline<S, F> {
    */
   bind<K extends string, NS>(
     key: K,
-    fn: (value: S extends BindValue<infer T> ? T : S) => Result<NS, F> | Promise<Result<NS, F>>,
+    fn: (
+      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+    ) => Result<NS, F> | Promise<Result<NS, F>>,
   ): Pipeline<
     BindValue<S extends BindValue<infer T> ? T & { [P in K]: NS } : { [P in K]: NS }>,
     F
@@ -226,7 +232,9 @@ class Pipeline<S, F> {
             typeof r.isValue === 'object' && r.isValue !== null && 'value' in r.isValue
               ? r.isValue.value
               : r.isValue;
-          const boundResult = await fn(value as S extends BindValue<infer T> ? T : S);
+          const boundResult = await fn(
+            value as S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+          );
           if (isSuccess(boundResult)) {
             // Check if this is the first bind in the chain
             const isFirstBind = !this.steps.some((step) => step.type === 'bind');
