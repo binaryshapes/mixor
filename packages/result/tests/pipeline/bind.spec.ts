@@ -109,7 +109,7 @@ describe('Pipeline bind', () => {
     it('should handle nested bind operations using bindAll', async () => {
       const result = await Pipeline.from(success(42))
         .bind('id', () => success('30'))
-        .bindAll('user', ({ id }) => ({
+        .bindAll('user', () => ({
           name: () => success('John'),
           age: () => success(25),
         }))
@@ -127,11 +127,11 @@ describe('Pipeline bind', () => {
     it('should handle multiple nested bind operations using bindAll', async () => {
       const result = await Pipeline.from(success(42))
         .bind('id', () => success('30'))
-        .bindAll('user', ({ id }) => ({
+        .bindAll('user', () => ({
           name: () => success('John'),
           age: () => success(25),
         }))
-        .bindAll('address', ({ id }) => ({
+        .bindAll('address', () => ({
           street: () => success('123 Main St'),
           city: () => success('New York'),
         }))
