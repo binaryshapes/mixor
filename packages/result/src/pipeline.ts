@@ -14,6 +14,11 @@ type PipelineStep = {
   description: string;
 };
 
+type BindValue<T> = {
+  __bind: true;
+  value: T;
+};
+
 /**
  * Helper function to handle both synchronous and asynchronous operations on a Result.
  */
@@ -99,12 +104,18 @@ class Pipeline<S, F> {
   /**
    * Maps the success value to a new value.
    */
-  mapSuccess<NS>(fn: (value: S) => NS | Promise<NS>): Pipeline<NS, F> {
+  mapSuccess<NS>(
+    fn: (value: S extends BindValue<infer T> ? T : S) => NS | Promise<NS>,
+  ): Pipeline<NS, F> {
     return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, NS, F>(result, async (r) => {
         if (isSuccess(r)) {
-          const newValue = await fn(r.isValue);
+          const value =
+            typeof r.isValue === 'object' && r.isValue !== null && 'value' in r.isValue
+              ? r.isValue.value
+              : r.isValue;
+          const newValue = await fn(value as S extends BindValue<infer T> ? T : S);
           return success(newValue);
         }
         return r as Result<NS, F>;
@@ -192,26 +203,64 @@ class Pipeline<S, F> {
 
   /**
    * Binds a new value to the pipeline, making it available for subsequent operations.
+   * Each bind operation accumulates properties in a new object, ignoring the initial pipeline value.
+   * The accumulation of binds is reset when a non-bind operation is performed.
    */
   bind<K extends string, NS>(
     key: K,
-    fn: (value: S) => Result<NS, F> | Promise<Result<NS, F>>,
-  ): Pipeline<S & { [P in K]: NS }, F> {
+    fn: (value: S extends BindValue<infer T> ? T : S) => Result<NS, F> | Promise<Result<NS, F>>,
+  ): Pipeline<
+    BindValue<S extends BindValue<infer T> ? T & { [P in K]: NS } : { [P in K]: NS }>,
+    F
+  > {
     return new Pipeline(async () => {
       const result = await this.getCurrentResult();
-      return handleResult<S, F, S & { [P in K]: NS }, F>(result, async (r) => {
+      return handleResult<
+        S,
+        F,
+        BindValue<S extends BindValue<infer T> ? T & { [P in K]: NS } : { [P in K]: NS }>,
+        F
+      >(result, async (r) => {
         if (isSuccess(r)) {
-          const boundResult = await fn(r.isValue);
+          const value =
+            typeof r.isValue === 'object' && r.isValue !== null && 'value' in r.isValue
+              ? r.isValue.value
+              : r.isValue;
+          const boundResult = await fn(value as S extends BindValue<infer T> ? T : S);
           if (isSuccess(boundResult)) {
+            // Check if this is the first bind in the chain
+            const isFirstBind = !this.steps.some((step) => step.type === 'bind');
+
+            // Get the current accumulated object or start with an empty one
+            const currentValue =
+              !isFirstBind &&
+              isSuccess(r) &&
+              typeof r.isValue === 'object' &&
+              r.isValue !== null &&
+              'value' in r.isValue &&
+              typeof r.isValue.value === 'object' &&
+              r.isValue.value !== null
+                ? { ...r.isValue.value }
+                : {};
+
+            // Add the new property to the accumulated object
             const newValue = {
-              ...r.isValue,
+              ...currentValue,
               [key]: boundResult.isValue,
-            } as S & { [P in K]: NS };
-            return success(newValue);
+            };
+            return success({ __bind: true, value: newValue } as BindValue<
+              S extends BindValue<infer T> ? T & { [P in K]: NS } : { [P in K]: NS }
+            >);
           }
-          return boundResult as Result<S & { [P in K]: NS }, F>;
+          return boundResult as Result<
+            BindValue<S extends BindValue<infer T> ? T & { [P in K]: NS } : { [P in K]: NS }>,
+            F
+          >;
         }
-        return r as Result<S & { [P in K]: NS }, F>;
+        return r as Result<
+          BindValue<S extends BindValue<infer T> ? T & { [P in K]: NS } : { [P in K]: NS }>,
+          F
+        >;
       });
     }, [
       ...this.steps,
