@@ -7,7 +7,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import type { Result } from './result';
-import { fail } from './result';
+import { fail, isFail, isSuccess } from './result';
 
 /**
  * Represents a value that has been bound to a key in the pipeline.
@@ -236,6 +236,24 @@ function errorSafe<S, F, NS, NF>(
       return fail(errorHandler(error));
     }
   };
+}
+
+/**
+ * Type guard to check if a result is a failure of type F or F2
+ */
+export function isFailureOfType<F, F2>(
+  result: Result<unknown, F | F2>,
+): result is Result<never, F | F2> {
+  return isFail(result);
+}
+
+/**
+ * Type guard to check if a result is a success of type S or T2
+ */
+export function isSuccessOfType<S, T2>(
+  result: Result<S | T2, unknown>,
+): result is { isValue: S | T2; _isSuccess: true } {
+  return isSuccess(result);
 }
 
 export { handleResult, extractValue, isBindValue, createBindValue, mergeBindValues, errorSafe };

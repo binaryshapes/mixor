@@ -13,6 +13,8 @@ import {
   extractValue,
   handleResult,
   isBindValue,
+  isFailureOfType,
+  isSuccessOfType,
   mergeBindValues,
 } from './helpers';
 import type { Result } from './result';
@@ -374,10 +376,13 @@ class Pipeline<S, F> {
 
               if (isSuccess(boundResult)) {
                 const isFirstBind = !this.steps.some((step) => step.type === 'bind');
-                const currentValue =
-                  !isFirstBind && isSuccess(r) && isBindValue(r.isValue)
-                    ? (r.isValue.value as Record<string, unknown>)
-                    : {};
+                let currentValue: Record<string, unknown> = {};
+
+                // For first bind, ignore the original value
+                if (!isFirstBind && isBindValue(r.isValue)) {
+                  currentValue = r.isValue.value as Record<string, unknown>;
+                }
+
                 const newValue = mergeBindValues(currentValue, key, boundResult.isValue);
                 return success(createBindValue(newValue as MergeBindValueType<S, K, NS>));
               }
@@ -617,6 +622,60 @@ class Pipeline<S, F> {
       {
         type: 'if',
         description: 'Conditional branch',
+      },
+    ]);
+  }
+
+  /**
+   * Executes multiple pipelines in parallel and collects their results.
+   * This is useful for running independent operations concurrently.
+   *
+   * @template T - The type of the values to collect
+   * @template F - The type of the failure
+   * @param pipelines - An array of pipelines to execute
+   * @returns A new Pipeline that collects all results
+   *
+   * @example
+   * ```ts
+   * // Run multiple independent operations in parallel
+   * const result = await Pipeline.all([
+   *   Pipeline.from(success("hello")),
+   *   Pipeline.from(success(42)),
+   *   Pipeline.from(success(true))
+   * ]).run();
+   * // result.isValue === ["hello", 42, true]
+   *
+   * // Handle failures
+   * const result2 = await Pipeline.all([
+   *   Pipeline.from(success("hello")),
+   *   Pipeline.from(fail("error")),
+   *   Pipeline.from(success(true))
+   * ]).run();
+   * // result2.isFailure === "error"
+   * ```
+   */
+  static all<T, F>(pipelines: Pipeline<T, F>[]): Pipeline<T[], F> {
+    return new Pipeline(async () => {
+      const results = await Promise.all(pipelines.map((p) => p.run()));
+
+      // Check if any pipeline failed
+      const failure = results.find(isFailureOfType<F, F>);
+      if (failure) {
+        return failure as Result<T[], F>;
+      }
+
+      // All pipelines succeeded, collect their values
+      const values = results.map((r) => {
+        if (isSuccessOfType<T, never>(r)) {
+          return r.isValue;
+        }
+        throw new Error('Unexpected failure in all operation');
+      });
+      return success(values);
+    }, [
+      {
+        type: 'pipeline',
+        description: 'Execute multiple pipelines in parallel',
       },
     ]);
   }
