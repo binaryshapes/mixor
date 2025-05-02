@@ -10,7 +10,7 @@ import type { Result } from './result';
 import { fail, isFail, isSuccess, success } from './result';
 
 type PipelineStep = {
-  type: 'mapSuccess' | 'mapFailure' | 'mapBoth' | 'tap' | 'bind' | 'pipeline';
+  type: 'mapSuccess' | 'mapFailure' | 'mapBoth' | 'tap' | 'bind' | 'pipeline' | 'if';
   description: string;
 };
 
@@ -397,6 +397,98 @@ class Pipeline<S, F> {
     return this.steps
       .map((step, index) => `${index + 1}. ${step.type}: ${step.description}`)
       .join('\n');
+  }
+
+  /**
+   * Internal implementation of if that takes three separate parameters.
+   * @private
+   */
+  private _if<NS>(
+    condition: (
+      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+    ) => boolean | Promise<boolean>,
+    thenFn: (
+      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+    ) => Result<NS, F> | Promise<Result<NS, F>>,
+    elseFn: (
+      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+    ) => Result<NS, F> | Promise<Result<NS, F>>,
+  ): Pipeline<NS, F> {
+    return new Pipeline(async () => {
+      const result = await this.getCurrentResult();
+      return handleResult<S, F, NS, F>(result, async (r) => {
+        if (isSuccess(r)) {
+          const value =
+            typeof r.isValue === 'object' && r.isValue !== null && 'value' in r.isValue
+              ? r.isValue.value
+              : r.isValue;
+
+          try {
+            const conditionResult = await condition(
+              value as S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+            );
+
+            try {
+              const branchResult = conditionResult
+                ? await thenFn(value as S extends BindValue<infer T> ? FlattenIntersection<T> : S)
+                : await elseFn(value as S extends BindValue<infer T> ? FlattenIntersection<T> : S);
+
+              if (isSuccess(branchResult)) {
+                // Only extract value if the branch result is a BindValue
+                if (
+                  typeof branchResult.isValue === 'object' &&
+                  branchResult.isValue !== null &&
+                  '__bind' in branchResult.isValue &&
+                  'value' in branchResult.isValue
+                ) {
+                  return success(branchResult.isValue.value as NS);
+                }
+              }
+              return branchResult;
+            } catch (error) {
+              return fail(error as F);
+            }
+          } catch (error) {
+            return fail(error as F);
+          }
+        }
+        return r as Result<NS, F>;
+      });
+    }, [
+      ...this.steps,
+      {
+        type: 'if',
+        description: 'Conditional branch',
+      },
+    ]);
+  }
+
+  /**
+   * Executes one of two branches based on a condition using a declarative options object.
+   * The condition can be synchronous or asynchronous.
+   *
+   * @example
+   * ```typescript
+   * Pipeline.from(success(42))
+   *   .if({
+   *     predicate: (value) => value > 40,
+   *     onTrue: (value) => success(value * 2),
+   *     onFalse: (value) => success(value / 2)
+   *   })
+   * ```
+   */
+  if<NS>(options: {
+    predicate: (
+      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+    ) => boolean | Promise<boolean>;
+    onTrue: (
+      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+    ) => Result<NS, F> | Promise<Result<NS, F>>;
+    onFalse: (
+      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+    ) => Result<NS, F> | Promise<Result<NS, F>>;
+  }): Pipeline<NS, F> {
+    return this._if(options.predicate, options.onTrue, options.onFalse);
   }
 }
 
