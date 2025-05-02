@@ -6,6 +6,15 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import type { BindValue, FlattenIntersection } from './helpers';
+import {
+  createBindValue,
+  extractValue,
+  handleResult,
+  isBindValue,
+  mergeBindValues,
+  safeExecute,
+} from './helpers';
 import type { Result } from './result';
 import { fail, isFail, isSuccess, success } from './result';
 
@@ -14,30 +23,25 @@ type PipelineStep = {
   description: string;
 };
 
-type FlattenIntersection<T> = T extends infer U ? { [K in keyof U]: U[K] } : never;
-
-type BindValue<T> = {
-  __bind: true;
-  value: T;
-};
-
 type BindAllValue<T, F> = {
   [K in keyof T]: () => Result<T[K], F> | Promise<Result<T[K], F>>;
 };
 
-/**
- * Helper function to handle both synchronous and asynchronous operations on a Result.
- */
-function handleResult<S, F, NS, NF>(
-  result: Result<S, F> | Promise<Result<S, F>>,
-  handler: (r: Result<S, F>) => Result<NS, NF> | Promise<Result<NS, NF>>,
-): Promise<Result<NS, NF>> {
-  return result instanceof Promise ? result.then(handler) : Promise.resolve(handler(result));
-}
-
 type TryOptions<S, NF> = {
   try: () => S | Promise<S>;
   catch: (error: unknown) => NF;
+};
+
+type IfOptions<S, NS, F> = {
+  predicate: (
+    value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+  ) => boolean | Promise<boolean>;
+  onTrue: (
+    value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+  ) => Result<NS, F> | Promise<Result<NS, F>>;
+  onFalse: (
+    value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+  ) => Result<NS, F> | Promise<Result<NS, F>>;
 };
 
 /**
@@ -82,19 +86,15 @@ class Pipeline<S, F> {
    * Executes a function that might throw an error and handles it gracefully.
    */
   static try<S, NF>(options: TryOptions<S, NF>): Pipeline<S, NF> {
-    return new Pipeline(async () => {
-      try {
-        const value = await options.try();
-        return success(value);
-      } catch (error) {
-        return fail(options.catch(error as Error));
-      }
-    }, [
-      {
-        type: 'pipeline',
-        description: 'Try operation',
-      },
-    ]);
+    return new Pipeline(
+      () => safeExecute(options.try, options.catch),
+      [
+        {
+          type: 'pipeline',
+          description: 'Try operation',
+        },
+      ],
+    );
   }
 
   /**
@@ -117,10 +117,7 @@ class Pipeline<S, F> {
       const result = await this.getCurrentResult();
       return handleResult<S, F, NS, F>(result, async (r) => {
         if (isSuccess(r)) {
-          const value =
-            typeof r.isValue === 'object' && r.isValue !== null && 'value' in r.isValue
-              ? r.isValue.value
-              : r.isValue;
+          const value = extractValue(r.isValue);
           const newValue = await fn(
             value as S extends BindValue<infer T> ? FlattenIntersection<T> : S,
           );
@@ -187,32 +184,30 @@ class Pipeline<S, F> {
 
   /**
    * Executes a side effect on the success value and returns the same Result.
-   * If the side effect throws an error, the pipeline will fail with that error.
    */
   tap(fn: (value: S) => void | Promise<void>): Pipeline<S, F> {
     return new Pipeline(async () => {
-      try {
-        const result = await this.getCurrentResult();
-        if (isSuccess(result)) {
+      const result = await this.getCurrentResult();
+      if (isSuccess(result)) {
+        try {
           await fn(result.isValue);
+          return result;
+        } catch (error) {
+          return fail(error as F);
         }
-        return result;
-      } catch (error) {
-        return fail(error as F);
       }
+      return result;
     }, [
       ...this.steps,
       {
-        type: 'pipeline',
+        type: 'tap',
         description: 'Side effect',
       },
     ]);
   }
 
   /**
-   * Binds a new value to the pipeline, making it available for subsequent operations.
-   * Each bind operation accumulates properties in a new object, ignoring the initial pipeline value.
-   * The accumulation of binds is reset when a non-bind operation is performed.
+   * Binds a new value to the pipeline.
    */
   bind<K extends string, NS>(
     key: K,
@@ -232,37 +227,23 @@ class Pipeline<S, F> {
         F
       >(result, async (r) => {
         if (isSuccess(r)) {
-          const value =
-            typeof r.isValue === 'object' && r.isValue !== null && 'value' in r.isValue
-              ? r.isValue.value
-              : r.isValue;
+          const value = extractValue(r.isValue);
           const boundResult = await fn(
             value as S extends BindValue<infer T> ? FlattenIntersection<T> : S,
           );
+
           if (isSuccess(boundResult)) {
-            // Check if this is the first bind in the chain
             const isFirstBind = !this.steps.some((step) => step.type === 'bind');
-
-            // Get the current accumulated object or start with an empty one
             const currentValue =
-              !isFirstBind &&
-              isSuccess(r) &&
-              typeof r.isValue === 'object' &&
-              r.isValue !== null &&
-              'value' in r.isValue &&
-              typeof r.isValue.value === 'object' &&
-              r.isValue.value !== null
-                ? { ...r.isValue.value }
+              !isFirstBind && isSuccess(r) && isBindValue(r.isValue)
+                ? (r.isValue.value as Record<string, unknown>)
                 : {};
-
-            // Add the new property to the accumulated object
-            const newValue = {
-              ...currentValue,
-              [key]: boundResult.isValue,
-            };
-            return success({ __bind: true, value: newValue } as BindValue<
-              S extends BindValue<infer T> ? T & { [P in K]: NS } : { [P in K]: NS }
-            >);
+            const newValue = mergeBindValues(currentValue, key, boundResult.isValue);
+            return success(
+              createBindValue(
+                newValue as S extends BindValue<infer T> ? T & { [P in K]: NS } : { [P in K]: NS },
+              ),
+            );
           }
           return boundResult as Result<
             BindValue<S extends BindValue<infer T> ? T & { [P in K]: NS } : { [P in K]: NS }>,
@@ -285,17 +266,6 @@ class Pipeline<S, F> {
 
   /**
    * Binds multiple values at once in a declarative way.
-   * This is useful when you need to create a nested object with multiple bindings.
-   *
-   * @example
-   * ```typescript
-   * Pipeline.from(success(42))
-   *   .bind('id', () => success('30'))
-   *   .bindAll('user', ({ id }) => ({
-   *     name: () => success('John'),
-   *     age: () => success(25)
-   *   }))
-   * ```
    */
   bindAll<K extends string, T extends Record<string, unknown>>(
     key: K,
@@ -310,15 +280,10 @@ class Pipeline<S, F> {
         F
       >(result, async (r) => {
         if (isSuccess(r)) {
-          const value =
-            typeof r.isValue === 'object' && r.isValue !== null && 'value' in r.isValue
-              ? r.isValue.value
-              : r.isValue;
-
+          const value = extractValue(r.isValue);
           const bindings = fn(value as S extends BindValue<infer U> ? FlattenIntersection<U> : S);
           const boundValues: Partial<T> = {};
 
-          // Execute all bindings in parallel
           await Promise.all(
             Object.entries(bindings).map(async ([k, v]) => {
               const result = await v();
@@ -330,30 +295,17 @@ class Pipeline<S, F> {
             }),
           );
 
-          // Check if this is the first bind in the chain
           const isFirstBind = !this.steps.some((step) => step.type === 'bind');
-
-          // Get the current accumulated object or start with an empty one
           const currentValue =
-            !isFirstBind &&
-            isSuccess(r) &&
-            typeof r.isValue === 'object' &&
-            r.isValue !== null &&
-            'value' in r.isValue &&
-            typeof r.isValue.value === 'object' &&
-            r.isValue.value !== null
-              ? { ...r.isValue.value }
+            !isFirstBind && isSuccess(r) && isBindValue(r.isValue)
+              ? (r.isValue.value as Record<string, unknown>)
               : {};
-
-          // Add the new properties to the accumulated object
-          const newValue = {
-            ...currentValue,
-            [key]: boundValues,
-          };
-
-          return success({ __bind: true, value: newValue } as BindValue<
-            S extends BindValue<infer U> ? U & { [P in K]: T } : { [P in K]: T }
-          >);
+          const newValue = mergeBindValues(currentValue, key, boundValues);
+          return success(
+            createBindValue(
+              newValue as S extends BindValue<infer U> ? U & { [P in K]: T } : { [P in K]: T },
+            ),
+          );
         }
         return r as Result<
           BindValue<S extends BindValue<infer U> ? U & { [P in K]: T } : { [P in K]: T }>,
@@ -400,47 +352,31 @@ class Pipeline<S, F> {
   }
 
   /**
-   * Internal implementation of if that takes three separate parameters.
-   * @private
+   * Executes one of two branches based on a condition using a declarative options object.
    */
-  private _if<NS>(
-    condition: (
-      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
-    ) => boolean | Promise<boolean>,
-    thenFn: (
-      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
-    ) => Result<NS, F> | Promise<Result<NS, F>>,
-    elseFn: (
-      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
-    ) => Result<NS, F> | Promise<Result<NS, F>>,
-  ): Pipeline<NS, F> {
+  if<NS>(options: IfOptions<S, NS, F>): Pipeline<NS, F> {
     return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, NS, F>(result, async (r) => {
         if (isSuccess(r)) {
-          const value =
-            typeof r.isValue === 'object' && r.isValue !== null && 'value' in r.isValue
-              ? r.isValue.value
-              : r.isValue;
+          const value = extractValue(r.isValue);
 
           try {
-            const conditionResult = await condition(
+            const conditionResult = await options.predicate(
               value as S extends BindValue<infer T> ? FlattenIntersection<T> : S,
             );
 
             try {
               const branchResult = conditionResult
-                ? await thenFn(value as S extends BindValue<infer T> ? FlattenIntersection<T> : S)
-                : await elseFn(value as S extends BindValue<infer T> ? FlattenIntersection<T> : S);
+                ? await options.onTrue(
+                    value as S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+                  )
+                : await options.onFalse(
+                    value as S extends BindValue<infer T> ? FlattenIntersection<T> : S,
+                  );
 
               if (isSuccess(branchResult)) {
-                // Only extract value if the branch result is a BindValue
-                if (
-                  typeof branchResult.isValue === 'object' &&
-                  branchResult.isValue !== null &&
-                  '__bind' in branchResult.isValue &&
-                  'value' in branchResult.isValue
-                ) {
+                if (isBindValue(branchResult.isValue)) {
                   return success(branchResult.isValue.value as NS);
                 }
               }
@@ -461,34 +397,6 @@ class Pipeline<S, F> {
         description: 'Conditional branch',
       },
     ]);
-  }
-
-  /**
-   * Executes one of two branches based on a condition using a declarative options object.
-   * The condition can be synchronous or asynchronous.
-   *
-   * @example
-   * ```typescript
-   * Pipeline.from(success(42))
-   *   .if({
-   *     predicate: (value) => value > 40,
-   *     onTrue: (value) => success(value * 2),
-   *     onFalse: (value) => success(value / 2)
-   *   })
-   * ```
-   */
-  if<NS>(options: {
-    predicate: (
-      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
-    ) => boolean | Promise<boolean>;
-    onTrue: (
-      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
-    ) => Result<NS, F> | Promise<Result<NS, F>>;
-    onFalse: (
-      value: S extends BindValue<infer T> ? FlattenIntersection<T> : S,
-    ) => Result<NS, F> | Promise<Result<NS, F>>;
-  }): Pipeline<NS, F> {
-    return this._if(options.predicate, options.onTrue, options.onFalse);
   }
 }
 
