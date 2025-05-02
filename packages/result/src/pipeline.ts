@@ -21,6 +21,10 @@ type BindValue<T> = {
   value: T;
 };
 
+type BindAllValue<T, F> = {
+  [K in keyof T]: () => Result<T[K], F> | Promise<Result<T[K], F>>;
+};
+
 /**
  * Helper function to handle both synchronous and asynchronous operations on a Result.
  */
@@ -275,6 +279,92 @@ class Pipeline<S, F> {
       {
         type: 'bind',
         description: `Bind value to key: ${key}`,
+      },
+    ]);
+  }
+
+  /**
+   * Binds multiple values at once in a declarative way.
+   * This is useful when you need to create a nested object with multiple bindings.
+   *
+   * @example
+   * ```typescript
+   * Pipeline.from(success(42))
+   *   .bind('id', () => success('30'))
+   *   .bindAll('user', ({ id }) => ({
+   *     name: () => success('John'),
+   *     age: () => success(25)
+   *   }))
+   * ```
+   */
+  bindAll<K extends string, T extends Record<string, unknown>>(
+    key: K,
+    fn: (value: S extends BindValue<infer U> ? FlattenIntersection<U> : S) => BindAllValue<T, F>,
+  ): Pipeline<BindValue<S extends BindValue<infer U> ? U & { [P in K]: T } : { [P in K]: T }>, F> {
+    return new Pipeline(async () => {
+      const result = await this.getCurrentResult();
+      return handleResult<
+        S,
+        F,
+        BindValue<S extends BindValue<infer U> ? U & { [P in K]: T } : { [P in K]: T }>,
+        F
+      >(result, async (r) => {
+        if (isSuccess(r)) {
+          const value =
+            typeof r.isValue === 'object' && r.isValue !== null && 'value' in r.isValue
+              ? r.isValue.value
+              : r.isValue;
+
+          const bindings = fn(value as S extends BindValue<infer U> ? FlattenIntersection<U> : S);
+          const boundValues: Partial<T> = {};
+
+          // Execute all bindings in parallel
+          await Promise.all(
+            Object.entries(bindings).map(async ([k, v]) => {
+              const result = await v();
+              if (isSuccess(result)) {
+                boundValues[k as keyof T] = result.isValue as T[keyof T];
+              } else {
+                return result;
+              }
+            }),
+          );
+
+          // Check if this is the first bind in the chain
+          const isFirstBind = !this.steps.some((step) => step.type === 'bind');
+
+          // Get the current accumulated object or start with an empty one
+          const currentValue =
+            !isFirstBind &&
+            isSuccess(r) &&
+            typeof r.isValue === 'object' &&
+            r.isValue !== null &&
+            'value' in r.isValue &&
+            typeof r.isValue.value === 'object' &&
+            r.isValue.value !== null
+              ? { ...r.isValue.value }
+              : {};
+
+          // Add the new properties to the accumulated object
+          const newValue = {
+            ...currentValue,
+            [key]: boundValues,
+          };
+
+          return success({ __bind: true, value: newValue } as BindValue<
+            S extends BindValue<infer U> ? U & { [P in K]: T } : { [P in K]: T }
+          >);
+        }
+        return r as Result<
+          BindValue<S extends BindValue<infer U> ? U & { [P in K]: T } : { [P in K]: T }>,
+          F
+        >;
+      });
+    }, [
+      ...this.steps,
+      {
+        type: 'bind',
+        description: `Bind multiple values to key: ${key}`,
       },
     ]);
   }
