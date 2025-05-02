@@ -9,10 +9,15 @@
     "functional",
     "programming"
   ],
+  "scripts": {
+    "test": "moonx -u -s test",
+    "typecheck": "tsc --noEmit"
+  },
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@unokit/jest": "^1.0.0",
     "@unokit/typescript": "^1.0.0",
+    "tslib": "^2.8.1",
     "tsx": "^4.19.4"
   }
 }
