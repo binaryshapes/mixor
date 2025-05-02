@@ -105,6 +105,47 @@ describe('Pipeline bind', () => {
         });
       }
     });
+
+    it('should handle nested bind operations using bindAll', async () => {
+      const result = await Pipeline.from(success(42))
+        .bind('id', () => success('30'))
+        .bindAll('user', ({ id }) => ({
+          name: () => success('John'),
+          age: () => success(25),
+        }))
+        .mapSuccess((allBinds) => allBinds)
+        .run();
+      expect(isSuccess(result)).toBe(true);
+      if (isSuccess(result)) {
+        expect(result.isValue).toEqual({
+          id: '30',
+          user: { name: 'John', age: 25 },
+        });
+      }
+    });
+
+    it('should handle multiple nested bind operations using bindAll', async () => {
+      const result = await Pipeline.from(success(42))
+        .bind('id', () => success('30'))
+        .bindAll('user', ({ id }) => ({
+          name: () => success('John'),
+          age: () => success(25),
+        }))
+        .bindAll('address', ({ id }) => ({
+          street: () => success('123 Main St'),
+          city: () => success('New York'),
+        }))
+        .mapSuccess((allBinds) => allBinds)
+        .run();
+      expect(isSuccess(result)).toBe(true);
+      if (isSuccess(result)) {
+        expect(result.isValue).toEqual({
+          id: '30',
+          user: { name: 'John', age: 25 },
+          address: { street: '123 Main St', city: 'New York' },
+        });
+      }
+    });
   });
 
   describe('Complex bind scenarios', () => {
