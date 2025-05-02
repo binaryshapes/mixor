@@ -679,6 +679,146 @@ class Pipeline<S, F> {
       },
     ]);
   }
+
+  /**
+   * Combines two pipelines into a single pipeline that produces a tuple of their results.
+   * This is useful when you need to run two independent pipelines and combine their results.
+   *
+   * @template T2 - The type of the second pipeline's success value
+   * @template F2 - The type of the second pipeline's failure value
+   * @param other - The other pipeline to combine with
+   * @returns A new Pipeline that produces a tuple of both results
+   *
+   * @example
+   * ```ts
+   * const result = await Pipeline.from(success("hello"))
+   *   .zip(Pipeline.from(success(42)))
+   *   .run();
+   * // result.isValue === ["hello", 42]
+   * ```
+   */
+  zip<T2, F2>(other: Pipeline<T2, F2>): Pipeline<[S, T2], F | F2> {
+    return new Pipeline(async () => {
+      const [currentResult, otherResult] = await Promise.all([
+        this.getCurrentResult(),
+        other.run(),
+      ]);
+
+      // If either pipeline fails, return the first failure
+      if (!isSuccess(currentResult)) {
+        return currentResult as Result<[S, T2], F | F2>;
+      }
+      if (!isSuccess(otherResult)) {
+        return otherResult as Result<[S, T2], F | F2>;
+      }
+
+      // Both pipelines succeeded, combine their values
+      return success([currentResult.isValue, otherResult.isValue]);
+    }, [
+      ...this.steps,
+      {
+        type: 'pipeline',
+        description: 'Combine with another pipeline',
+      },
+    ]);
+  }
+
+  /**
+   * Combines two pipelines into a single pipeline using a custom function.
+   * This is useful when you need to run two independent pipelines and combine their results
+   * in a specific way.
+   *
+   * @template T2 - The type of the second pipeline's success value
+   * @template F2 - The type of the second pipeline's failure value
+   * @template R - The type of the combined result
+   * @param other - The other pipeline to combine with
+   * @param fn - The function to combine the results
+   * @returns A new Pipeline that produces the combined result
+   *
+   * @example
+   * ```ts
+   * const result = await Pipeline.from(success("hello"))
+   *   .zipWith(
+   *     Pipeline.from(success(42)),
+   *     (str, num) => `${str} ${num}`
+   *   )
+   *   .run();
+   * // result.isValue === "hello 42"
+   * ```
+   */
+  zipWith<T2, F2, R>(
+    other: Pipeline<T2, F2>,
+    fn: (a: S, b: T2) => R | Promise<R>,
+  ): Pipeline<R, F | F2> {
+    return new Pipeline(async () => {
+      const [currentResult, otherResult] = await Promise.all([
+        this.getCurrentResult(),
+        other.run(),
+      ]);
+
+      // If either pipeline fails, return the first failure
+      if (!isSuccess(currentResult)) {
+        return currentResult as Result<R, F | F2>;
+      }
+      if (!isSuccess(otherResult)) {
+        return otherResult as Result<R, F | F2>;
+      }
+
+      // Both pipelines succeeded, combine their values using the provided function
+      const combinedValue = await fn(currentResult.isValue, otherResult.isValue);
+      return success(combinedValue);
+    }, [
+      ...this.steps,
+      {
+        type: 'pipeline',
+        description: 'Combine with another pipeline using a custom function',
+      },
+    ]);
+  }
+
+  /**
+   * Combines multiple pipelines into a single pipeline that returns an array of their results.
+   * All pipelines must succeed for the result to be a success.
+   * If any pipeline fails, the result will be a failure.
+   *
+   * @template T - The type of the values in the pipelines
+   * @template F - The type of the failure
+   * @param pipelines - The pipelines to combine
+   * @returns A new Pipeline that returns an array of the results
+   *
+   * @example
+   * ```ts
+   * const p1 = Pipeline.from(success(1));
+   * const p2 = Pipeline.from(success("hello"));
+   * const p3 = Pipeline.from(success(true));
+   *
+   * const result = await Pipeline.zipAll([p1, p2, p3]).run();
+   * // Result: success([1, "hello", true])
+   * ```
+   */
+  static zipAll<T extends readonly unknown[], F>(pipelines: {
+    [K in keyof T]: Pipeline<T[K], F>;
+  }): Pipeline<T, F> {
+    return new Pipeline(async () => {
+      const results = await Promise.all(pipelines.map((p) => p.run()));
+      const failures = results.filter(isFail);
+      if (failures.length > 0) {
+        return failures[0] as Result<T, F>;
+      }
+      const values = results.map((r) => {
+        if (isSuccess(r)) {
+          return r.isValue;
+        }
+        throw new Error('Unexpected failure in zipAll operation');
+      });
+      return success(values as unknown as T);
+    }, [
+      {
+        type: 'pipeline',
+        description: 'Combine multiple pipelines',
+      },
+    ]);
+  }
 }
 
 export { Pipeline };
