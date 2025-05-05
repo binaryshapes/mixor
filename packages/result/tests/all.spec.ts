@@ -1,5 +1,5 @@
 import { Pipeline } from '../src/pipeline';
-import { fail, isSuccess, success } from '../src/result';
+import { failure, isSuccess, success } from '../src/result';
 
 describe('Pipeline.all', () => {
   it('should collect all successful results', async () => {
@@ -18,7 +18,7 @@ describe('Pipeline.all', () => {
   it('should return first failure if any pipeline fails', async () => {
     const result = await Pipeline.all<string | number, string>([
       Pipeline.from(success('hello')),
-      Pipeline.from(fail('error')),
+      Pipeline.from(failure('error')),
       Pipeline.from(success(42)),
     ]).run();
 

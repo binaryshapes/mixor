@@ -1,5 +1,5 @@
 import { Pipeline } from '../src/pipeline';
-import { fail, isSuccess, success } from '../src/result';
+import { failure, isSuccess, success } from '../src/result';
 
 describe('Pipeline.zip', () => {
   it('should combine two successful pipelines into a tuple', async () => {
@@ -15,7 +15,7 @@ describe('Pipeline.zip', () => {
 
   it('should return first failure if either pipeline fails', async () => {
     const result = await Pipeline.from(success('hello'))
-      .zip(Pipeline.from(fail('error')))
+      .zip(Pipeline.from(failure('error')))
       .run();
 
     expect(isSuccess(result)).toBe(false);
@@ -111,7 +111,7 @@ describe('Pipeline.zipWith', () => {
 
   it('should return first failure if either pipeline fails', async () => {
     const result = await Pipeline.from(success('hello'))
-      .zipWith(Pipeline.from(fail('error')), (str, num) => `${str} ${num}`)
+      .zipWith(Pipeline.from(failure('error')), (str, num) => `${str} ${num}`)
       .run();
 
     expect(isSuccess(result)).toBe(false);
@@ -206,7 +206,7 @@ describe('Pipeline.zipAll', () => {
   it('should return first failure if any pipeline fails', async () => {
     const result = await Pipeline.zipAll([
       Pipeline.from(success('hello')),
-      Pipeline.from(fail('error')),
+      Pipeline.from(failure('error')),
       Pipeline.from(success(42)),
     ] as const).run();
 

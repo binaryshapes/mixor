@@ -18,7 +18,7 @@ import {
   mergeBindValues,
 } from './helpers';
 import type { Result } from './result';
-import { fail, isFail, isSuccess, success } from './result';
+import { failure, isFail, isSuccess, success } from './result';
 
 /**
  * Represents a step in the pipeline execution.
@@ -229,7 +229,7 @@ class Pipeline<S, F> {
           async (r) => {
             if (isFail(r)) {
               const newFailure = await fn(r.cause);
-              return fail(newFailure);
+              return failure(newFailure);
             }
             return r as Result<S, NF>;
           },
@@ -287,7 +287,7 @@ class Pipeline<S, F> {
               return success(newValue);
             }
             const newFailure = await failureFn(r.cause);
-            return fail(newFailure);
+            return failure(newFailure);
           },
           (error) => error as NF,
         ),

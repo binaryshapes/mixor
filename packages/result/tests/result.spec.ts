@@ -1,4 +1,4 @@
-import { type Result, fail, isFail, isSuccess, success } from '../src/result';
+import { type Result, failure, isFail, isSuccess, success } from '../src/result';
 
 describe('Result', () => {
   it('should create a Success result with the given value', () => {
@@ -13,12 +13,12 @@ describe('Result', () => {
   });
 
   it('should create a Fail result with the given failure', () => {
-    const failure = 'Something went wrong';
-    const result = fail(failure);
+    const cause = 'Something went wrong';
+    const result = failure(cause);
 
     expect(isFail(result)).toBe(true);
     if (isFail(result)) {
-      expect(result.cause).toBe(failure);
+      expect(result.cause).toBe(cause);
     }
     expect(isSuccess(result)).toBe(false);
   });
@@ -30,13 +30,13 @@ describe('Result', () => {
   });
 
   it('should correctly identify a Fail result using isFail', () => {
-    const failure = 500;
-    const result = fail(failure);
+    const cause = 500;
+    const result = failure(cause);
     expect(isFail(result)).toBe(true);
   });
 
   it('should ensure isSuccess returns false for a Fail result', () => {
-    const result = fail('error');
+    const result = failure('error');
     expect(isSuccess(result)).toBe(false);
   });
 
@@ -52,7 +52,7 @@ describe('Result', () => {
       expect(successResult.value).toBe(42);
     }
 
-    const failureResult: Result<number, string> = fail('Not found');
+    const failureResult: Result<number, string> = failure('Not found');
     expect(isFail(failureResult)).toBe(true);
     if (isFail(failureResult)) {
       expect(failureResult.cause).toBe('Not found');
@@ -64,7 +64,7 @@ describe('Result', () => {
       expect(successStringResult.value).toBe('data');
     }
 
-    const failureErrorResult: Result<string, Error> = fail(new Error('Test error'));
+    const failureErrorResult: Result<string, Error> = failure(new Error('Test error'));
     expect(isFail(failureErrorResult)).toBe(true);
     if (isFail(failureErrorResult)) {
       expect(failureErrorResult.cause.message).toBe('Test error');
@@ -73,7 +73,7 @@ describe('Result', () => {
 
   it('should narrow the type to Success within the isSuccess block', () => {
     const result: Result<number, string> =
-      Math.random() > 0.5 ? success(100) : fail('random error');
+      Math.random() > 0.5 ? success(100) : failure('random error');
     if (isSuccess(result)) {
       expect(result.value).toBeGreaterThanOrEqual(0);
     }
@@ -81,7 +81,7 @@ describe('Result', () => {
 
   it('should narrow the type to Fail within the isFail block', () => {
     const result: Result<number, string> =
-      Math.random() > 0.5 ? success(200) : fail('another random error');
+      Math.random() > 0.5 ? success(200) : failure('another random error');
     if (isFail(result)) {
       expect(typeof result.cause).toBe('string');
     }
