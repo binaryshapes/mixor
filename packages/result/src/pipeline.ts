@@ -186,7 +186,7 @@ class Pipeline<S, F> {
         errorSafe(
           async (r) => {
             if (isSuccess(r)) {
-              const value = extractValue(r.isValue);
+              const value = extractValue(r.value);
               const newValue = await fn(value);
               return success(newValue);
             }
@@ -228,7 +228,7 @@ class Pipeline<S, F> {
         errorSafe(
           async (r) => {
             if (isFail(r)) {
-              const newFailure = await fn(r.isFailure);
+              const newFailure = await fn(r.cause);
               return fail(newFailure);
             }
             return r as Result<S, NF>;
@@ -283,10 +283,10 @@ class Pipeline<S, F> {
         errorSafe(
           async (r) => {
             if (isSuccess(r)) {
-              const newValue = await successFn(r.isValue);
+              const newValue = await successFn(r.value);
               return success(newValue);
             }
-            const newFailure = await failureFn(r.isFailure);
+            const newFailure = await failureFn(r.cause);
             return fail(newFailure);
           },
           (error) => error as NF,
@@ -326,7 +326,7 @@ class Pipeline<S, F> {
         errorSafe(
           async (r) => {
             if (isSuccess(r)) {
-              await fn(r.isValue);
+              await fn(r.value);
             }
             return r;
           },
@@ -371,7 +371,7 @@ class Pipeline<S, F> {
         errorSafe(
           async (r) => {
             if (isSuccess(r)) {
-              const value = extractValue(r.isValue);
+              const value = extractValue(r.value);
               const boundResult = await fn(value);
 
               if (isSuccess(boundResult)) {
@@ -379,11 +379,11 @@ class Pipeline<S, F> {
                 let currentValue: Record<string, unknown> = {};
 
                 // For first bind, ignore the original value
-                if (!isFirstBind && isBindValue(r.isValue)) {
-                  currentValue = r.isValue.value as Record<string, unknown>;
+                if (!isFirstBind && isBindValue(r.value)) {
+                  currentValue = r.value.value as Record<string, unknown>;
                 }
 
-                const newValue = mergeBindValues(currentValue, key, boundResult.isValue);
+                const newValue = mergeBindValues(currentValue, key, boundResult.value);
                 return success(createBindValue(newValue as MergeBindValueType<S, K, NS>));
               }
               return boundResult;
@@ -441,7 +441,7 @@ class Pipeline<S, F> {
         errorSafe(
           async (r) => {
             if (isSuccess(r)) {
-              const value = extractValue(r.isValue);
+              const value = extractValue(r.value);
               const bindings = fn(value);
               const boundValues: Partial<T> = {};
 
@@ -449,7 +449,7 @@ class Pipeline<S, F> {
                 Object.entries(bindings).map(async ([k, v]) => {
                   const result = await v();
                   if (isSuccess(result)) {
-                    boundValues[k as keyof T] = result.isValue as T[keyof T];
+                    boundValues[k as keyof T] = result.value as T[keyof T];
                   } else {
                     return result;
                   }
@@ -458,8 +458,8 @@ class Pipeline<S, F> {
 
               const isFirstBind = !this.steps.some((step) => step.type === 'bind');
               const currentValue =
-                !isFirstBind && isSuccess(r) && isBindValue(r.isValue)
-                  ? (r.isValue.value as Record<string, unknown>)
+                !isFirstBind && isSuccess(r) && isBindValue(r.value)
+                  ? (r.value.value as Record<string, unknown>)
                   : {};
               const newValue = mergeBindValues(currentValue, key, boundValues);
               return success(createBindValue(newValue as MergeBindValueType<S, K, T>));
@@ -511,9 +511,9 @@ class Pipeline<S, F> {
   ): Promise<NS | NF> {
     const result = await this.getCurrentResult();
     if (isSuccess(result)) {
-      return successFn(result.isValue);
+      return successFn(result.value);
     }
-    return failureFn(result.isFailure);
+    return failureFn(result.cause);
   }
 
   /**
@@ -527,7 +527,7 @@ class Pipeline<S, F> {
    * const result = await Pipeline.from(success("hello"))
    *   .mapSuccess(str => str.toUpperCase())
    *   .run();
-   * // result.isValue === "HELLO"
+   * // result.value === "HELLO"
    * ```
    */
   async run(): Promise<Result<S, F>> {
@@ -598,7 +598,7 @@ class Pipeline<S, F> {
         errorSafe(
           async (r) => {
             if (isSuccess(r)) {
-              const value = extractValue(r.isValue);
+              const value = extractValue(r.value);
               const conditionResult = await options.predicate(value);
 
               const branchResult = conditionResult
@@ -606,8 +606,8 @@ class Pipeline<S, F> {
                 : await options.onFalse(value);
 
               if (isSuccess(branchResult)) {
-                if (isBindValue(branchResult.isValue)) {
-                  return success(branchResult.isValue.value as NS);
+                if (isBindValue(branchResult.value)) {
+                  return success(branchResult.value.value as NS);
                 }
               }
               return branchResult;
@@ -643,7 +643,7 @@ class Pipeline<S, F> {
    *   Pipeline.from(success(42)),
    *   Pipeline.from(success(true))
    * ]).run();
-   * // result.isValue === ["hello", 42, true]
+   * // result.value === ["hello", 42, true]
    *
    * // Handle failures
    * const result2 = await Pipeline.all([
@@ -651,7 +651,7 @@ class Pipeline<S, F> {
    *   Pipeline.from(fail("error")),
    *   Pipeline.from(success(true))
    * ]).run();
-   * // result2.isFailure === "error"
+   * // result2.cause === "error"
    * ```
    */
   static all<T, F>(pipelines: Pipeline<T, F>[]): Pipeline<T[], F> {
@@ -667,7 +667,7 @@ class Pipeline<S, F> {
       // All pipelines succeeded, collect their values
       const values = results.map((r) => {
         if (isSuccessOfType<T, never>(r)) {
-          return r.isValue;
+          return r.value;
         }
         throw new Error('Unexpected failure in all operation');
       });
@@ -694,7 +694,7 @@ class Pipeline<S, F> {
    * const result = await Pipeline.from(success("hello"))
    *   .zip(Pipeline.from(success(42)))
    *   .run();
-   * // result.isValue === ["hello", 42]
+   * // result.value === ["hello", 42]
    * ```
    */
   zip<T2, F2>(other: Pipeline<T2, F2>): Pipeline<[S, T2], F | F2> {
@@ -713,7 +713,7 @@ class Pipeline<S, F> {
       }
 
       // Both pipelines succeeded, combine their values
-      return success([currentResult.isValue, otherResult.isValue]);
+      return success([currentResult.value, otherResult.value]);
     }, [
       ...this.steps,
       {
@@ -743,7 +743,7 @@ class Pipeline<S, F> {
    *     (str, num) => `${str} ${num}`
    *   )
    *   .run();
-   * // result.isValue === "hello 42"
+   * // result.value === "hello 42"
    * ```
    */
   zipWith<T2, F2, R>(
@@ -765,7 +765,7 @@ class Pipeline<S, F> {
       }
 
       // Both pipelines succeeded, combine their values using the provided function
-      const combinedValue = await fn(currentResult.isValue, otherResult.isValue);
+      const combinedValue = await fn(currentResult.value, otherResult.value);
       return success(combinedValue);
     }, [
       ...this.steps,
@@ -807,7 +807,7 @@ class Pipeline<S, F> {
       }
       const values = results.map((r) => {
         if (isSuccess(r)) {
-          return r.isValue;
+          return r.value;
         }
         throw new Error('Unexpected failure in zipAll operation');
       });

@@ -12,7 +12,7 @@ describe('Pipeline tap', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toBe(42);
+      expect(result.value).toBe(42);
     }
     expect(mockFn).toHaveBeenCalledWith(42);
   });
@@ -27,7 +27,7 @@ describe('Pipeline tap', () => {
 
     expect(isFail(result)).toBe(true);
     if (isFail(result)) {
-      expect(result.isFailure).toBe('error');
+      expect(result.cause).toBe('error');
     }
     expect(mockFn).not.toHaveBeenCalled();
   });
@@ -43,7 +43,7 @@ describe('Pipeline tap', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toBe(42);
+      expect(result.value).toBe(42);
     }
     expect(mockFn).toHaveBeenCalledWith(42);
   });
@@ -58,7 +58,7 @@ describe('Pipeline tap', () => {
 
     expect(isFail(result)).toBe(true);
     if (isFail(result)) {
-      expect(result.isFailure).toBe(error);
+      expect(result.cause).toBe(error);
     }
   });
 
@@ -73,7 +73,7 @@ describe('Pipeline tap', () => {
 
     expect(isFail(result)).toBe(true);
     if (isFail(result)) {
-      expect(result.isFailure).toBe(error);
+      expect(result.cause).toBe(error);
     }
   });
 
@@ -87,7 +87,7 @@ describe('Pipeline tap', () => {
 
     expect(isFail(result)).toBe(true);
     if (isFail(result)) {
-      expect(result.isFailure).toBe(error);
+      expect(result.cause).toBe(error);
     }
   });
 
@@ -105,7 +105,7 @@ describe('Pipeline tap', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toBe(42);
+      expect(result.value).toBe(42);
     }
     expect(mockFn1).toHaveBeenCalledWith(42);
     expect(mockFn2).toHaveBeenCalledWith(42);
@@ -125,7 +125,7 @@ describe('Pipeline tap', () => {
 
     expect(isFail(result)).toBe(true);
     if (isFail(result)) {
-      expect(result.isFailure).toBe(error);
+      expect(result.cause).toBe(error);
     }
     expect(mockFn).not.toHaveBeenCalled();
   });
@@ -143,7 +143,7 @@ describe('Pipeline tap', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(user);
+      expect(result.value).toEqual(user);
     }
     expect(mockFn).toHaveBeenCalledWith(user);
   });

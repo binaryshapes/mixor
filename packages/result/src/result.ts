@@ -20,7 +20,7 @@ interface Success<S> {
   /**
    * The successful value.
    */
-  readonly isValue: S;
+  readonly value: S;
   /**
    * Indicates that the result is a success.
    */
@@ -38,7 +38,7 @@ interface Failure<F> {
   /**
    * The failure value.
    */
-  readonly isFailure: F;
+  readonly cause: F;
   /**
    * Indicates that the result is a failure.
    */
@@ -56,17 +56,17 @@ interface Failure<F> {
  * @returns A `Result` instance representing success.
  */
 function success<S>(value: S): Result<S, never> {
-  return { isValue: value, _isSuccess: true };
+  return { value: value, _isSuccess: true };
 }
 
 /**
- * Creates a `Result` representing a failed outcome with the given failure value.
+ * Creates a `Result` representing a failed outcome with the given cause.
  *
- * @param failure The failure value of type `F`.
+ * @param cause The cause of the failure.
  * @returns A `Result` instance representing failure.
  */
-function fail<F>(failure: F): Result<never, F> {
-  return { isFailure: failure, _isFailure: true };
+function fail<F>(cause: F): Result<never, F> {
+  return { cause: cause, _isFailure: true };
 }
 
 /**
@@ -76,7 +76,7 @@ function fail<F>(failure: F): Result<never, F> {
  * @returns `true` if the `Result` is a `Success`, `false` otherwise.
  */
 function isSuccess<S, F>(result: Result<S, F>): result is Success<S> {
-  return 'isValue' in result;
+  return 'value' in result;
 }
 
 /**
@@ -86,7 +86,7 @@ function isSuccess<S, F>(result: Result<S, F>): result is Success<S> {
  * @returns `true` if the `Result` is a `Failure`, `false` otherwise.
  */
 function isFail<S, F>(result: Result<S, F>): result is Failure<F> {
-  return 'isFailure' in result;
+  return 'cause' in result;
 }
 
 export { success, fail, isSuccess, isFail };

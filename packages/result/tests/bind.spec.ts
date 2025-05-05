@@ -21,7 +21,7 @@ describe('Pipeline bind', () => {
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           id: '30',
           name: 'John',
           age: 25,
@@ -38,7 +38,7 @@ describe('Pipeline bind', () => {
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({ message: 'world', count: 5 });
+        expect(result.value).toEqual({ message: 'world', count: 5 });
       }
     });
 
@@ -50,7 +50,7 @@ describe('Pipeline bind', () => {
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({ status: 'active', timestamp: expect.any(Number) });
+        expect(result.value).toEqual({ status: 'active', timestamp: expect.any(Number) });
       }
     });
 
@@ -61,7 +61,7 @@ describe('Pipeline bind', () => {
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({ userId: '30' });
+        expect(result.value).toEqual({ userId: '30' });
       }
     });
   });
@@ -78,7 +78,7 @@ describe('Pipeline bind', () => {
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           age: 25,
           user: { id: '30', name: 'John', age: 25 },
         });
@@ -99,7 +99,7 @@ describe('Pipeline bind', () => {
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           id: '30',
           user: { name: 'John', age: 25 },
         });
@@ -117,7 +117,7 @@ describe('Pipeline bind', () => {
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           id: '30',
           user: { name: 'John', age: 25 },
         });
@@ -139,7 +139,7 @@ describe('Pipeline bind', () => {
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           id: '30',
           user: { name: 'John', age: 25 },
           address: { street: '123 Main St', city: 'New York' },
@@ -163,7 +163,7 @@ describe('Pipeline bind', () => {
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({ id: '30', name: 'John' });
+        expect(result.value).toEqual({ id: '30', name: 'John' });
       }
     });
 
@@ -178,7 +178,7 @@ describe('Pipeline bind', () => {
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           id: '30',
           name: 'John',
           age: 25,
