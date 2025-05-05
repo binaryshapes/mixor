@@ -7,7 +7,7 @@ describe('Result', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toBe(value);
+      expect(result.value).toBe(value);
     }
     expect(isFail(result)).toBe(false);
   });
@@ -18,7 +18,7 @@ describe('Result', () => {
 
     expect(isFail(result)).toBe(true);
     if (isFail(result)) {
-      expect(result.isFailure).toBe(failure);
+      expect(result.cause).toBe(failure);
     }
     expect(isSuccess(result)).toBe(false);
   });
@@ -49,25 +49,25 @@ describe('Result', () => {
     const successResult: Result<number, string> = success(42);
     expect(isSuccess(successResult)).toBe(true);
     if (isSuccess(successResult)) {
-      expect(successResult.isValue).toBe(42);
+      expect(successResult.value).toBe(42);
     }
 
     const failureResult: Result<number, string> = fail('Not found');
     expect(isFail(failureResult)).toBe(true);
     if (isFail(failureResult)) {
-      expect(failureResult.isFailure).toBe('Not found');
+      expect(failureResult.cause).toBe('Not found');
     }
 
     const successStringResult: Result<string, Error> = success('data');
     expect(isSuccess(successStringResult)).toBe(true);
     if (isSuccess(successStringResult)) {
-      expect(successStringResult.isValue).toBe('data');
+      expect(successStringResult.value).toBe('data');
     }
 
     const failureErrorResult: Result<string, Error> = fail(new Error('Test error'));
     expect(isFail(failureErrorResult)).toBe(true);
     if (isFail(failureErrorResult)) {
-      expect(failureErrorResult.isFailure.message).toBe('Test error');
+      expect(failureErrorResult.cause.message).toBe('Test error');
     }
   });
 
@@ -75,7 +75,7 @@ describe('Result', () => {
     const result: Result<number, string> =
       Math.random() > 0.5 ? success(100) : fail('random error');
     if (isSuccess(result)) {
-      expect(result.isValue).toBeGreaterThanOrEqual(0);
+      expect(result.value).toBeGreaterThanOrEqual(0);
     }
   });
 
@@ -83,7 +83,7 @@ describe('Result', () => {
     const result: Result<number, string> =
       Math.random() > 0.5 ? success(200) : fail('another random error');
     if (isFail(result)) {
-      expect(typeof result.isFailure).toBe('string');
+      expect(typeof result.cause).toBe('string');
     }
   });
 });

@@ -9,7 +9,7 @@ describe('Pipeline.zip', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 42]);
+      expect(result.value).toEqual(['hello', 42]);
     }
   });
 
@@ -20,7 +20,7 @@ describe('Pipeline.zip', () => {
 
     expect(isSuccess(result)).toBe(false);
     if (!isSuccess(result)) {
-      expect(result.isFailure).toBe('error');
+      expect(result.cause).toBe('error');
     }
   });
 
@@ -31,7 +31,7 @@ describe('Pipeline.zip', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 42]);
+      expect(result.value).toEqual(['hello', 42]);
     }
   });
 
@@ -42,7 +42,7 @@ describe('Pipeline.zip', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 42]);
+      expect(result.value).toEqual(['hello', 42]);
     }
   });
 
@@ -53,7 +53,7 @@ describe('Pipeline.zip', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 42]);
+      expect(result.value).toEqual(['hello', 42]);
     }
   });
 
@@ -88,7 +88,7 @@ describe('Pipeline.zip', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      const [user, post] = result.isValue;
+      const [user, post] = result.value;
       expect(user.name).toBe('John');
       expect(post.title).toBe('Hello World');
       expect(user.profile.preferences.theme).toBe('dark');
@@ -105,7 +105,7 @@ describe('Pipeline.zipWith', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toBe('hello 42');
+      expect(result.value).toBe('hello 42');
     }
   });
 
@@ -116,7 +116,7 @@ describe('Pipeline.zipWith', () => {
 
     expect(isSuccess(result)).toBe(false);
     if (!isSuccess(result)) {
-      expect(result.isFailure).toBe('error');
+      expect(result.cause).toBe('error');
     }
   });
 
@@ -127,7 +127,7 @@ describe('Pipeline.zipWith', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toBe('hello 42');
+      expect(result.value).toBe('hello 42');
     }
   });
 
@@ -138,7 +138,7 @@ describe('Pipeline.zipWith', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual({ name: 'John', age: 30 });
+      expect(result.value).toEqual({ name: 'John', age: 30 });
     }
   });
 
@@ -182,9 +182,9 @@ describe('Pipeline.zipWith', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue.user.name).toBe('John');
-      expect(result.isValue.user.settings.language).toBe('en');
-      expect(result.isValue.user.settings.theme).toBe('dark');
+      expect(result.value.user.name).toBe('John');
+      expect(result.value.user.settings.language).toBe('en');
+      expect(result.value.user.settings.theme).toBe('dark');
     }
   });
 });
@@ -199,7 +199,7 @@ describe('Pipeline.zipAll', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 42, true]);
+      expect(result.value).toEqual(['hello', 42, true]);
     }
   });
 
@@ -212,7 +212,7 @@ describe('Pipeline.zipAll', () => {
 
     expect(isSuccess(result)).toBe(false);
     if (!isSuccess(result)) {
-      expect(result.isFailure).toBe('error');
+      expect(result.cause).toBe('error');
     }
   });
 
@@ -221,7 +221,7 @@ describe('Pipeline.zipAll', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual([]);
+      expect(result.value).toEqual([]);
     }
   });
 
@@ -233,7 +233,7 @@ describe('Pipeline.zipAll', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 'world']);
+      expect(result.value).toEqual(['hello', 'world']);
     }
   });
 
@@ -245,7 +245,7 @@ describe('Pipeline.zipAll', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 'world']);
+      expect(result.value).toEqual(['hello', 'world']);
     }
   });
 
@@ -258,7 +258,7 @@ describe('Pipeline.zipAll', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 'world', '!']);
+      expect(result.value).toEqual(['hello', 'world', '!']);
     }
   });
 
@@ -312,7 +312,7 @@ describe('Pipeline.zipAll', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      const [user, post, comment] = result.isValue;
+      const [user, post, comment] = result.value;
       expect(user.name).toBe('John');
       expect(post.title).toBe('Hello World');
       expect(comment.content).toBe('Great post!');
@@ -372,7 +372,7 @@ describe('Pipeline.zipAll', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      const [user, post, comment] = result.isValue;
+      const [user, post, comment] = result.value;
       const userProfile = user.profile;
       const postMetadata = post.metadata;
       const commentAuthor = comment.author;
@@ -422,7 +422,7 @@ describe('Pipeline.zipAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        const finalResult = result.isValue;
+        const finalResult = result.value;
         expect(finalResult.name).toBe('John');
         expect(finalResult.preferences.theme).toBe('dark');
         expect(finalResult.stats.posts).toBe(42);
@@ -444,7 +444,7 @@ describe('Pipeline.zipAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe('John Doe (30 years old) - Developer');
+        expect(result.value).toBe('John Doe (30 years old) - Developer');
       }
     });
   });

@@ -14,7 +14,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe(84);
+        expect(result.value).toBe(84);
       }
     });
 
@@ -29,7 +29,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe(21);
+        expect(result.value).toBe(21);
       }
     });
 
@@ -47,7 +47,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe(84);
+        expect(result.value).toBe(84);
       }
     });
   });
@@ -65,7 +65,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           status: 'high',
           result: 84,
         });
@@ -90,7 +90,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           status: 'high',
           value: 42,
         });
@@ -125,7 +125,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           user: {
             name: 'John',
             status: 'adult',
@@ -152,7 +152,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe(84);
+        expect(result.value).toBe(84);
       }
     });
   });
@@ -172,8 +172,8 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(false);
       if (!isSuccess(result)) {
-        expect(result.isFailure).toBeInstanceOf(Error);
-        expect(result.isFailure.message).toBe('Condition error');
+        expect(result.cause).toBeInstanceOf(Error);
+        expect(result.cause.message).toBe('Condition error');
       }
     });
 
@@ -191,8 +191,8 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(false);
       if (!isSuccess(result)) {
-        expect(result.isFailure).toBeInstanceOf(Error);
-        expect(result.isFailure.message).toBe('Branch error');
+        expect(result.cause).toBeInstanceOf(Error);
+        expect(result.cause.message).toBe('Branch error');
       }
     });
   });
@@ -209,7 +209,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe('full access');
+        expect(result.value).toBe('full access');
       }
     });
 
@@ -229,7 +229,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe('is admin');
+        expect(result.value).toBe('is admin');
       }
     });
   });
@@ -257,7 +257,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           displayName: 'JOHN',
           isAdult: true,
         });
@@ -275,7 +275,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual([2, 4, 6, 8, 10]);
+        expect(result.value).toEqual([2, 4, 6, 8, 10]);
       }
     });
   });
@@ -297,7 +297,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe('high: 84');
+        expect(result.value).toBe('high: 84');
       }
     });
 
@@ -313,7 +313,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe(84);
+        expect(result.value).toBe(84);
       }
     });
   });
@@ -330,7 +330,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe('is null');
+        expect(result.value).toBe('is null');
       }
     });
 
@@ -345,7 +345,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe('empty');
+        expect(result.value).toBe('empty');
       }
     });
 
@@ -360,7 +360,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe('falsy');
+        expect(result.value).toBe('falsy');
       }
     });
   });
@@ -384,7 +384,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe(10 * Math.PI);
+        expect(result.value).toBe(10 * Math.PI);
       }
     });
 
@@ -401,7 +401,7 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toBe(24);
+        expect(result.value).toBe(24);
       }
     });
   });
@@ -422,8 +422,8 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(false);
       if (!isSuccess(result)) {
-        expect(result.isFailure).toBeInstanceOf(Error);
-        expect(result.isFailure.message).toBe('Async predicate error');
+        expect(result.cause).toBeInstanceOf(Error);
+        expect(result.cause.message).toBe('Async predicate error');
       }
     });
 
@@ -442,8 +442,8 @@ describe('Pipeline if', () => {
 
       expect(isSuccess(result)).toBe(false);
       if (!isSuccess(result)) {
-        expect(result.isFailure).toBeInstanceOf(Error);
-        expect(result.isFailure.message).toBe('Async branch error');
+        expect(result.cause).toBeInstanceOf(Error);
+        expect(result.cause.message).toBe('Async branch error');
       }
     });
   });

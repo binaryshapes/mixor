@@ -15,7 +15,7 @@ describe('Pipeline bindAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           user: {
             name: 'John',
             age: 25,
@@ -39,7 +39,7 @@ describe('Pipeline bindAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           data: {
             string: 'text',
             number: 123,
@@ -63,7 +63,7 @@ describe('Pipeline bindAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           config: {
             host: 'localhost',
             port: 8080,
@@ -88,7 +88,7 @@ describe('Pipeline bindAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           id: '30',
           user: {
             name: 'John',
@@ -114,7 +114,7 @@ describe('Pipeline bindAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           user: {
             name: 'John',
             age: 25,
@@ -146,7 +146,7 @@ describe('Pipeline bindAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           user: {
             name: 'John',
             age: 25,
@@ -180,7 +180,7 @@ describe('Pipeline bindAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           data: {
             a: 'A',
             b: 'B',
@@ -214,7 +214,7 @@ describe('Pipeline bindAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           user: {
             name: 'John',
             age: 25,
@@ -246,7 +246,7 @@ describe('Pipeline bindAll', () => {
 
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
-        expect(result.isValue).toEqual({
+        expect(result.value).toEqual({
           age: 25,
           user: {
             name: 'John',

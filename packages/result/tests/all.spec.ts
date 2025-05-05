@@ -11,7 +11,7 @@ describe('Pipeline.all', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 42, true]);
+      expect(result.value).toEqual(['hello', 42, true]);
     }
   });
 
@@ -24,7 +24,7 @@ describe('Pipeline.all', () => {
 
     expect(isSuccess(result)).toBe(false);
     if (!isSuccess(result)) {
-      expect(result.isFailure).toBe('error');
+      expect(result.cause).toBe('error');
     }
   });
 
@@ -33,7 +33,7 @@ describe('Pipeline.all', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual([]);
+      expect(result.value).toEqual([]);
     }
   });
 
@@ -45,7 +45,7 @@ describe('Pipeline.all', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 'world']);
+      expect(result.value).toEqual(['hello', 'world']);
     }
   });
 
@@ -57,7 +57,7 @@ describe('Pipeline.all', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 'world']);
+      expect(result.value).toEqual(['hello', 'world']);
     }
   });
 
@@ -70,7 +70,7 @@ describe('Pipeline.all', () => {
 
     expect(isSuccess(result)).toBe(true);
     if (isSuccess(result)) {
-      expect(result.isValue).toEqual(['hello', 'world', '!']);
+      expect(result.value).toEqual(['hello', 'world', '!']);
     }
   });
 });

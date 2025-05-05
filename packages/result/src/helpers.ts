@@ -97,9 +97,9 @@ type MergeBindValueType<S, K extends string, T> =
  * const result = success("hello");
  * const newResult = await handleResult(
  *   result,
- *   (r) => success(r.isValue.toUpperCase())
+ *   (r) => success(r.value.toUpperCase())
  * );
- * // newResult.isValue === "HELLO"
+ * // newResult.value === "HELLO"
  * ```
  */
 function handleResult<S, F, NS, NF>(
@@ -218,7 +218,7 @@ function mergeBindValues<T extends Record<string, unknown>>(
  * const safeOperator = errorSafe(
  *   async (result) => {
  *     // This might throw
- *     const value = await someAsyncOperation(result.isValue);
+ *     const value = await someAsyncOperation(result.value);
  *     return success(value);
  *   },
  *   (error) => `Operation failed: ${error}`
@@ -252,7 +252,7 @@ export function isFailureOfType<F, F2>(
  */
 export function isSuccessOfType<S, T2>(
   result: Result<S | T2, unknown>,
-): result is { isValue: S | T2; _isSuccess: true } {
+): result is { value: S | T2; _isSuccess: true } {
   return isSuccess(result);
 }
 
