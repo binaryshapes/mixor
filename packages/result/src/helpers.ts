@@ -7,7 +7,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import type { Result } from './result';
-import { fail, isFail, isSuccess } from './result';
+import { failure, isFail, isSuccess } from './result';
 
 /**
  * Represents a value that has been bound to a key in the pipeline.
@@ -233,7 +233,7 @@ function errorSafe<S, F, NS, NF>(
     try {
       return await operator(result);
     } catch (error) {
-      return fail(errorHandler(error));
+      return failure(errorHandler(error));
     }
   };
 }

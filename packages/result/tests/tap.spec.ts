@@ -1,5 +1,5 @@
 import { Pipeline } from '../src/pipeline';
-import { fail, isFail, isSuccess, success } from '../src/result';
+import { failure, isFail, isSuccess, success } from '../src/result';
 
 describe('Pipeline tap', () => {
   it('should execute tap on success value', async () => {
@@ -19,7 +19,7 @@ describe('Pipeline tap', () => {
 
   it('should not execute tap on failure value', async () => {
     const mockFn = jest.fn();
-    const result = await Pipeline.fromFunction(() => fail('error'))
+    const result = await Pipeline.fromFunction(() => failure('error'))
       .tap((value) => {
         mockFn(value);
       })

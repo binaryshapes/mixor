@@ -56,7 +56,7 @@ interface Failure<F> {
  * @returns A `Result` instance representing success.
  */
 function success<S>(value: S): Result<S, never> {
-  return { value: value, _isSuccess: true };
+  return { value, _isSuccess: true };
 }
 
 /**
@@ -65,8 +65,8 @@ function success<S>(value: S): Result<S, never> {
  * @param cause The cause of the failure.
  * @returns A `Result` instance representing failure.
  */
-function fail<F>(cause: F): Result<never, F> {
-  return { cause: cause, _isFailure: true };
+function failure<F>(cause: F): Result<never, F> {
+  return { cause, _isFailure: true };
 }
 
 /**
@@ -89,5 +89,5 @@ function isFail<S, F>(result: Result<S, F>): result is Failure<F> {
   return 'cause' in result;
 }
 
-export { success, fail, isSuccess, isFail };
-export type { Result, Success, Failure };
+export { failure, isFail, isSuccess, success };
+export type { Failure, Result, Success };
