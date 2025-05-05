@@ -63,7 +63,7 @@ describe('Pipeline.zip', () => {
         id: 1,
         name: 'John',
         profile: {
-          email: 'john@example.com',
+          email: 'john@mycompany.com',
           preferences: {
             theme: 'dark',
             notifications: true,
@@ -148,7 +148,7 @@ describe('Pipeline.zipWith', () => {
         id: 1,
         name: 'John',
         profile: {
-          email: 'john@example.com',
+          email: 'john@mycompany.com',
           preferences: {
             theme: 'dark',
             notifications: true,
@@ -268,7 +268,7 @@ describe('Pipeline.zipAll', () => {
         id: 1,
         name: 'John',
         profile: {
-          email: 'john@example.com',
+          email: 'john@mycompany.com',
           preferences: {
             theme: 'dark',
             notifications: true,
@@ -328,7 +328,7 @@ describe('Pipeline.zipAll', () => {
         id: 1,
         name: 'John',
         profile: {
-          email: 'john@example.com',
+          email: 'john@mycompany.com',
           preferences: {
             theme: 'dark',
             notifications: true,
@@ -389,7 +389,7 @@ describe('Pipeline.zipAll', () => {
         success({
           id: 1,
           name: 'John',
-          email: 'john@example.com',
+          email: 'john@mycompany.com',
         }),
       );
 

@@ -8,7 +8,7 @@ describe('Pipeline bindAll', () => {
         .bindAll('user', () => ({
           name: () => success('John'),
           age: () => success(25),
-          email: () => success('john@example.com'),
+          email: () => success('john@mycompany.com'),
         }))
         .mapSuccess((allBinds) => allBinds)
         .run();
@@ -19,7 +19,7 @@ describe('Pipeline bindAll', () => {
           user: {
             name: 'John',
             age: 25,
-            email: 'john@example.com',
+            email: 'john@mycompany.com',
           },
         });
       }

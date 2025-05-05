@@ -10,6 +10,11 @@
 /**
  * Represents the outcome of an operation that can either succeed with a value of type `S`
  * or fail with a value of type `F`.
+ *
+ * @typeParam S - The success value type.
+ * @typeParam F - The failure value type.
+ *
+ * @public
  */
 type Result<S, F> = Success<S> | Failure<F>;
 
@@ -52,7 +57,7 @@ interface Failure<F> {
 /**
  * Creates a `Result` representing a successful outcome with the given value.
  *
- * @param value The successful value of type `S`.
+ * @param value - The successful value of type `S`.
  * @returns A `Result` instance representing success.
  */
 function success<S>(value: S): Result<S, never> {
@@ -62,7 +67,7 @@ function success<S>(value: S): Result<S, never> {
 /**
  * Creates a `Result` representing a failed outcome with the given cause.
  *
- * @param cause The cause of the failure.
+ * @param cause - The cause value that describes the failure.
  * @returns A `Result` instance representing failure.
  */
 function failure<F>(cause: F): Result<never, F> {
@@ -72,7 +77,7 @@ function failure<F>(cause: F): Result<never, F> {
 /**
  * Checks if a `Result` is a `Success`.
  *
- * @param result The `Result` to check.
+ * @param result - The `Result` to check.
  * @returns `true` if the `Result` is a `Success`, `false` otherwise.
  */
 function isSuccess<S, F>(result: Result<S, F>): result is Success<S> {
@@ -82,7 +87,7 @@ function isSuccess<S, F>(result: Result<S, F>): result is Success<S> {
 /**
  * Checks if a `Result` is a `Failure`.
  *
- * @param result The `Result` to check.
+ * @param result - The `Result` to check.
  * @returns `true` if the `Result` is a `Failure`, `false` otherwise.
  */
 function isFail<S, F>(result: Result<S, F>): result is Failure<F> {

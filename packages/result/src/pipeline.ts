@@ -24,13 +24,7 @@ import { failure, isFail, isSuccess, success } from './result';
  * Represents a step in the pipeline execution.
  * Each step has a type and a description for debugging purposes.
  *
- * @example
- * ```ts
- * const step: PipelineStep = {
- *   type: 'mapSuccess',
- *   description: 'Transform user data'
- * };
- * ```
+ * @internal
  */
 type PipelineStep = {
   type: 'mapSuccess' | 'mapFailure' | 'mapBoth' | 'tap' | 'bind' | 'pipeline' | 'if';
@@ -41,27 +35,36 @@ type PipelineStep = {
  * Represents a collection of bindings for multiple values.
  * Each key in the object is a function that returns a Result.
  *
- * @template T - The type of the values to bind
- * @template F - The type of the failure
+ * @typeParam T - The type of the values to bind
+ * @typeParam F - The type of the failure
  *
- * @example
- * ```ts
- * const bindings: BindAllValue<{ name: string; age: number }, string> = {
- *   name: () => success("John"),
- *   age: () => success(30)
- * };
- * ```
+ * @internal
  */
 type BindAllValue<T, F> = {
   [K in keyof T]: () => Result<T[K], F> | Promise<Result<T[K], F>>;
 };
 
 /**
+ * Represents the options for the if method.
+ *
+ * @typeParam S - The success type of the pipeline.
+ * @typeParam NS - The new success type.
+ * @typeParam F - The failure type.
+ *
+ * @internal
+ */
+type IfOptions<S, NS, F> = {
+  predicate: (value: ExtractBindValueType<S>) => boolean | Promise<boolean>;
+  onTrue: (value: ExtractBindValueType<S>) => Result<NS, F> | Promise<Result<NS, F>>;
+  onFalse: (value: ExtractBindValueType<S>) => Result<NS, F> | Promise<Result<NS, F>>;
+};
+
+/**
  * A class that provides a fluent API for working with Result types.
  * The Pipeline class allows for chaining operations on Results in a type-safe way.
  *
- * @template S - The success type
- * @template F - The failure type
+ * @typeParam S - The success type.
+ * @typeParam F - The failure type.
  *
  * @example
  * ```ts
@@ -89,10 +92,10 @@ class Pipeline<S, F> {
   /**
    * Creates a new Pipeline from a Result or a function that returns a Result.
    *
-   * @template S - The success type
-   * @template F - The failure type
-   * @param result - The initial Result or a function that returns a Result
-   * @returns A new Pipeline instance
+   * @typeParam S - The success type.
+   * @typeParam F - The failure type.
+   * @param result - The initial Result or a function that returns a Result.
+   * @returns A new Pipeline instance.
    *
    * @example
    * ```ts
@@ -105,8 +108,10 @@ class Pipeline<S, F> {
    * // From a function
    * const p3 = Pipeline.from(() => success("hello"));
    * ```
+   *
+   * @public
    */
-  static from<S, F>(
+  public static from<S, F>(
     result: Result<S, F> | Promise<Result<S, F>> | (() => Result<S, F> | Promise<Result<S, F>>),
   ): Pipeline<S, F> {
     return new Pipeline(result, [
@@ -121,10 +126,10 @@ class Pipeline<S, F> {
    * Creates a new Pipeline from a function that returns a Result.
    * This is a convenience method for creating pipelines from functions.
    *
-   * @template S - The success type
-   * @template F - The failure type
-   * @param fn - The function that returns a Result
-   * @returns A new Pipeline instance
+   * @typeParam S - The success type.
+   * @typeParam F - The failure type.
+   * @param fn - The function that returns a Result.
+   * @returns A new Pipeline instance.
    *
    * @example
    * ```ts
@@ -133,6 +138,8 @@ class Pipeline<S, F> {
    *   return success(data);
    * });
    * ```
+   *
+   * @public
    */
   static fromFunction<S, F>(fn: () => Result<S, F> | Promise<Result<S, F>>): Pipeline<S, F> {
     return new Pipeline(fn, [
@@ -147,13 +154,15 @@ class Pipeline<S, F> {
    * Gets the current result value, executing the function if necessary.
    * This is an internal method used by other pipeline methods.
    *
-   * @returns A Promise that resolves to the current Result
+   * @returns A Promise that resolves to the current Result.
    *
    * @example
    * ```ts
    * // Internal usage
    * const result = await this.getCurrentResult();
    * ```
+   *
+   * @internal
    */
   private async getCurrentResult(): Promise<Result<S, F>> {
     if (typeof this.result === 'function') {
@@ -166,19 +175,21 @@ class Pipeline<S, F> {
    * Maps the success value to a new value.
    * This operation only affects the success case and preserves the failure type.
    *
-   * @template NS - The new success type
-   * @param fn - The function to transform the success value
-   * @returns A new Pipeline with the transformed success type
+   * @typeParam NS - The new success type.
+   * @param fn - The function to transform the success value.
+   * @returns A new Pipeline with the transformed success type.
    *
    * @example
    * ```ts
    * const pipeline = Pipeline.from(success("hello"))
    *   .mapSuccess(str => str.toUpperCase())
    *   .mapSuccess(str => str.length);
-   * // Result: success(5)
+   * // Result: Result<number, never>
    * ```
+   *
+   * @public
    */
-  mapSuccess<NS>(fn: (value: ExtractBindValueType<S>) => NS | Promise<NS>): Pipeline<NS, F> {
+  public mapSuccess<NS>(fn: (value: ExtractBindValueType<S>) => NS | Promise<NS>): Pipeline<NS, F> {
     return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, NS, F>(
@@ -208,19 +219,20 @@ class Pipeline<S, F> {
    * Maps the failure value to a new value.
    * This operation only affects the failure case and preserves the success type.
    *
-   * @template NF - The new failure type
-   * @param fn - The function to transform the failure value
-   * @returns A new Pipeline with the transformed failure type
+   * @typeParam NF - The new failure type.
+   * @param fn - The function to transform the failure value.
+   * @returns A new Pipeline with the transformed failure type.
    *
    * @example
    * ```ts
-   * const pipeline = Pipeline.from(fail("error"))
+   * const pipeline = Pipeline.from(failure("error"))
    *   .mapFailure(err => `Error: ${err}`)
    *   .mapFailure(err => ({ message: err }));
-   * // Result: fail({ message: "Error: error" })
    * ```
+   *
+   * @public
    */
-  mapFailure<NF>(fn: (failure: F) => NF | Promise<NF>): Pipeline<S, NF> {
+  public mapFailure<NF>(fn: (failure: F) => NF | Promise<NF>): Pipeline<S, NF> {
     return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, S, NF>(
@@ -249,11 +261,11 @@ class Pipeline<S, F> {
    * Maps both success and failure values.
    * This operation allows transforming both cases in a single step.
    *
-   * @template NS - The new success type
-   * @template NF - The new failure type
-   * @param successFn - The function to transform the success value
-   * @param failureFn - The function to transform the failure value
-   * @returns A new Pipeline with both types transformed
+   * @typeParam NS - The new success type.
+   * @typeParam NF - The new failure type.
+   * @param successFn - The function to transform the success value.
+   * @param failureFn - The function to transform the failure value.
+   * @returns A new Pipeline with both types transformed.
    *
    * @example
    * ```ts
@@ -264,15 +276,17 @@ class Pipeline<S, F> {
    *   );
    * // Result: success("HELLO")
    *
-   * const pipeline2 = Pipeline.from(fail("error"))
+   * const pipeline2 = Pipeline.from(failure("error"))
    *   .mapBoth(
    *     str => str.toUpperCase(),
    *     err => `Error: ${err}`
    *   );
-   * // Result: fail("Error: error")
+   * // Result: failure("Error: error")
    * ```
+   *
+   * @public
    */
-  mapBoth<NS, NF>(
+  public mapBoth<NS, NF>(
     successFn: (value: S) => NS | Promise<NS>,
     failureFn: (failure: F) => NF | Promise<NF>,
   ): Pipeline<NS, NF> {
@@ -305,8 +319,8 @@ class Pipeline<S, F> {
    * Executes a side effect on the success value and returns the same Result.
    * This is useful for logging, metrics, or other side effects that shouldn't affect the value.
    *
-   * @param fn - The function to execute as a side effect
-   * @returns A new Pipeline with the same types
+   * @param fn - The function to execute as a side effect.
+   * @returns A new Pipeline with the same types.
    *
    * @example
    * ```ts
@@ -317,8 +331,10 @@ class Pipeline<S, F> {
    *   });
    * // Result: success("hello")
    * ```
+   *
+   * @public
    */
-  tap(fn: (value: S) => void | Promise<void>): Pipeline<S, F> {
+  public tap(fn: (value: S) => void | Promise<void>): Pipeline<S, F> {
     return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, S, F>(
@@ -346,21 +362,23 @@ class Pipeline<S, F> {
    * Binds a new value to the pipeline.
    * This operation allows adding new values to the pipeline's context.
    *
-   * @template K - The key to bind the value to
-   * @template NS - The type of the value to bind
-   * @param key - The key to bind the value to
-   * @param fn - The function that returns a Result with the value to bind
-   * @returns A new Pipeline with the bound value
+   * @typeParam K - The key to bind the value to.
+   * @typeParam NS - The type of the value to bind.
+   * @param key - The key to bind the value to.
+   * @param fn - The function that returns a Result with the value to bind.
+   * @returns A new Pipeline with the bound value.
    *
    * @example
    * ```ts
    * const pipeline = Pipeline.from(success({ name: "John" }))
    *   .bind("age", () => success(30))
-   *   .bind("email", () => success("john@example.com"));
-   * // Result: success({ name: "John", age: 30, email: "john@example.com" })
+   *   .bind("email", () => success("john@mycompany.com"));
+   * // Result: success({ name: "John", age: 30, email: "john@mycompany.com" })
    * ```
+   *
+   * @public
    */
-  bind<K extends string, NS>(
+  public bind<K extends string, NS>(
     key: K,
     fn: (value: ExtractBindValueType<S>) => Result<NS, F> | Promise<Result<NS, F>>,
   ): Pipeline<BindValue<MergeBindValueType<S, K, NS>>, F> {
@@ -406,31 +424,33 @@ class Pipeline<S, F> {
    * Binds multiple values at once in a declarative way.
    * This is useful when you need to bind multiple related values.
    *
-   * @template K - The key to bind the values to
-   * @template T - The type of the values to bind
-   * @param key - The key to bind the values to
-   * @param fn - The function that returns an object of binding functions
-   * @returns A new Pipeline with the bound values
+   * @typeParam K - The key to bind the values to.
+   * @typeParam T - The type of the values to bind.
+   * @param key - The key to bind the values to.
+   * @param fn - The function that returns an object of binding functions.
+   * @returns A new Pipeline with the bound values.
    *
    * @example
    * ```ts
    * const pipeline = Pipeline.from(success({ name: "John" }))
    *   .bindAll("profile", () => ({
    *     age: () => success(30),
-   *     email: () => success("john@example.com"),
+   *     email: () => success("john@mycompany.com"),
    *     address: () => success("123 Main St")
    *   }));
    * // Result: success({
    * //   name: "John",
    * //   profile: {
    * //     age: 30,
-   * //     email: "john@example.com",
+   * //     email: "john@mycompany.com",
    * //     address: "123 Main St"
    * //   }
    * // })
    * ```
+   *
+   * @public
    */
-  bindAll<K extends string, T extends Record<string, unknown>>(
+  public bindAll<K extends string, T extends Record<string, unknown>>(
     key: K,
     fn: (value: ExtractBindValueType<S>) => BindAllValue<T, F>,
   ): Pipeline<BindValue<MergeBindValueType<S, K, T>>, F> {
@@ -482,11 +502,11 @@ class Pipeline<S, F> {
    * Matches the result against success and failure cases.
    * This is useful for handling both cases in a single operation.
    *
-   * @template NS - The type to return for success
-   * @template NF - The type to return for failure
-   * @param successFn - The function to handle the success case
-   * @param failureFn - The function to handle the failure case
-   * @returns A Promise that resolves to either the success or failure result
+   * @typeParam NS - The type to return for success.
+   * @typeParam NF - The type to return for failure.
+   * @param successFn - The function to handle the success case.
+   * @param failureFn - The function to handle the failure case.
+   * @returns A Promise that resolves to either the success or failure result.
    *
    * @example
    * ```ts
@@ -495,17 +515,17 @@ class Pipeline<S, F> {
    *     str => `Success: ${str}`,
    *     err => `Error: ${err}`
    *   );
-   * // result === "Success: hello"
    *
-   * const result2 = await Pipeline.from(fail("error"))
+   * const result2 = await Pipeline.from(failure("error"))
    *   .match(
    *     str => `Success: ${str}`,
    *     err => `Error: ${err}`
    *   );
-   * // result2 === "Error: error"
    * ```
+   *
+   * @public
    */
-  async match<NS, NF>(
+  public async match<NS, NF>(
     successFn: (value: S) => NS | Promise<NS>,
     failureFn: (failure: F) => NF | Promise<NF>,
   ): Promise<NS | NF> {
@@ -520,17 +540,18 @@ class Pipeline<S, F> {
    * Executes the pipeline and returns the result.
    * This is the final step in the pipeline that actually runs all the operations.
    *
-   * @returns A Promise that resolves to the final Result
+   * @returns A Promise that resolves to the final Result.
    *
    * @example
    * ```ts
    * const result = await Pipeline.from(success("hello"))
    *   .mapSuccess(str => str.toUpperCase())
    *   .run();
-   * // result.value === "HELLO"
    * ```
+   *
+   * @public
    */
-  async run(): Promise<Result<S, F>> {
+  public async run(): Promise<Result<S, F>> {
     return this.getCurrentResult();
   }
 
@@ -538,7 +559,7 @@ class Pipeline<S, F> {
    * Returns a string representation of the pipeline steps.
    * This is useful for debugging and understanding the pipeline's structure.
    *
-   * @returns A string showing all steps in the pipeline
+   * @returns A string showing all steps in the pipeline.
    *
    * @example
    * ```ts
@@ -552,8 +573,10 @@ class Pipeline<S, F> {
    * // 2. mapSuccess: Transform success value
    * // 3. tap: Side effect
    * ```
+   *
+   * @public
    */
-  toString(): string {
+  public toString(): string {
     return this.steps
       .map((step, index) => `${index + 1}. ${step.type}: ${step.description}`)
       .join('\n');
@@ -563,9 +586,9 @@ class Pipeline<S, F> {
    * Executes one of two branches based on a condition using a declarative options object.
    * This is useful for conditional logic in the pipeline.
    *
-   * @template NS - The type of the result from either branch
-   * @param options - The options object containing the condition and branch functions
-   * @returns A new Pipeline with the result from the chosen branch
+   * @typeParam NS - The type of the result from either branch.
+   * @param options - The options object containing the condition and branch functions.
+   * @returns A new Pipeline with the result from the chosen branch.
    *
    * @example
    * ```ts
@@ -575,7 +598,6 @@ class Pipeline<S, F> {
    *     onTrue: n => success(`Positive: ${n}`),
    *     onFalse: n => success(`Negative: ${n}`)
    *   });
-   * // Result: success("Positive: 5")
    *
    * const pipeline2 = Pipeline.from(success(-5))
    *   .if({
@@ -583,14 +605,11 @@ class Pipeline<S, F> {
    *     onTrue: n => success(`Positive: ${n}`),
    *     onFalse: n => success(`Negative: ${n}`)
    *   });
-   * // Result: success("Negative: -5")
    * ```
+   *
+   * @public
    */
-  if<NS>(options: {
-    predicate: (value: ExtractBindValueType<S>) => boolean | Promise<boolean>;
-    onTrue: (value: ExtractBindValueType<S>) => Result<NS, F> | Promise<Result<NS, F>>;
-    onFalse: (value: ExtractBindValueType<S>) => Result<NS, F> | Promise<Result<NS, F>>;
-  }): Pipeline<NS, F> {
+  public if<NS>(options: IfOptions<S, NS, F>): Pipeline<NS, F> {
     return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, NS, F>(
@@ -630,10 +649,10 @@ class Pipeline<S, F> {
    * Executes multiple pipelines in parallel and collects their results.
    * This is useful for running independent operations concurrently.
    *
-   * @template T - The type of the values to collect
-   * @template F - The type of the failure
-   * @param pipelines - An array of pipelines to execute
-   * @returns A new Pipeline that collects all results
+   * @typeParam T - The type of the values to collect.
+   * @typeParam F - The type of the failure.
+   * @param pipelines - An array of pipelines to execute.
+   * @returns A new Pipeline that collects all results.
    *
    * @example
    * ```ts
@@ -643,18 +662,18 @@ class Pipeline<S, F> {
    *   Pipeline.from(success(42)),
    *   Pipeline.from(success(true))
    * ]).run();
-   * // result.value === ["hello", 42, true]
    *
    * // Handle failures
    * const result2 = await Pipeline.all([
    *   Pipeline.from(success("hello")),
-   *   Pipeline.from(fail("error")),
+   *   Pipeline.from(failure("error")),
    *   Pipeline.from(success(true))
    * ]).run();
-   * // result2.cause === "error"
    * ```
+   *
+   * @public
    */
-  static all<T, F>(pipelines: Pipeline<T, F>[]): Pipeline<T[], F> {
+  public static all<T, F>(pipelines: Pipeline<T, F>[]): Pipeline<T[], F> {
     return new Pipeline(async () => {
       const results = await Promise.all(pipelines.map((p) => p.run()));
 
@@ -684,20 +703,21 @@ class Pipeline<S, F> {
    * Combines two pipelines into a single pipeline that produces a tuple of their results.
    * This is useful when you need to run two independent pipelines and combine their results.
    *
-   * @template T2 - The type of the second pipeline's success value
-   * @template F2 - The type of the second pipeline's failure value
-   * @param other - The other pipeline to combine with
-   * @returns A new Pipeline that produces a tuple of both results
+   * @typeParam T2 - The type of the second pipeline's success value.
+   * @typeParam F2 - The type of the second pipeline's failure value.
+   * @param other - The other pipeline to combine with.
+   * @returns A new Pipeline that produces a tuple of both results.
    *
    * @example
    * ```ts
    * const result = await Pipeline.from(success("hello"))
    *   .zip(Pipeline.from(success(42)))
    *   .run();
-   * // result.value === ["hello", 42]
    * ```
+   *
+   * @public
    */
-  zip<T2, F2>(other: Pipeline<T2, F2>): Pipeline<[S, T2], F | F2> {
+  public zip<T2, F2>(other: Pipeline<T2, F2>): Pipeline<[S, T2], F | F2> {
     return new Pipeline(async () => {
       const [currentResult, otherResult] = await Promise.all([
         this.getCurrentResult(),
@@ -728,12 +748,12 @@ class Pipeline<S, F> {
    * This is useful when you need to run two independent pipelines and combine their results
    * in a specific way.
    *
-   * @template T2 - The type of the second pipeline's success value
-   * @template F2 - The type of the second pipeline's failure value
-   * @template R - The type of the combined result
-   * @param other - The other pipeline to combine with
-   * @param fn - The function to combine the results
-   * @returns A new Pipeline that produces the combined result
+   * @typeParam T2 - The type of the second pipeline's success value.
+   * @typeParam F2 - The type of the second pipeline's failure value.
+   * @typeParam R - The type of the combined result.
+   * @param other - The other pipeline to combine with.
+   * @param fn - The function to combine the results.
+   * @returns A new Pipeline that produces the combined result.
    *
    * @example
    * ```ts
@@ -743,10 +763,11 @@ class Pipeline<S, F> {
    *     (str, num) => `${str} ${num}`
    *   )
    *   .run();
-   * // result.value === "hello 42"
    * ```
+   *
+   * @public
    */
-  zipWith<T2, F2, R>(
+  public zipWith<T2, F2, R>(
     other: Pipeline<T2, F2>,
     fn: (a: S, b: T2) => R | Promise<R>,
   ): Pipeline<R, F | F2> {
@@ -781,22 +802,22 @@ class Pipeline<S, F> {
    * All pipelines must succeed for the result to be a success.
    * If any pipeline fails, the result will be a failure.
    *
-   * @template T - The type of the values in the pipelines
-   * @template F - The type of the failure
-   * @param pipelines - The pipelines to combine
-   * @returns A new Pipeline that returns an array of the results
+   * @typeParam T - The type of the values in the pipelines.
+   * @typeParam F - The type of the failure.
+   * @param pipelines - The pipelines to combine.
+   * @returns A new Pipeline that returns an array of the results.
    *
    * @example
    * ```ts
    * const p1 = Pipeline.from(success(1));
    * const p2 = Pipeline.from(success("hello"));
    * const p3 = Pipeline.from(success(true));
-   *
    * const result = await Pipeline.zipAll([p1, p2, p3]).run();
-   * // Result: success([1, "hello", true])
    * ```
+   *
+   * @public
    */
-  static zipAll<T extends readonly unknown[], F>(pipelines: {
+  public static zipAll<T extends readonly unknown[], F>(pipelines: {
     [K in keyof T]: Pipeline<T[K], F>;
   }): Pipeline<T, F> {
     return new Pipeline(async () => {
