@@ -20,6 +20,8 @@ type Result<S, F> = Success<S> | Failure<F>;
 
 /**
  * Represents a successful outcome with a value of type `S`.
+ *
+ * @public
  */
 interface Success<S> {
   /**
@@ -38,6 +40,8 @@ interface Success<S> {
 
 /**
  * Represents a failed outcome with a value of type `F`.
+ *
+ * @public
  */
 interface Failure<F> {
   /**
@@ -59,6 +63,8 @@ interface Failure<F> {
  *
  * @param value - The successful value of type `S`.
  * @returns A `Result` instance representing success.
+ *
+ * @public
  */
 function success<S>(value: S): Result<S, never> {
   return { value, _isSuccess: true };
@@ -69,6 +75,8 @@ function success<S>(value: S): Result<S, never> {
  *
  * @param cause - The cause value that describes the failure.
  * @returns A `Result` instance representing failure.
+ *
+ * @public
  */
 function failure<F>(cause: F): Result<never, F> {
   return { cause, _isFailure: true };
@@ -79,6 +87,8 @@ function failure<F>(cause: F): Result<never, F> {
  *
  * @param result - The `Result` to check.
  * @returns `true` if the `Result` is a `Success`, `false` otherwise.
+ *
+ * @public
  */
 function isSuccess<S, F>(result: Result<S, F>): result is Success<S> {
   return 'value' in result;
@@ -89,10 +99,12 @@ function isSuccess<S, F>(result: Result<S, F>): result is Success<S> {
  *
  * @param result - The `Result` to check.
  * @returns `true` if the `Result` is a `Failure`, `false` otherwise.
+ *
+ * @public
  */
 function isFail<S, F>(result: Result<S, F>): result is Failure<F> {
   return 'cause' in result;
 }
 
+export type { Result, Success, Failure };
 export { failure, isFail, isSuccess, success };
-export type { Failure, Result, Success };
