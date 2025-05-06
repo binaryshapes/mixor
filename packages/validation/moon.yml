@@ -1,0 +1,16 @@
+id: '@daikit/validation'
+language: typescript
+type: library
+
+project:
+  name: Data validation library
+  description: A general purpose suite of data validation utilities
+  maintainers:
+    - Carlos Cosming
+  metadata:
+    license: MIT
+    public: true
+    repository:
+      type: git
+      url: https://github.com/binaryshapes/daikit
+      directory: packages/validation
