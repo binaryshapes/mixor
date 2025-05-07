@@ -1,6 +1,3 @@
 {
-  "extends": "@unokit/typescript/node.lib.json",
-  "exclude": [
-    "jest.config.ts"
-  ]
+  "extends": "@unokit/typescript/node.lib.json"
 }
