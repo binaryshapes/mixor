@@ -17,7 +17,7 @@ describe('Pipeline bind', () => {
         .bind('name', () => success('John'))
         .bind('age', () => success(25))
         .bind('user', ({ age, id, name }) => success(new User(id, name, age)))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
@@ -34,7 +34,7 @@ describe('Pipeline bind', () => {
       const result = await Pipeline.from(success('hello'))
         .bind('message', () => success('world'))
         .bind('count', () => success(5))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
@@ -46,7 +46,7 @@ describe('Pipeline bind', () => {
       const result = await Pipeline.from(success(null))
         .bind('status', () => success('active'))
         .bind('timestamp', () => success(Date.now()))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
@@ -57,7 +57,7 @@ describe('Pipeline bind', () => {
     it('should bind values starting from an object ignoring that object in the result', async () => {
       const result = await Pipeline.from(success({ id: '30' }))
         .bind('userId', ({ id }) => success(id))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
@@ -67,14 +67,14 @@ describe('Pipeline bind', () => {
   });
 
   describe('Multiple bind sequences', () => {
-    it('should handle multiple bind sequences separated by mapSuccess', async () => {
+    it('should handle multiple bind sequences separated by map', async () => {
       const result = await Pipeline.from(success(42))
         .bind('id', () => success('30'))
         .bind('name', () => success('John'))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .bind('age', () => success(25))
         .bind('user', ({ age }) => success(new User('30', 'John', age)))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
@@ -92,10 +92,10 @@ describe('Pipeline bind', () => {
           Pipeline.from(success(id))
             .bind('name', () => success('John'))
             .bind('age', () => success(25))
-            .mapSuccess((allBinds) => allBinds)
+            .map((allBinds) => allBinds)
             .run(),
         )
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
@@ -113,7 +113,7 @@ describe('Pipeline bind', () => {
           name: () => success('John'),
           age: () => success(25),
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
@@ -135,7 +135,7 @@ describe('Pipeline bind', () => {
           street: () => success('123 Main St'),
           city: () => success('New York'),
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
@@ -159,7 +159,7 @@ describe('Pipeline bind', () => {
           await new Promise((resolve) => setTimeout(resolve, 100));
           return success('John');
         })
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {
@@ -174,7 +174,7 @@ describe('Pipeline bind', () => {
         .bind('age', () => success(25))
         .bind('fullName', ({ name }) => success(`${name} Doe`))
         .bind('isAdult', ({ age }) => success(age >= 18))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
       expect(isSuccess(result)).toBe(true);
       if (isSuccess(result)) {

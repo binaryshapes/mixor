@@ -303,7 +303,7 @@ describe('Pipeline if', () => {
 
     it('should handle if after map operations', async () => {
       const result = await Pipeline.from(success('42'))
-        .mapSuccess((value) => parseInt(value))
+        .map((value) => parseInt(value))
         .if({
           predicate: (value) => !isNaN(value),
           onTrue: (value) => success(value * 2),

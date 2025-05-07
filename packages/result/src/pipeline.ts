@@ -27,7 +27,7 @@ import { failure, isFail, isSuccess, success } from './result';
  * @internal
  */
 type PipelineStep = {
-  type: 'mapSuccess' | 'mapFailure' | 'mapBoth' | 'tap' | 'bind' | 'pipeline' | 'if';
+  type: 'map' | 'mapFailure' | 'mapBoth' | 'tap' | 'bind' | 'pipeline' | 'if';
   description: string;
 };
 
@@ -70,7 +70,7 @@ type IfOptions<S, NS, F> = {
  * ```ts
  * // Create a pipeline from a success value
  * const pipeline = Pipeline.from(success("hello"))
- *   .mapSuccess(str => str.toUpperCase())
+ *   .map(str => str.toUpperCase())
  *   .tap(console.log);
  *
  * // Create a pipeline from a function
@@ -79,6 +79,8 @@ type IfOptions<S, NS, F> = {
  *   return success(data);
  * });
  * ```
+ *
+ * @public
  */
 class Pipeline<S, F> {
   private constructor(
@@ -116,7 +118,7 @@ class Pipeline<S, F> {
   ): Pipeline<S, F> {
     return new Pipeline(result, [
       {
-        type: 'mapSuccess',
+        type: 'map',
         description: 'Initial value',
       },
     ]);
@@ -182,14 +184,14 @@ class Pipeline<S, F> {
    * @example
    * ```ts
    * const pipeline = Pipeline.from(success("hello"))
-   *   .mapSuccess(str => str.toUpperCase())
-   *   .mapSuccess(str => str.length);
+   *   .map(str => str.toUpperCase())
+   *   .map(str => str.length);
    * // Result: Result<number, never>
    * ```
    *
    * @public
    */
-  public mapSuccess<NS>(fn: (value: ExtractBindValueType<S>) => NS | Promise<NS>): Pipeline<NS, F> {
+  public map<NS>(fn: (value: ExtractBindValueType<S>) => NS | Promise<NS>): Pipeline<NS, F> {
     return new Pipeline(async () => {
       const result = await this.getCurrentResult();
       return handleResult<S, F, NS, F>(
@@ -209,7 +211,7 @@ class Pipeline<S, F> {
     }, [
       ...this.steps,
       {
-        type: 'mapSuccess',
+        type: 'map',
         description: `Transform success value`,
       },
     ]);
@@ -286,6 +288,8 @@ class Pipeline<S, F> {
    *
    * @public
    */
+
+  // TODO: make params as object.
   public mapBoth<NS, NF>(
     successFn: (value: S) => NS | Promise<NS>,
     failureFn: (failure: F) => NF | Promise<NF>,
@@ -545,7 +549,7 @@ class Pipeline<S, F> {
    * @example
    * ```ts
    * const result = await Pipeline.from(success("hello"))
-   *   .mapSuccess(str => str.toUpperCase())
+   *   .map(str => str.toUpperCase())
    *   .run();
    * ```
    *
@@ -564,13 +568,13 @@ class Pipeline<S, F> {
    * @example
    * ```ts
    * const pipeline = Pipeline.from(success("hello"))
-   *   .mapSuccess(str => str.toUpperCase())
+   *   .map(str => str.toUpperCase())
    *   .tap(console.log);
    *
    * console.log(pipeline.toString());
    * // Output:
-   * // 1. mapSuccess: Initial value
-   * // 2. mapSuccess: Transform success value
+   * // 1. map: Initial value
+   * // 2. map: Transform success value
    * // 3. tap: Side effect
    * ```
    *
