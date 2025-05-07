@@ -10,7 +10,7 @@ describe('Pipeline bindAll', () => {
           age: () => success(25),
           email: () => success('john@mycompany.com'),
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
 
       expect(isSuccess(result)).toBe(true);
@@ -34,7 +34,7 @@ describe('Pipeline bindAll', () => {
           array: () => success([1, 2, 3]),
           object: () => success({ key: 'value' }),
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
 
       expect(isSuccess(result)).toBe(true);
@@ -58,7 +58,7 @@ describe('Pipeline bindAll', () => {
           port: () => success(8080),
           debug: () => success(true),
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
 
       expect(isSuccess(result)).toBe(true);
@@ -83,7 +83,7 @@ describe('Pipeline bindAll', () => {
           age: () => success(25),
           userId: () => success(id),
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
 
       expect(isSuccess(result)).toBe(true);
@@ -109,7 +109,7 @@ describe('Pipeline bindAll', () => {
           fullName: () => success(`${user.name} Doe`),
           isAdult: () => success(user.age >= 18),
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
 
       expect(isSuccess(result)).toBe(true);
@@ -141,7 +141,7 @@ describe('Pipeline bindAll', () => {
             return success(25);
           },
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
 
       expect(isSuccess(result)).toBe(true);
@@ -172,7 +172,7 @@ describe('Pipeline bindAll', () => {
             return success('C');
           },
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
 
       const endTime = Date.now();
@@ -209,7 +209,7 @@ describe('Pipeline bindAll', () => {
           notifications: () => success(true),
           ageGroup: () => success(user.age >= 18 ? 'adult' : 'minor'),
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
 
       expect(isSuccess(result)).toBe(true);
@@ -241,7 +241,7 @@ describe('Pipeline bindAll', () => {
           status: () => success(age >= 18 ? 'adult' : 'minor'),
           permissions: () => success(age >= 18 ? ['read', 'write'] : ['read']),
         }))
-        .mapSuccess((allBinds) => allBinds)
+        .map((allBinds) => allBinds)
         .run();
 
       expect(isSuccess(result)).toBe(true);

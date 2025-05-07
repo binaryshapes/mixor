@@ -3,8 +3,8 @@ language: typescript
 type: library
 
 project:
-  name: Daikit Result library
-  description: A simple result type for functional programming
+  name: Monadic Result library
+  description: A monadic result type for functional programming with error handling and pipelines
   maintainers:
     - Carlos Cosming
   metadata:
