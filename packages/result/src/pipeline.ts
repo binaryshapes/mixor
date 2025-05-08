@@ -6,6 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import { Flow } from './flow';
 import type { BindValue, ExtractBindValueType, MergeBindValueType } from './helpers';
 import {
   createBindValue,
@@ -21,15 +22,19 @@ import type { Result } from './result';
 import { failure, isFail, isSuccess, success } from './result';
 
 /**
- * Represents a step in the pipeline execution.
- * Each step has a type and a description for debugging purposes.
+ * Represents the available operations in a Pipeline.
+ * This type is inferred from the method names in the Pipeline class,
+ * excluding internal methods and properties, plus special operation types.
  *
  * @internal
  */
-type PipelineStep = {
-  type: 'map' | 'mapFailure' | 'mapBoth' | 'tap' | 'bind' | 'pipeline' | 'if';
-  description: string;
-};
+export type PipelineOperation =
+  | keyof Omit<
+      Pipeline<unknown, unknown>,
+      'constructor' | 'getCurrentResult' | 'getFlow' | 'toString' | 'toJSON' | 'run' | 'match'
+    >
+  | 'pipeline'
+  | 'function';
 
 /**
  * Represents a collection of bindings for multiple values.
@@ -62,6 +67,7 @@ type IfOptions<S, NS, F> = {
 /**
  * A class that provides a fluent API for working with Result types.
  * The Pipeline class allows for chaining operations on Results in a type-safe way.
+ * Each pipeline maintains a flow that tracks its operations and structure.
  *
  * @typeParam S - The success type.
  * @typeParam F - The failure type.
@@ -88,7 +94,7 @@ class Pipeline<S, F> {
       | Result<S, F>
       | Promise<Result<S, F>>
       | (() => Result<S, F> | Promise<Result<S, F>>),
-    private readonly steps: PipelineStep[] = [],
+    private readonly flow: Flow<PipelineOperation>,
   ) {}
 
   /**
@@ -97,31 +103,15 @@ class Pipeline<S, F> {
    * @typeParam S - The success type.
    * @typeParam F - The failure type.
    * @param result - The initial Result or a function that returns a Result.
+   * @param description - Optional description for this pipeline
    * @returns A new Pipeline instance.
-   *
-   * @example
-   * ```ts
-   * // From a direct Result
-   * const p1 = Pipeline.from(success("hello"));
-   *
-   * // From a Promise<Result>
-   * const p2 = Pipeline.from(Promise.resolve(success("hello")));
-   *
-   * // From a function
-   * const p3 = Pipeline.from(() => success("hello"));
-   * ```
-   *
-   * @public
    */
   public static from<S, F>(
     result: Result<S, F> | Promise<Result<S, F>> | (() => Result<S, F> | Promise<Result<S, F>>),
+    description?: string,
   ): Pipeline<S, F> {
-    return new Pipeline(result, [
-      {
-        type: 'map',
-        description: 'Initial value',
-      },
-    ]);
+    const flow = Flow.create<PipelineOperation>(description || 'Initial value');
+    return new Pipeline(result, flow);
   }
 
   /**
@@ -131,25 +121,18 @@ class Pipeline<S, F> {
    * @typeParam S - The success type.
    * @typeParam F - The failure type.
    * @param fn - The function that returns a Result.
+   * @param description - Optional description for this pipeline
    * @returns A new Pipeline instance.
-   *
-   * @example
-   * ```ts
-   * const pipeline = Pipeline.fromFunction(async () => {
-   *   const data = await fetchData();
-   *   return success(data);
-   * });
-   * ```
-   *
-   * @public
    */
-  static fromFunction<S, F>(fn: () => Result<S, F> | Promise<Result<S, F>>): Pipeline<S, F> {
-    return new Pipeline(fn, [
-      {
-        type: 'pipeline',
-        description: 'Initial pipeline',
-      },
-    ]);
+  static fromFunction<S, F>(
+    fn: () => Result<S, F> | Promise<Result<S, F>>,
+    description?: string,
+  ): Pipeline<S, F> {
+    const flow = Flow.create<PipelineOperation>(description || 'Initial pipeline').addStep(
+      'function',
+      description || 'Initial function',
+    );
+    return new Pipeline(fn, flow);
   }
 
   /**
@@ -192,29 +175,27 @@ class Pipeline<S, F> {
    * @public
    */
   public map<NS>(fn: (value: ExtractBindValueType<S>) => NS | Promise<NS>): Pipeline<NS, F> {
-    return new Pipeline(async () => {
-      const result = await this.getCurrentResult();
-      return handleResult<S, F, NS, F>(
-        result,
-        errorSafe(
-          async (r) => {
-            if (isSuccess(r)) {
-              const value = extractValue(r.value);
-              const newValue = await fn(value);
-              return success(newValue);
-            }
-            return r as Result<NS, F>;
-          },
-          (error) => error as F,
-        ),
-      );
-    }, [
-      ...this.steps,
-      {
-        type: 'map',
-        description: `Transform success value`,
+    const nextDescription = this.flow.getNextStepDescription();
+    return new Pipeline(
+      async () => {
+        const result = await this.getCurrentResult();
+        return handleResult<S, F, NS, F>(
+          result,
+          errorSafe(
+            async (r) => {
+              if (isSuccess(r)) {
+                const value = extractValue(r.value);
+                const newValue = await fn(value);
+                return success(newValue);
+              }
+              return r as Result<NS, F>;
+            },
+            (error) => error as F,
+          ),
+        );
       },
-    ]);
+      this.flow.addStep('map', nextDescription || 'Transform success value'),
+    );
   }
 
   /**
@@ -235,28 +216,25 @@ class Pipeline<S, F> {
    * @public
    */
   public mapFailure<NF>(fn: (failure: F) => NF | Promise<NF>): Pipeline<S, NF> {
-    return new Pipeline(async () => {
-      const result = await this.getCurrentResult();
-      return handleResult<S, F, S, NF>(
-        result,
-        errorSafe(
-          async (r) => {
-            if (isFail(r)) {
-              const newFailure = await fn(r.cause);
-              return failure(newFailure);
-            }
-            return r as Result<S, NF>;
-          },
-          (error) => error as NF,
-        ),
-      );
-    }, [
-      ...this.steps,
-      {
-        type: 'mapFailure',
-        description: `Transform failure value`,
+    return new Pipeline(
+      async () => {
+        const result = await this.getCurrentResult();
+        return handleResult<S, F, S, NF>(
+          result,
+          errorSafe(
+            async (r) => {
+              if (isFail(r)) {
+                const newFailure = await fn(r.cause);
+                return failure(newFailure);
+              }
+              return r as Result<S, NF>;
+            },
+            (error) => error as NF,
+          ),
+        );
       },
-    ]);
+      this.flow.addStep('mapFailure', 'Transform failure value'),
+    );
   }
 
   /**
@@ -294,29 +272,26 @@ class Pipeline<S, F> {
     successFn: (value: S) => NS | Promise<NS>,
     failureFn: (failure: F) => NF | Promise<NF>,
   ): Pipeline<NS, NF> {
-    return new Pipeline(async () => {
-      const result = await this.getCurrentResult();
-      return handleResult<S, F, NS, NF>(
-        result,
-        errorSafe(
-          async (r) => {
-            if (isSuccess(r)) {
-              const newValue = await successFn(r.value);
-              return success(newValue);
-            }
-            const newFailure = await failureFn(r.cause);
-            return failure(newFailure);
-          },
-          (error) => error as NF,
-        ),
-      );
-    }, [
-      ...this.steps,
-      {
-        type: 'mapBoth',
-        description: `Transform both success and failure values`,
+    return new Pipeline(
+      async () => {
+        const result = await this.getCurrentResult();
+        return handleResult<S, F, NS, NF>(
+          result,
+          errorSafe(
+            async (r) => {
+              if (isSuccess(r)) {
+                const newValue = await successFn(r.value);
+                return success(newValue);
+              }
+              const newFailure = await failureFn(r.cause);
+              return failure(newFailure);
+            },
+            (error) => error as NF,
+          ),
+        );
       },
-    ]);
+      this.flow.addStep('mapBoth', 'Transform both success and failure values'),
+    );
   }
 
   /**
@@ -339,27 +314,24 @@ class Pipeline<S, F> {
    * @public
    */
   public tap(fn: (value: S) => void | Promise<void>): Pipeline<S, F> {
-    return new Pipeline(async () => {
-      const result = await this.getCurrentResult();
-      return handleResult<S, F, S, F>(
-        result,
-        errorSafe(
-          async (r) => {
-            if (isSuccess(r)) {
-              await fn(r.value);
-            }
-            return r;
-          },
-          (error) => error as F,
-        ),
-      );
-    }, [
-      ...this.steps,
-      {
-        type: 'tap',
-        description: 'Side effect',
+    return new Pipeline(
+      async () => {
+        const result = await this.getCurrentResult();
+        return handleResult<S, F, S, F>(
+          result,
+          errorSafe(
+            async (r) => {
+              if (isSuccess(r)) {
+                await fn(r.value);
+              }
+              return r;
+            },
+            (error) => error as F,
+          ),
+        );
       },
-    ]);
+      this.flow.addStep('tap', 'Side effect'),
+    );
   }
 
   /**
@@ -386,42 +358,42 @@ class Pipeline<S, F> {
     key: K,
     fn: (value: ExtractBindValueType<S>) => Result<NS, F> | Promise<Result<NS, F>>,
   ): Pipeline<BindValue<MergeBindValueType<S, K, NS>>, F> {
-    return new Pipeline(async () => {
-      const result = await this.getCurrentResult();
-      return handleResult<S, F, BindValue<MergeBindValueType<S, K, NS>>, F>(
-        result,
-        errorSafe(
-          async (r) => {
-            if (isSuccess(r)) {
-              const value = extractValue(r.value);
-              const boundResult = await fn(value);
+    const description = `Bind value to key: ${key}`;
 
-              if (isSuccess(boundResult)) {
-                const isFirstBind = !this.steps.some((step) => step.type === 'bind');
-                let currentValue: Record<string, unknown> = {};
+    return new Pipeline(
+      async () => {
+        const result = await this.getCurrentResult();
+        return handleResult<S, F, BindValue<MergeBindValueType<S, K, NS>>, F>(
+          result,
+          errorSafe(
+            async (r) => {
+              if (isSuccess(r)) {
+                const value = extractValue(r.value);
+                const boundResult = await fn(value);
 
-                // For first bind, ignore the original value
-                if (!isFirstBind && isBindValue(r.value)) {
-                  currentValue = r.value.value as Record<string, unknown>;
+                if (isSuccess(boundResult)) {
+                  const isFirstBind = !this.flow
+                    .getSteps()
+                    .some((step: { type: string }) => step.type === 'bind');
+                  let currentValue: Record<string, unknown> = {};
+
+                  if (!isFirstBind && isBindValue(r.value)) {
+                    currentValue = r.value.value as Record<string, unknown>;
+                  }
+
+                  const newValue = mergeBindValues(currentValue, key, boundResult.value);
+                  return success(createBindValue(newValue as MergeBindValueType<S, K, NS>));
                 }
-
-                const newValue = mergeBindValues(currentValue, key, boundResult.value);
-                return success(createBindValue(newValue as MergeBindValueType<S, K, NS>));
+                return boundResult;
               }
-              return boundResult;
-            }
-            return r as Result<BindValue<MergeBindValueType<S, K, NS>>, F>;
-          },
-          (error) => error as F,
-        ),
-      );
-    }, [
-      ...this.steps,
-      {
-        type: 'bind',
-        description: `Bind value to key: ${key}`,
+              return r as Result<BindValue<MergeBindValueType<S, K, NS>>, F>;
+            },
+            (error) => error as F,
+          ),
+        );
       },
-    ]);
+      this.flow.addStep('bind', description),
+    );
   }
 
   /**
@@ -458,48 +430,47 @@ class Pipeline<S, F> {
     key: K,
     fn: (value: ExtractBindValueType<S>) => BindAllValue<T, F>,
   ): Pipeline<BindValue<MergeBindValueType<S, K, T>>, F> {
-    return new Pipeline(async () => {
-      const result = await this.getCurrentResult();
-      return handleResult<S, F, BindValue<MergeBindValueType<S, K, T>>, F>(
-        result,
-        errorSafe(
-          async (r) => {
-            if (isSuccess(r)) {
-              const value = extractValue(r.value);
-              const bindings = fn(value);
-              const boundValues: Partial<T> = {};
+    return new Pipeline(
+      async () => {
+        const result = await this.getCurrentResult();
+        return handleResult<S, F, BindValue<MergeBindValueType<S, K, T>>, F>(
+          result,
+          errorSafe(
+            async (r) => {
+              if (isSuccess(r)) {
+                const value = extractValue(r.value);
+                const bindings = fn(value);
+                const boundValues: Partial<T> = {};
 
-              await Promise.all(
-                Object.entries(bindings).map(async ([k, v]) => {
-                  const result = await v();
-                  if (isSuccess(result)) {
-                    boundValues[k as keyof T] = result.value as T[keyof T];
-                  } else {
-                    return result;
-                  }
-                }),
-              );
+                await Promise.all(
+                  Object.entries(bindings).map(async ([k, v]) => {
+                    const result = await v();
+                    if (isSuccess(result)) {
+                      boundValues[k as keyof T] = result.value as T[keyof T];
+                    } else {
+                      return result;
+                    }
+                  }),
+                );
 
-              const isFirstBind = !this.steps.some((step) => step.type === 'bind');
-              const currentValue =
-                !isFirstBind && isSuccess(r) && isBindValue(r.value)
-                  ? (r.value.value as Record<string, unknown>)
-                  : {};
-              const newValue = mergeBindValues(currentValue, key, boundValues);
-              return success(createBindValue(newValue as MergeBindValueType<S, K, T>));
-            }
-            return r as Result<BindValue<MergeBindValueType<S, K, T>>, F>;
-          },
-          (error) => error as F,
-        ),
-      );
-    }, [
-      ...this.steps,
-      {
-        type: 'bind',
-        description: `Bind multiple values to key: ${key}`,
+                const isFirstBind = !this.flow
+                  .getSteps()
+                  .some((step: { type: string }) => step.type === 'bind');
+                const currentValue =
+                  !isFirstBind && isSuccess(r) && isBindValue(r.value)
+                    ? (r.value.value as Record<string, unknown>)
+                    : {};
+                const newValue = mergeBindValues(currentValue, key, boundValues);
+                return success(createBindValue(newValue as MergeBindValueType<S, K, T>));
+              }
+              return r as Result<BindValue<MergeBindValueType<S, K, T>>, F>;
+            },
+            (error) => error as F,
+          ),
+        );
       },
-    ]);
+      this.flow.addStep('bind', `Bind multiple values to key: ${key}`),
+    );
   }
 
   /**
@@ -564,26 +535,35 @@ class Pipeline<S, F> {
    * This is useful for debugging and understanding the pipeline's structure.
    *
    * @returns A string showing all steps in the pipeline.
-   *
-   * @example
-   * ```ts
-   * const pipeline = Pipeline.from(success("hello"))
-   *   .map(str => str.toUpperCase())
-   *   .tap(console.log);
-   *
-   * console.log(pipeline.toString());
-   * // Output:
-   * // 1. map: Initial value
-   * // 2. map: Transform success value
-   * // 3. tap: Side effect
-   * ```
-   *
-   * @public
    */
   public toString(): string {
-    return this.steps
-      .map((step, index) => `${index + 1}. ${step.type}: ${step.description}`)
-      .join('\n');
+    return this.flow.toString();
+  }
+
+  /**
+   * Returns a JSON representation of the pipeline steps.
+   * This is useful for serialization and programmatic access to the pipeline structure.
+   *
+   * @returns An array of step objects with their type and description.
+   */
+  public toJSON(): Array<{ step: number; type: string; description: string }> {
+    return this.flow
+      .getSteps()
+      .map((step: { type: string; description: string }, index: number) => ({
+        step: index + 1,
+        type: step.type,
+        description: step.description,
+      }));
+  }
+
+  /**
+   * Gets the flow of the pipeline.
+   * This is useful for analyzing the pipeline's structure programmatically.
+   *
+   * @returns The pipeline flow
+   */
+  public getFlow(): Flow<PipelineOperation> {
+    return this.flow;
   }
 
   /**
@@ -614,93 +594,82 @@ class Pipeline<S, F> {
    * @public
    */
   public if<NS>(options: IfOptions<S, NS, F>): Pipeline<NS, F> {
-    return new Pipeline(async () => {
-      const result = await this.getCurrentResult();
-      return handleResult<S, F, NS, F>(
-        result,
-        errorSafe(
-          async (r) => {
-            if (isSuccess(r)) {
-              const value = extractValue(r.value);
-              const conditionResult = await options.predicate(value);
+    return new Pipeline(
+      async () => {
+        const result = await this.getCurrentResult();
+        return handleResult<S, F, NS, F>(
+          result,
+          errorSafe(
+            async (r) => {
+              if (isSuccess(r)) {
+                const value = extractValue(r.value);
+                const conditionResult = await options.predicate(value);
 
-              const branchResult = conditionResult
-                ? await options.onTrue(value)
-                : await options.onFalse(value);
+                const branchResult = conditionResult
+                  ? await options.onTrue(value)
+                  : await options.onFalse(value);
 
-              if (isSuccess(branchResult)) {
-                if (isBindValue(branchResult.value)) {
-                  return success(branchResult.value.value as NS);
+                if (isSuccess(branchResult)) {
+                  if (isBindValue(branchResult.value)) {
+                    return success(branchResult.value.value as NS);
+                  }
                 }
+                return branchResult;
               }
-              return branchResult;
-            }
-            return r as Result<NS, F>;
-          },
-          (error) => error as F,
-        ),
-      );
-    }, [
-      ...this.steps,
-      {
-        type: 'if',
-        description: 'Conditional branch',
+              return r as Result<NS, F>;
+            },
+            (error) => error as F,
+          ),
+        );
       },
-    ]);
+      this.flow.addStep('if', 'Conditional branch'),
+    );
   }
 
   /**
    * Executes multiple pipelines in parallel and collects their results.
    * This is useful for running independent operations concurrently.
+   * Preserves the steps from all individual pipelines.
    *
    * @typeParam T - The type of the values to collect.
    * @typeParam F - The type of the failure.
    * @param pipelines - An array of pipelines to execute.
+   * @param description - Optional description for this combination
    * @returns A new Pipeline that collects all results.
-   *
-   * @example
-   * ```ts
-   * // Run multiple independent operations in parallel
-   * const result = await Pipeline.all([
-   *   Pipeline.from(success("hello")),
-   *   Pipeline.from(success(42)),
-   *   Pipeline.from(success(true))
-   * ]).run();
-   *
-   * // Handle failures
-   * const result2 = await Pipeline.all([
-   *   Pipeline.from(success("hello")),
-   *   Pipeline.from(failure("error")),
-   *   Pipeline.from(success(true))
-   * ]).run();
-   * ```
-   *
-   * @public
    */
-  public static all<T, F>(pipelines: Pipeline<T, F>[]): Pipeline<T[], F> {
-    return new Pipeline(async () => {
-      const results = await Promise.all(pipelines.map((p) => p.run()));
+  public static all<T, F>(pipelines: Pipeline<T, F>[], description?: string): Pipeline<T[], F> {
+    // Collect all steps from individual pipelines with correct typing
+    const allSteps = pipelines.flatMap(
+      (pipeline) =>
+        pipeline.flow.getSteps().map((step) => ({
+          type: step.type,
+          description: step.description,
+        })) as Array<{ type: PipelineOperation; description: string }>,
+    );
 
-      // Check if any pipeline failed
-      const failure = results.find(isFailureOfType<F, F>);
-      if (failure) {
-        return failure as Result<T[], F>;
-      }
+    return new Pipeline(
+      async () => {
+        const results = await Promise.all(pipelines.map((p) => p.run()));
 
-      // All pipelines succeeded, collect their values
-      const values = results.map((r) => {
-        if (isSuccessOfType<T, never>(r)) {
-          return r.value;
+        // Check if any pipeline failed
+        const failure = results.find(isFailureOfType<F, F>);
+        if (failure) {
+          return failure as Result<T[], F>;
         }
-        throw new Error('Unexpected failure in all operation');
-      });
-      return success(values);
-    }, [
-      {
-        type: 'pipeline',
-        description: 'Execute multiple pipelines in parallel',
+
+        // All pipelines succeeded, collect their values
+        const values = results.map((r) => {
+          if (isSuccessOfType<T, never>(r)) {
+            return r.value;
+          }
+          throw new Error('Unexpected failure in all operation: Pipeline execution failed');
+        });
+        return success(values);
       },
-    ]);
+      Flow.create<PipelineOperation>(
+        description ?? 'Execute multiple pipelines in parallel',
+      ).addSteps(...allSteps),
+    );
   }
 
   /**
@@ -722,29 +691,26 @@ class Pipeline<S, F> {
    * @public
    */
   public zip<T2, F2>(other: Pipeline<T2, F2>): Pipeline<[S, T2], F | F2> {
-    return new Pipeline(async () => {
-      const [currentResult, otherResult] = await Promise.all([
-        this.getCurrentResult(),
-        other.run(),
-      ]);
+    return new Pipeline(
+      async () => {
+        const [currentResult, otherResult] = await Promise.all([
+          this.getCurrentResult(),
+          other.run(),
+        ]);
 
-      // If either pipeline fails, return the first failure
-      if (!isSuccess(currentResult)) {
-        return currentResult as Result<[S, T2], F | F2>;
-      }
-      if (!isSuccess(otherResult)) {
-        return otherResult as Result<[S, T2], F | F2>;
-      }
+        // If either pipeline fails, return the first failure
+        if (!isSuccess(currentResult)) {
+          return currentResult as Result<[S, T2], F | F2>;
+        }
+        if (!isSuccess(otherResult)) {
+          return otherResult as Result<[S, T2], F | F2>;
+        }
 
-      // Both pipelines succeeded, combine their values
-      return success([currentResult.value, otherResult.value]);
-    }, [
-      ...this.steps,
-      {
-        type: 'pipeline',
-        description: 'Combine with another pipeline',
+        // Both pipelines succeeded, combine their values
+        return success([currentResult.value, otherResult.value]);
       },
-    ]);
+      this.flow.addStep('pipeline', 'Combine with another pipeline'),
+    );
   }
 
   /**
@@ -775,74 +741,91 @@ class Pipeline<S, F> {
     other: Pipeline<T2, F2>,
     fn: (a: S, b: T2) => R | Promise<R>,
   ): Pipeline<R, F | F2> {
-    return new Pipeline(async () => {
-      const [currentResult, otherResult] = await Promise.all([
-        this.getCurrentResult(),
-        other.run(),
-      ]);
+    return new Pipeline(
+      async () => {
+        const [currentResult, otherResult] = await Promise.all([
+          this.getCurrentResult(),
+          other.run(),
+        ]);
 
-      // If either pipeline fails, return the first failure
-      if (!isSuccess(currentResult)) {
-        return currentResult as Result<R, F | F2>;
-      }
-      if (!isSuccess(otherResult)) {
-        return otherResult as Result<R, F | F2>;
-      }
+        // If either pipeline fails, return the first failure
+        if (!isSuccess(currentResult)) {
+          return currentResult as Result<R, F | F2>;
+        }
+        if (!isSuccess(otherResult)) {
+          return otherResult as Result<R, F | F2>;
+        }
 
-      // Both pipelines succeeded, combine their values using the provided function
-      const combinedValue = await fn(currentResult.value, otherResult.value);
-      return success(combinedValue);
-    }, [
-      ...this.steps,
-      {
-        type: 'pipeline',
-        description: 'Combine with another pipeline using a custom function',
+        // Both pipelines succeeded, combine their values using the provided function
+        const combinedValue = await fn(currentResult.value, otherResult.value);
+        return success(combinedValue);
       },
-    ]);
+      this.flow.addStep('pipeline', 'Combine with another pipeline using a custom function'),
+    );
   }
 
   /**
    * Combines multiple pipelines into a single pipeline that returns an array of their results.
    * All pipelines must succeed for the result to be a success.
    * If any pipeline fails, the result will be a failure.
+   * Preserves the steps from all individual pipelines.
    *
    * @typeParam T - The type of the values in the pipelines.
    * @typeParam F - The type of the failure.
    * @param pipelines - The pipelines to combine.
+   * @param description - Optional description for this combination
    * @returns A new Pipeline that returns an array of the results.
-   *
-   * @example
-   * ```ts
-   * const p1 = Pipeline.from(success(1));
-   * const p2 = Pipeline.from(success("hello"));
-   * const p3 = Pipeline.from(success(true));
-   * const result = await Pipeline.zipAll([p1, p2, p3]).run();
-   * ```
-   *
-   * @public
    */
-  public static zipAll<T extends readonly unknown[], F>(pipelines: {
-    [K in keyof T]: Pipeline<T[K], F>;
-  }): Pipeline<T, F> {
-    return new Pipeline(async () => {
-      const results = await Promise.all(pipelines.map((p) => p.run()));
-      const failures = results.filter(isFail);
-      if (failures.length > 0) {
-        return failures[0] as Result<T, F>;
-      }
-      const values = results.map((r) => {
-        if (isSuccess(r)) {
-          return r.value;
+  public static zipAll<T extends readonly unknown[], F>(
+    pipelines: {
+      [K in keyof T]: Pipeline<T[K], F>;
+    },
+    description?: string,
+  ): Pipeline<T, F> {
+    return new Pipeline(
+      async () => {
+        const results = await Promise.all(pipelines.map((p) => p.run()));
+        const failures = results.filter(isFail);
+        if (failures.length > 0) {
+          return failures[0] as Result<T, F>;
         }
-        throw new Error('Unexpected failure in zipAll operation');
-      });
-      return success(values as unknown as T);
-    }, [
-      {
-        type: 'pipeline',
-        description: 'Combine multiple pipelines',
+        const values = results.map((r) => {
+          if (isSuccess(r)) {
+            return r.value;
+          }
+          throw new Error('Unexpected failure in zipAll operation: Pipeline execution failed');
+        });
+        return success(values as unknown as T);
       },
-    ]);
+      Flow.combine(
+        pipelines.map((p) => p.flow),
+        description || 'Combine multiple pipelines',
+        'parallel',
+      ),
+    );
+  }
+
+  /**
+   * Starts a new pipeline with a description.
+   * This is a more fluent way to create pipelines.
+   *
+   * @param description - The description for this pipeline
+   * @returns A new Pipeline instance
+   */
+  public static start(description: string): Pipeline<unknown, unknown> {
+    return new Pipeline(success(undefined), Flow.create<PipelineOperation>(`${description}`));
+  }
+
+  /**
+   * Defines the next step in the pipeline.
+   * This helps document the purpose of the next operation.
+   * Similar to tap, it doesn't affect the pipeline flow or result.
+   *
+   * @param description - The description of the next operation
+   * @returns The same Pipeline instance for chaining
+   */
+  public step(description: string): Pipeline<S, F> {
+    return new Pipeline(this.result, this.flow.setNextStepDescription(description));
   }
 }
 
