@@ -7,12 +7,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { Pipeline } from '@daikit/result';
-import type {
-  ValidatorList,
-  ValidatorListErrors,
-  ValidatorMap,
-  ValidatorMapErrors,
-} from '@daikit/validation';
+import type { Validator } from '@daikit/validation';
 
 /**
  * A type that is used to justify the use of any in value object contexts.
@@ -21,12 +16,10 @@ import type {
  * @internal
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ValueObjectAny = any;
+type ExplicitAny = any;
 
 /**
  * Placeholder for a deep freeze function.
- *
- * @remarks
  * This should recursively apply `Object.freeze` to nested objects and arrays.
  *
  * @param obj - The object to freeze deeply.
@@ -38,7 +31,7 @@ function deepFreeze<T>(obj: T): T {
   if (obj !== null && typeof obj === 'object' && !Object.isFrozen(obj)) {
     Object.freeze(obj);
     Object.getOwnPropertyNames(obj).forEach((prop) => {
-      deepFreeze((obj as ValueObjectAny)[prop]);
+      deepFreeze((obj as ExplicitAny)[prop]);
     });
   }
   return obj;
@@ -53,7 +46,7 @@ function deepFreeze<T>(obj: T): T {
  *
  * @internal
  */
-function internalDeepEqual(a: ValueObjectAny, b: ValueObjectAny): boolean {
+function internalDeepEqual(a: ExplicitAny, b: ExplicitAny): boolean {
   if (a === b) return true;
 
   if (a === null || typeof a !== 'object' || b === null || typeof b !== 'object') {
@@ -87,60 +80,153 @@ function internalDeepEqual(a: ValueObjectAny, b: ValueObjectAny): boolean {
 type PrimitiveValueObject = string | number | boolean | Date | RegExp;
 
 /**
- * Represents a unified validator structure for Value Objects.
- * For primitive types, only 'all' is allowed and 'byField' is optional.
- * For composite types, both 'all' and 'byField' are optional.
+ * Represents a validator with a description.
  *
- * @typeParam T - The type of the value object.
- * @typeParam V - The type of the validators.
- * @typeParam FV - The type of the field validators.
+ * @typeParam T - The type of the input value.
+ * @typeParam E - The type of the error message.
  *
  * @internal
  */
-type ValueObjectValidators<
-  T,
-  V extends ValidatorList<T>,
-  FV extends ValidatorMap<T>,
-> = T extends PrimitiveValueObject
-  ? {
-      all: V;
-      byField?: never;
-    }
-  : {
-      all?: V;
-      byField?: FV;
-    };
-
-/**
- * Represents the constructor of a Value Object to be used in the {@link ValueObject.create} method.
- *
- * @typeParam T - The type of the value object.
- * @typeParam V - The type of the validators.
- * @typeParam FV - The type of the field validators.
- *
- * @internal
- */
-type ValueObjectConstructor<T, V extends ValidatorList<T>, FV extends ValidatorMap<T>> = {
-  new (value: T): ValueObject<T>;
-  validators: ValueObjectValidators<T, V, FV>;
+type ValidatorWithDescription<T, E extends string> = {
+  validator: Validator<T, E>;
+  description: string;
 };
 
 /**
- * Represents the type of a validator field in the Value object.
- * If T is a primitive type, the validator will be an array of validators.
- * Otherwise, if is record or nested object, the validator will be a ValidatorMap<T> object.
+ * Represents a list of validators with descriptions.
  *
- * @typeParam T - The type of the value object.
- * @typeParam V - The type of the validators.
- * @typeParam FV - The type of the field validators.
+ * @typeParam T - The type of the input value.
+ * @typeParam E - The type of the error message.
  *
  * @internal
  */
-type ValueObjectError<
-  T,
-  V extends ValidatorList<T>,
-  FV extends ValidatorMap<T>,
-> = T extends PrimitiveValueObject ? ValidatorListErrors<V> : ValidatorMapErrors<FV>;
+type ValidatorList<T, E extends string> = readonly ValidatorWithDescription<T, E>[];
+
+/**
+ * Extracts error types from a validator list.
+ *
+ * @typeParam T - The type of the input value.
+ * @typeParam V - The validator list type.
+ *
+ * @internal
+ */
+type ExtractErrorTypes<T, V> = V extends readonly {
+  validator: Validator<any, infer E>;
+  description: string;
+}[]
+  ? E
+  : never;
+
+/**
+ * Extracts error types from member validators.
+ *
+ * @typeParam T - The type of the value object.
+ * @typeParam M - The member validators type.
+ *
+ * @internal
+ */
+type ExtractMemberErrorTypes<T, M> = M extends {
+  [K in keyof T]?: readonly {
+    validator: Validator<T[K], ExplicitAny>;
+    description: string;
+  }[];
+}
+  ? { [K in keyof T]: ExtractErrorTypes<T[K], M[K]> }[keyof T]
+  : never;
+
+/**
+ * Extracts error types from group validators.
+ *
+ * @typeParam T - The type of the value object.
+ * @typeParam G - The group validators type.
+ *
+ * @internal
+ */
+type ExtractGroupErrorTypes<T, G> = G extends readonly {
+  group: readonly (keyof T)[];
+  validator: Validator<any, infer E>;
+  description: string;
+}[]
+  ? E
+  : never;
+
+/**
+ * Extracts all possible error types from validators.
+ *
+ * @typeParam T - The type of the value object.
+ * @typeParam V - The validators type.
+ *
+ * @internal
+ */
+type ExtractAllErrorTypes<T, V> =
+  V extends ValueObjectValidators<T>
+    ? V extends { forAll?: infer F; byMember?: infer M; byGroup?: infer G }
+      ?
+          | ExtractErrorTypes<T, NonNullable<F>>
+          | ExtractMemberErrorTypes<T, NonNullable<M>>
+          | ExtractGroupErrorTypes<T, NonNullable<G>>
+      : never
+    : never;
+
+/**
+ * Represents the validators for a primitive value object.
+ * Only allows forAll validators.
+ *
+ * @typeParam T - The type of the value object.
+ *
+ * @internal
+ */
+type PrimitiveValidators<T> = {
+  forAll?: readonly ValidatorWithDescription<T, string>[];
+  byMember?: never;
+  byGroup?: never;
+};
+
+/**
+ * Extracts all possible object validators from a value object.
+ *
+ * @typeParam T - The type of the value object.
+ *
+ * @internal
+ */
+export type ExtractAllPossibleObjectValidators<T> = {
+  [K in keyof T]: T[K] extends PrimitiveValueObject
+    ? ValidatorWithDescription<T[K], string>
+    : never;
+}[keyof T];
+
+/**
+ * Represents the validators for an object value object.
+ * Allows forAll, byMember and byGroup validators.
+ *
+ * @typeParam T - The type of the value object.
+ *
+ * @internal
+ */
+type ObjectValidators<T> = {
+  forAll?: readonly ExtractAllPossibleObjectValidators<T>[];
+  byMember?: {
+    [K in keyof T]?: readonly ValidatorWithDescription<T[K], string>[];
+  };
+  byGroup?: readonly {
+    group: readonly (keyof T)[];
+    validator: Validator<any, string>;
+    description: string;
+  }[];
+};
+
+/**
+ * Represents all possible validators for a value object.
+ * If T is a primitive type, only forAll validators are allowed.
+ * If T is an object type, all validator types are allowed.
+ *
+ * @typeParam T - The type of the value object.
+ *
+ * @internal
+ */
+type ValueObjectValidators<T> = T extends PrimitiveValueObject
+  ? PrimitiveValidators<T>
+  : ObjectValidators<T>;
 
 /**
  * Generic base class for value objects.
@@ -149,16 +235,9 @@ type ValueObjectError<
  *
  * @public
  */
-abstract class ValueObject<T> {
+class ValueObject<T> {
   public readonly value: T;
-  public static readonly validators: ValueObjectValidators<
-    ValueObjectAny,
-    ValidatorList<ValueObjectAny>,
-    ValidatorMap<ValueObjectAny>
-  > = {
-    all: [],
-    byField: {},
-  };
+  public static validators: ValueObjectValidators<ExplicitAny>;
 
   /**
    * Initializes a new instance of the Value Object class.
@@ -170,9 +249,13 @@ abstract class ValueObject<T> {
    *
    * @internal
    */
-  constructor(value: T) {
+  protected constructor(value: T) {
     this.value = deepFreeze(value);
   }
+
+  // *********************************************************************************************
+  // Public instance methods.
+  // *********************************************************************************************
 
   /**
    * Checks if this Value Object is structurally equal to another Value Object.
@@ -227,85 +310,120 @@ abstract class ValueObject<T> {
     return this.value;
   }
 
+  // *********************************************************************************************
+  // Public static methods.
+  // *********************************************************************************************
+
   /**
    * Creates a new instance of the Value Object class.
    *
    * @typeParam T - The type of the value object.
-   * @typeParam V - The type of the validators.
-   * @typeParam FV - The type of the field validators.
+   * @typeParam C - The type of the class constructor.
    * @param value - The value to encapsulate.
    * @returns A new instance of the Value Object class.
    *
    * @public
    */
-  static create<T, V extends ValidatorList<T>, FV extends ValidatorMap<T>>(
-    this: ValueObjectConstructor<T, V, FV>,
+  public static create<T, C extends typeof ValueObject<T>>(
+    this: C,
     value: T,
-  ): Pipeline<InstanceType<typeof this>, ValueObjectError<T, V, FV>> {
-    const {
-      validators: { all = undefined, byField = undefined },
-    } = this;
+  ): Pipeline<ValueObject<T>, ExtractAllErrorTypes<T, C['validators']>> {
+    const { forAll, byMember, byGroup } = this.validators;
+    const validationFunctions: Pipeline<unknown, string>[] = [];
 
-    // Asume that the value is a primitive type.
+    // Assume that the value is a primitive type.
     let isPrimitive = true;
-    const validationFunctions: Pipeline<void, string>[] = [];
 
     if (value && typeof value === 'object') {
-      // Raise an error if the byField validators keys are not found in the value.
-      if (byField) {
-        const byFieldsKeys = Object.keys(byField);
-        const invalidField = byFieldsKeys.find((key) => !(key in value));
+      // Raise an error if the byMember validators keys are not found in the value.
+      if (byMember) {
+        const byMembersKeys = Object.keys(byMember) as Array<keyof T>;
+        const invalidMember = byMembersKeys.find((key) => !(key in value));
 
-        // TODO: this is working only in runtime.
-        // We need to check this in compile time with typescript.
-        if (invalidField) {
-          throw new Error(`Field "${String(invalidField)}" not found in value`);
+        if (invalidMember) {
+          throw new Error(`Member "${String(invalidMember)}" not found in value object`);
         }
       }
+
+      // Validate that all group members exist in the value
+      if (byGroup) {
+        for (const { group } of byGroup) {
+          const invalidGroupMember = group.find((key) => !(key in value));
+          if (invalidGroupMember) {
+            throw new Error(
+              `Group member "${String(invalidGroupMember)}" not found in value object`,
+            );
+          }
+        }
+      }
+
       isPrimitive = false;
     }
 
-    if (isPrimitive && byField) {
-      throw new Error('ByField validators are not allowed for primitive types.');
+    if (isPrimitive && (byMember || byGroup)) {
+      throw new Error(
+        'ByMember and byGroup validators are not allowed for primitive types: Use forAll validators instead',
+      );
     }
 
-    // For both cases, apply all validators.
-    if (all) {
-      for (const validator of all) {
+    // Apply forAll validators
+    if (forAll) {
+      for (const { validator, description } of forAll) {
+        // If the value is an object, we need to apply the validator to each key.
         if (value && typeof value === 'object') {
-          const valueKeys = Object.keys(value) as (keyof T)[];
-          for (const key of valueKeys) {
-            const fieldValue = value[key] as T;
-            const result = () => validator(fieldValue);
-            validationFunctions.push(Pipeline.from(result));
+          for (const key of Object.keys(value)) {
+            const anonymousFn = () => validator(value[key as keyof T]);
+            validationFunctions.push(
+              Pipeline.fromFunction(anonymousFn, `${description} (applied to ${String(key)})`),
+            );
           }
         } else {
-          const result = () => validator(value);
-          validationFunctions.push(Pipeline.from(result));
+          const anonymousFn = () => validator(value);
+          validationFunctions.push(Pipeline.fromFunction(anonymousFn, description));
         }
       }
     }
 
-    // Collecting all validators.
-    if (!isPrimitive && byField) {
-      const fieldValidators = Object.entries(byField) as [keyof T, ValidatorList<T>][];
+    // Apply byMember validators
+    if (!isPrimitive && byMember) {
+      const memberValidators = Object.entries(byMember) as [
+        keyof T,
+        ValidatorList<T[keyof T], string>,
+      ][];
 
-      for (const [key, validator] of fieldValidators) {
-        const valueToValidate = value[key as keyof T] as T;
+      for (const [key, validators] of memberValidators) {
+        const valueToValidate = value[key];
 
-        validator.forEach((v) => {
-          const anonymusFn = () => v(valueToValidate);
-          validationFunctions.push(Pipeline.from(anonymusFn));
-        });
+        for (const { validator, description } of validators) {
+          const anonymousFn = () => validator(valueToValidate);
+          validationFunctions.push(
+            Pipeline.fromFunction(anonymousFn, `${description} (applied to ${String(key)})`),
+          );
+        }
       }
     }
 
-    // The pipeline is created with the validation functions.
-    return Pipeline.all(validationFunctions).map(() => new this(value)) as Pipeline<
-      InstanceType<typeof this>,
-      ValueObjectError<T, V, FV>
+    // Apply byGroup validators
+    if (!isPrimitive && byGroup) {
+      for (const { group, validator, description } of byGroup) {
+        for (const key of group) {
+          const valueToValidate = value[key as keyof T];
+          const anonymousFn = () => validator(valueToValidate);
+          validationFunctions.push(
+            Pipeline.fromFunction(anonymousFn, `${description} (applied to ${String(key)})`),
+          );
+        }
+      }
+    }
+
+    return Pipeline.all(validationFunctions, `Run validations for ${this.name}`)
+      .step(`Create a new ${this.name} value object`)
+      .map(() => new this(value)) as Pipeline<
+      ValueObject<T>,
+      ExtractAllErrorTypes<T, C['validators']>
     >;
   }
 }
 
 export { ValueObject };
+export type { ValueObjectValidators };
