@@ -93,16 +93,6 @@ type ValidatorWithDescription<T, E extends string> = {
 };
 
 /**
- * Represents a list of validators with descriptions.
- *
- * @typeParam T - The type of the input value.
- * @typeParam E - The type of the error message.
- *
- * @internal
- */
-type ValidatorList<T, E extends string> = readonly ValidatorWithDescription<T, E>[];
-
-/**
  * Extracts error types from a validator list.
  *
  * @typeParam T - The type of the input value.
@@ -111,7 +101,7 @@ type ValidatorList<T, E extends string> = readonly ValidatorWithDescription<T, E
  * @internal
  */
 type ExtractErrorTypes<T, V> = V extends readonly {
-  validator: Validator<any, infer E>;
+  validator: Validator<T, infer E>;
   description: string;
 }[]
   ? E
@@ -144,7 +134,7 @@ type ExtractMemberErrorTypes<T, M> = M extends {
  */
 type ExtractGroupErrorTypes<T, G> = G extends readonly {
   group: readonly (keyof T)[];
-  validator: Validator<any, infer E>;
+  validator: Validator<ExplicitAny, infer E>;
   description: string;
 }[]
   ? E
@@ -189,7 +179,7 @@ type PrimitiveValidators<T> = {
  *
  * @internal
  */
-export type ExtractAllPossibleObjectValidators<T> = {
+type ExtractAllPossibleObjectValidators<T> = {
   [K in keyof T]: T[K] extends PrimitiveValueObject
     ? ValidatorWithDescription<T[K], string>
     : never;
@@ -210,7 +200,7 @@ type ObjectValidators<T> = {
   };
   byGroup?: readonly {
     group: readonly (keyof T)[];
-    validator: Validator<any, string>;
+    validator: ExtractAllPossibleObjectValidators<T>['validator'];
     description: string;
   }[];
 };
@@ -222,7 +212,7 @@ type ObjectValidators<T> = {
  *
  * @typeParam T - The type of the value object.
  *
- * @internal
+ * @public
  */
 type ValueObjectValidators<T> = T extends PrimitiveValueObject
   ? PrimitiveValidators<T>
@@ -345,7 +335,7 @@ class ValueObject<T> {
         }
       }
 
-      // Validate that all group members exist in the value
+      // Validate that all group members exist in the value.
       if (byGroup) {
         for (const { group } of byGroup) {
           const invalidGroupMember = group.find((key) => !(key in value));
@@ -384,11 +374,11 @@ class ValueObject<T> {
       }
     }
 
-    // Apply byMember validators
+    // Apply byMember validators.
     if (!isPrimitive && byMember) {
       const memberValidators = Object.entries(byMember) as [
         keyof T,
-        ValidatorList<T[keyof T], string>,
+        ValidatorWithDescription<T[keyof T], string>[],
       ][];
 
       for (const [key, validators] of memberValidators) {
@@ -403,7 +393,7 @@ class ValueObject<T> {
       }
     }
 
-    // Apply byGroup validators
+    // Apply byGroup validators.
     if (!isPrimitive && byGroup) {
       for (const { group, validator, description } of byGroup) {
         for (const key of group) {
