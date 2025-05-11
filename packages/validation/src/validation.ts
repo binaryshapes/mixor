@@ -54,7 +54,17 @@ type ValidationRule<T, E extends string> = {
 type ValidationRuleForAll<T, E extends string> = ValidationRule<T, E>;
 
 /**
+ * Type guard to check if a type is an object type.
+ *
+ * @typeParam T - The type to check.
+ *
+ * @internal
+ */
+type IsObject<T> = T extends object ? T : never;
+
+/**
  * Represents a validation rule that applies to specific members.
+ * Only available when T is an object type.
  *
  * @typeParam T - The type of the object.
  * @typeParam E - The type of the error message.
@@ -62,12 +72,12 @@ type ValidationRuleForAll<T, E extends string> = ValidationRule<T, E>;
  * @internal
  */
 type ValidationRuleForMembers<T, E extends string> = {
-  [K in keyof T]?: readonly ValidationRule<T[K], E>[];
+  [K in keyof IsObject<T>]?: readonly ValidationRule<IsObject<T>[K], E>[];
 };
 
 /**
  * Represents a mutable validation rule that applies to specific members.
- * Used internally during construction of validation rules.
+ * Only available when T is an object type.
  *
  * @typeParam T - The type of the object.
  * @typeParam E - The type of the error message.
@@ -75,12 +85,12 @@ type ValidationRuleForMembers<T, E extends string> = {
  * @internal
  */
 type MutableValidationRuleForMembers<T, E extends string> = {
-  [K in keyof T]?: ValidationRule<T[K], E>[];
+  [K in keyof IsObject<T>]?: ValidationRule<IsObject<T>[K], E>[];
 };
 
 /**
  * Represents a validation rule that applies to groups of members.
- * The validator type is inferred from the union of the types of the selected fields.
+ * Only available when T is an object type.
  *
  * @typeParam T - The type of the object.
  * @typeParam K - The keys of the group.
@@ -88,16 +98,14 @@ type MutableValidationRuleForMembers<T, E extends string> = {
  *
  * @internal
  */
-type ValidationRuleForGroups<T, K extends keyof T, E extends string> = {
+type ValidationRuleForGroups<T, K extends keyof IsObject<T>, E extends string> = {
   group: readonly K[];
-  validator: Validator<T[K], E>;
+  validator: Validator<IsObject<T>[K], E>;
   description: string;
 };
 
 /**
  * Represents a set of validation rules for an object.
- * The byGroup property uses AnyValue to allow for flexible group validation rules
- * while maintaining type safety at the API level.
  *
  * @typeParam T - The type of the object.
  * @typeParam E - The union type of all possible error messages.
@@ -112,8 +120,6 @@ type ValidationRules<T, E extends string> = {
 
 /**
  * Internal type for mutable validation rules during construction.
- * The byGroup property uses AnyValue to allow for flexible group validation rules
- * while maintaining type safety at the API level.
  *
  * @typeParam T - The type of the object.
  * @typeParam E - The union type of all possible error messages.
@@ -125,6 +131,26 @@ type MutableValidationRules<T, E extends string> = {
   byMember: MutableValidationRuleForMembers<T, E>;
   byGroup: ValidationRuleForGroups<T, AnyValue, E>[];
 };
+
+/**
+ * Type for the Validation class when T is an object type.
+ *
+ * @typeParam T - The type of the object to validate.
+ * @typeParam E - The union type of all possible error messages.
+ *
+ * @internal
+ */
+type ObjectValidation<T extends object, E extends string = never> = Validation<T, E>;
+
+/**
+ * Type for the Validation class when T is a primitive type.
+ *
+ * @typeParam T - The type of the primitive to validate.
+ * @typeParam E - The union type of all possible error messages.
+ *
+ * @internal
+ */
+type PrimitiveValidation<T, E extends string = never> = Pick<Validation<T, E>, 'forAll' | 'build'>;
 
 /**
  * Builder class for creating validation rules.
@@ -143,14 +169,19 @@ class Validation<T, E extends string = never> {
 
   /**
    * Creates a new instance of the Validation builder.
+   * The returned type will be different depending on whether T is an object or primitive type.
    *
-   * @typeParam T - The type of the object to validate.
+   * @typeParam T - The type of the value to validate.
    * @returns A new instance of the Validation builder.
    *
    * @public
    */
-  public static create<T>(): Validation<T, never> {
-    return new Validation<T, never>();
+  public static create<T>(): T extends object
+    ? ObjectValidation<T, never>
+    : PrimitiveValidation<T, never> {
+    return new Validation<T, never>() as T extends object
+      ? ObjectValidation<T, never>
+      : PrimitiveValidation<T, never>;
   }
 
   /**
@@ -162,13 +193,18 @@ class Validation<T, E extends string = never> {
    *
    * @public
    */
-  public forAll<F extends string>(rule: ValidationRule<T, F>): Validation<T, E | F> {
+  public forAll<F extends string>(
+    rule: ValidationRule<T, F>,
+  ): T extends object ? ObjectValidation<T, E | F> : PrimitiveValidation<T, E | F> {
     this.rules.forAll.push(rule as unknown as ValidationRule<T, E>);
-    return this as unknown as Validation<T, E | F>;
+    return this as unknown as T extends object
+      ? ObjectValidation<T, E | F>
+      : PrimitiveValidation<T, E | F>;
   }
 
   /**
    * Adds a validator for a specific member.
+   * Only available when T is an object type.
    *
    * @typeParam K - The key of the member.
    * @typeParam F - The type of the error message.
@@ -178,19 +214,20 @@ class Validation<T, E extends string = never> {
    *
    * @public
    */
-  public forMember<K extends keyof T, F extends string>(
+  public forMember<K extends keyof IsObject<T>, F extends string>(
     member: K,
-    rule: ValidationRule<T[K], F>,
-  ): Validation<T, E | F> {
+    rule: ValidationRule<IsObject<T>[K], F>,
+  ): T extends object ? ObjectValidation<T, E | F> : never {
     if (!this.rules.byMember[member]) {
       this.rules.byMember[member] = [];
     }
-    this.rules.byMember[member].push(rule as unknown as ValidationRule<T[keyof T], E>);
-    return this as unknown as Validation<T, E | F>;
+    this.rules.byMember[member].push(rule as unknown as ValidationRule<IsObject<T>[K], E>);
+    return this as unknown as T extends object ? ObjectValidation<T, E | F> : never;
   }
 
   /**
    * Adds a validator for a group of members.
+   * Only available when T is an object type.
    *
    * @typeParam K - The keys of the group.
    * @typeParam F - The type of the error message.
@@ -200,16 +237,16 @@ class Validation<T, E extends string = never> {
    *
    * @public
    */
-  public forGroup<K extends keyof T, F extends string>(
+  public forGroup<K extends keyof IsObject<T>, F extends string>(
     group: readonly K[],
-    rule: ValidationRule<T[K], F>,
-  ): Validation<T, E | F> {
+    rule: ValidationRule<IsObject<T>[K], F>,
+  ): T extends object ? ObjectValidation<T, E | F> : never {
     this.rules.byGroup.push({
       group,
       validator: rule.validator,
       description: rule.description,
     } as unknown as ValidationRuleForGroups<T, K, E>);
-    return this as unknown as Validation<T, E | F>;
+    return this as unknown as T extends object ? ObjectValidation<T, E | F> : never;
   }
 
   /**
