@@ -6,7 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Result } from '@daikit/result';
+import { Pipeline, type Result } from '@daikit/result';
 
 /**
  * Represents a type that can be used to justify the use of `any`.
@@ -138,7 +138,7 @@ type MutableValidationRules<T, E extends string> = {
  * @typeParam T - The type of the object to validate.
  * @typeParam E - The union type of all possible error messages.
  *
- * @internal
+ * @public
  */
 type ObjectValidation<T extends object, E extends string = never> = Validation<T, E>;
 
@@ -148,9 +148,20 @@ type ObjectValidation<T extends object, E extends string = never> = Validation<T
  * @typeParam T - The type of the primitive to validate.
  * @typeParam E - The union type of all possible error messages.
  *
- * @internal
+ * @public
  */
 type PrimitiveValidation<T, E extends string = never> = Pick<Validation<T, E>, 'forAll' | 'build'>;
+
+/**
+ * Extracts error types from validation rules.
+ *
+ * @typeParam T - The type of the value object.
+ * @typeParam VP - The type of the validation pipeline.
+ *
+ * @internal
+ */
+type ValidationPipelineError<T, VP extends ValidationPipeline<T, string>> =
+  VP extends ValidationPipeline<T, infer E> ? E : never;
 
 /**
  * Builder class for creating validation rules.
@@ -161,11 +172,25 @@ type PrimitiveValidation<T, E extends string = never> = Pick<Validation<T, E>, '
  * @public
  */
 class Validation<T, E extends string = never> {
-  private rules: MutableValidationRules<T, E> = {
-    forAll: [],
-    byMember: {},
-    byGroup: [],
-  };
+  protected rules: MutableValidationRules<T, E>;
+
+  /**
+   * Creates a new instance of the Validation builder.
+   * The returned type will be different depending on whether T is an object or primitive type.
+   *
+   * @typeParam T - The type of the value to validate.
+   * @returns A new instance of the Validation builder.
+   *
+   * @internal
+   */
+  private constructor() {
+    // Initialize the rules with empty arrays.
+    this.rules = {
+      forAll: [],
+      byMember: {},
+      byGroup: [],
+    };
+  }
 
   /**
    * Creates a new instance of the Validation builder.
@@ -176,10 +201,9 @@ class Validation<T, E extends string = never> {
    *
    * @public
    */
-  public static create<T>(): T extends object
-    ? ObjectValidation<T, never>
-    : PrimitiveValidation<T, never> {
-    return new Validation<T, never>() as T extends object
+  public static create<T>() {
+    const instance = new Validation<T, never>();
+    return instance as unknown as T extends object
       ? ObjectValidation<T, never>
       : PrimitiveValidation<T, never>;
   }
@@ -193,9 +217,7 @@ class Validation<T, E extends string = never> {
    *
    * @public
    */
-  public forAll<F extends string>(
-    rule: ValidationRule<T, F>,
-  ): T extends object ? ObjectValidation<T, E | F> : PrimitiveValidation<T, E | F> {
+  public forAll<F extends string>(rule: ValidationRule<T, F>) {
     this.rules.forAll.push(rule as unknown as ValidationRule<T, E>);
     return this as unknown as T extends object
       ? ObjectValidation<T, E | F>
@@ -217,7 +239,7 @@ class Validation<T, E extends string = never> {
   public forMember<K extends keyof IsObject<T>, F extends string>(
     member: K,
     rule: ValidationRule<IsObject<T>[K], F>,
-  ): T extends object ? ObjectValidation<T, E | F> : never {
+  ) {
     if (!this.rules.byMember[member]) {
       this.rules.byMember[member] = [];
     }
@@ -240,7 +262,7 @@ class Validation<T, E extends string = never> {
   public forGroup<K extends keyof IsObject<T>, F extends string>(
     group: readonly K[],
     rule: ValidationRule<IsObject<T>[K], F>,
-  ): T extends object ? ObjectValidation<T, E | F> : never {
+  ) {
     this.rules.byGroup.push({
       group,
       validator: rule.validator,
@@ -250,20 +272,80 @@ class Validation<T, E extends string = never> {
   }
 
   /**
-   * Builds the validation rules.
+   * Builds the validation pipeline.
    *
-   * @returns The validation rules.
+   * @returns The validation pipeline.
    *
    * @public
    */
-  public build(): ValidationRules<T, E> {
-    return {
-      forAll: this.rules.forAll.length > 0 ? this.rules.forAll : undefined,
-      byMember: Object.keys(this.rules.byMember).length > 0 ? this.rules.byMember : undefined,
-      byGroup: this.rules.byGroup.length > 0 ? this.rules.byGroup : undefined,
-    };
+  public build() {
+    return new ValidationPipeline<T, E>(this.rules);
   }
 }
 
-export type { Validator, ValidationRules };
+/**
+ * Represents a validation pipeline.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The union type of all possible error messages.
+ *
+ * @public
+ */
+class ValidationPipeline<T, E extends string> {
+  constructor(private readonly rules: ValidationRules<T, E>) {}
+
+  /**
+   * Converts the validation rules into a Pipeline that can be executed.
+   * The pipeline will run all validations in sequence and return a Result.
+   *
+   * @param value - The value to validate.
+   * @param description - Optional description for the validation pipeline.
+   * @returns A Pipeline that can be executed to validate the value.
+   *
+   * @public
+   */
+  public pipe(value: T, description = 'Run validations') {
+    const validationFunctions: Pipeline<void, E>[] = [];
+
+    // Apply forAll validators.
+    if (this.rules.forAll) {
+      for (const { validator, description } of this.rules.forAll) {
+        const anonymousFn = () => validator(value);
+        validationFunctions.push(Pipeline.fromFunction(anonymousFn, description));
+      }
+    }
+
+    // Apply byMember validators only if T is an object type.
+    if (this.rules.byMember && typeof value === 'object' && value !== null) {
+      for (const [key, validators] of Object.entries(this.rules.byMember)) {
+        if (validators && Array.isArray(validators)) {
+          const valueToValidate = value[key as keyof T];
+          for (const { validator, description } of validators) {
+            const anonymousFn = () => validator(valueToValidate);
+            validationFunctions.push(
+              Pipeline.fromFunction(anonymousFn, `${description} (applied to ${key})`),
+            );
+          }
+        }
+      }
+    }
+
+    // Apply byGroup validators only if T is an object type.
+    if (this.rules.byGroup && typeof value === 'object' && value !== null) {
+      for (const { group, validator, description } of this.rules.byGroup) {
+        for (const key of group) {
+          const valueToValidate = value[key as keyof T];
+          const anonymousFn = () => validator(valueToValidate);
+          validationFunctions.push(
+            Pipeline.fromFunction(anonymousFn, `${description} (applied to ${key})`),
+          );
+        }
+      }
+    }
+
+    return Pipeline.all(validationFunctions, description);
+  }
+}
+
+export type { Validator, ValidationPipeline, ValidationPipelineError };
 export { Validation };
