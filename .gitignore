@@ -32,5 +32,8 @@ coverage
 dist
 
 # Eslint.
-eslint
-!packages/eslint
+packages/**/eslint
+
+# Examples.
+/packages/**/src/examples.ts
+/packages/**/src/examples/*.ts
