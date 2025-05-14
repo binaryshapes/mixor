@@ -1,0 +1,34 @@
+{
+  "version": "0.2",
+  "ignorePaths": [
+    "node_modules",
+    "dist",
+    "coverage",
+    "pnpm-lock.yaml",
+    "packages/**/*.html"
+  ],
+  "dictionaryDefinitions": [],
+  "dictionaries": [],
+  "words": [
+    "Daikit",
+    "nodemon",
+    "tasker",
+    "Taskers"
+  ],
+  "ignoreWords": [
+    "unokit",
+    "Moonrepo",
+    "prototools",
+    "commitlint",
+    "tiged",
+    "swcrc",
+    "trivago",
+    "tsup",
+    "rimraf",
+    "moonx",
+    "binaryshapes",
+    "refact",
+    "prefs"
+  ],
+  "import": []
+}
