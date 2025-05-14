@@ -6,7 +6,9 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { Pipeline, type Result } from '@daikit/result';
+import { Pipeline } from '@daikit/result';
+
+import { type Validator, type ValidatorError } from './validator';
 
 /**
  * Represents a type that can be used to justify the use of `any`.
@@ -19,18 +21,6 @@ import { Pipeline, type Result } from '@daikit/result';
 type AnyValue = any;
 
 /**
- * Represents a validator function that takes an input and returns a Result.
- *
- * @typeParam T - The type of the input value.
- * @typeParam E - The type of the error message.
- * @param input - The input value to validate.
- * @returns A Result indicating the success or failure of the validation.
- *
- * @public
- */
-type Validator<T, E extends string> = (input: T) => Result<void, E>;
-
-/**
  * Represents a validation rule with a validator and description.
  *
  * @typeParam T - The type of the input value.
@@ -38,7 +28,7 @@ type Validator<T, E extends string> = (input: T) => Result<void, E>;
  *
  * @internal
  */
-type ValidationRule<T, E extends string> = {
+type ValidationRule<T, E extends ValidatorError> = {
   validator: Validator<T, E>;
   description: string;
 };
@@ -51,7 +41,7 @@ type ValidationRule<T, E extends string> = {
  *
  * @internal
  */
-type ValidationRuleForAll<T, E extends string> = ValidationRule<T, E>;
+type ValidationRuleForAll<T, E extends ValidatorError> = ValidationRule<T, E>;
 
 /**
  * Type guard to check if a type is an object type.
@@ -71,7 +61,7 @@ type IsObject<T> = T extends object ? T : never;
  *
  * @internal
  */
-type ValidationRuleForMembers<T, E extends string> = {
+type ValidationRuleForMembers<T, E extends ValidatorError> = {
   [K in keyof IsObject<T>]?: readonly ValidationRule<IsObject<T>[K], E>[];
 };
 
@@ -84,7 +74,7 @@ type ValidationRuleForMembers<T, E extends string> = {
  *
  * @internal
  */
-type MutableValidationRuleForMembers<T, E extends string> = {
+type MutableValidationRuleForMembers<T, E extends ValidatorError> = {
   [K in keyof IsObject<T>]?: ValidationRule<IsObject<T>[K], E>[];
 };
 
@@ -98,7 +88,7 @@ type MutableValidationRuleForMembers<T, E extends string> = {
  *
  * @internal
  */
-type ValidationRuleForGroups<T, K extends keyof IsObject<T>, E extends string> = {
+type ValidationRuleForGroups<T, K extends keyof IsObject<T>, E extends ValidatorError> = {
   group: readonly K[];
   validator: Validator<IsObject<T>[K], E>;
   description: string;
@@ -112,7 +102,7 @@ type ValidationRuleForGroups<T, K extends keyof IsObject<T>, E extends string> =
  *
  * @public
  */
-type ValidationRules<T, E extends string> = {
+type ValidationRules<T, E extends ValidatorError> = {
   forAll?: readonly ValidationRuleForAll<T, E>[];
   byMember?: ValidationRuleForMembers<T, E>;
   byGroup?: readonly ValidationRuleForGroups<T, AnyValue, E>[];
@@ -126,7 +116,7 @@ type ValidationRules<T, E extends string> = {
  *
  * @internal
  */
-type MutableValidationRules<T, E extends string> = {
+type MutableValidationRules<T, E extends ValidatorError> = {
   forAll: ValidationRuleForAll<T, E>[];
   byMember: MutableValidationRuleForMembers<T, E>;
   byGroup: ValidationRuleForGroups<T, AnyValue, E>[];
@@ -140,7 +130,7 @@ type MutableValidationRules<T, E extends string> = {
  *
  * @public
  */
-type ObjectValidation<T extends object, E extends string = never> = Validation<T, E>;
+type ObjectValidation<T extends object, E extends ValidatorError = never> = Validation<T, E>;
 
 /**
  * Type for the Validation class when T is a primitive type.
@@ -150,7 +140,10 @@ type ObjectValidation<T extends object, E extends string = never> = Validation<T
  *
  * @public
  */
-type PrimitiveValidation<T, E extends string = never> = Pick<Validation<T, E>, 'forAll' | 'build'>;
+type PrimitiveValidation<T, E extends ValidatorError = never> = Pick<
+  Validation<T, E>,
+  'forAll' | 'build'
+>;
 
 /**
  * Extracts error types from validation rules.
@@ -160,7 +153,7 @@ type PrimitiveValidation<T, E extends string = never> = Pick<Validation<T, E>, '
  *
  * @internal
  */
-type ValidationPipelineError<T, VP extends ValidationPipeline<T, string>> =
+type ValidationPipelineError<T, VP extends ValidationPipeline<T, ValidatorError>> =
   VP extends ValidationPipeline<T, infer E> ? E : never;
 
 /**
@@ -171,7 +164,7 @@ type ValidationPipelineError<T, VP extends ValidationPipeline<T, string>> =
  *
  * @public
  */
-class Validation<T, E extends string = never> {
+class Validation<T, E extends ValidatorError = never> {
   protected rules: MutableValidationRules<T, E>;
 
   /**
@@ -217,7 +210,7 @@ class Validation<T, E extends string = never> {
    *
    * @public
    */
-  public forAll<F extends string>(rule: ValidationRule<T, F>) {
+  public forAll<F extends ValidatorError>(rule: ValidationRule<T, F>) {
     this.rules.forAll.push(rule as unknown as ValidationRule<T, E>);
     return this as unknown as T extends object
       ? ObjectValidation<T, E | F>
@@ -236,7 +229,7 @@ class Validation<T, E extends string = never> {
    *
    * @public
    */
-  public forMember<K extends keyof IsObject<T>, F extends string>(
+  public forMember<K extends keyof IsObject<T>, F extends ValidatorError>(
     member: K,
     rule: ValidationRule<IsObject<T>[K], F>,
   ) {
@@ -259,7 +252,7 @@ class Validation<T, E extends string = never> {
    *
    * @public
    */
-  public forGroup<K extends keyof IsObject<T>, F extends string>(
+  public forGroup<K extends keyof IsObject<T>, F extends ValidatorError>(
     group: readonly K[],
     rule: ValidationRule<IsObject<T>[K], F>,
   ) {
@@ -291,7 +284,7 @@ class Validation<T, E extends string = never> {
  *
  * @public
  */
-class ValidationPipeline<T, E extends string> {
+class ValidationPipeline<T, E extends ValidatorError> {
   constructor(private readonly rules: ValidationRules<T, E>) {}
 
   /**
@@ -305,7 +298,7 @@ class ValidationPipeline<T, E extends string> {
    * @public
    */
   public pipe(value: T, description = 'Run validations') {
-    const validationFunctions: Pipeline<void, E>[] = [];
+    const validationFunctions: Pipeline<true, E>[] = [];
 
     // Apply forAll validators.
     if (this.rules.forAll) {
@@ -347,5 +340,5 @@ class ValidationPipeline<T, E extends string> {
   }
 }
 
-export type { Validator, ValidationPipeline, ValidationPipelineError };
-export { Validation };
+export type { ValidationPipelineError, ValidationRule };
+export { Validation, ValidationPipeline };
