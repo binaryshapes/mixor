@@ -140,5 +140,5 @@ function createValidator<
   };
 }
 
-export type { Validator, ValidatorFunction, ValidatorError, ValidatorArgs };
+export type { Validator, ValidatorFunction, ValidatorError, ValidatorArgs, BooleanValidator };
 export { createValidator };
