@@ -56,8 +56,9 @@ const isNotEmpty: BooleanValidator = () => (value: string) => value.trim().lengt
  *
  * @public
  */
-const hasMinLength: BooleanValidator = (minLength: number) => (value: string) =>
-  value.length >= minLength;
+const hasMinLength: BooleanValidator<[minLength: number]> =
+  (minLength: number) => (value: string) =>
+    value.length >= minLength;
 
 /**
  * Validates that the value has a maximum length.
@@ -72,8 +73,9 @@ const hasMinLength: BooleanValidator = (minLength: number) => (value: string) =>
  *
  * @public
  */
-const hasMaxLength: BooleanValidator = (maxLength: number) => (value: string) =>
-  value.length > maxLength;
+const hasMaxLength: BooleanValidator<[maxLength: number]> =
+  (maxLength: number) => (value: string) =>
+    value.length > maxLength;
 
 /**
  * Validates that the value contains a value from a list.
@@ -88,7 +90,8 @@ const hasMaxLength: BooleanValidator = (maxLength: number) => (value: string) =>
  *
  * @public
  */
-const contains: BooleanValidator = (list: string[]) => (value: string) => list.includes(value);
+const contains: BooleanValidator<[list: string[]]> = (list: string[]) => (value: string) =>
+  list.includes(value);
 
 /**
  * Validates that the value matches a regular expression.
@@ -103,7 +106,8 @@ const contains: BooleanValidator = (list: string[]) => (value: string) => list.i
  *
  * @public
  */
-const matches: BooleanValidator = (pattern: RegExp) => (value: string) => pattern.test(value);
+const matches: BooleanValidator<[pattern: RegExp]> = (pattern: RegExp) => (value: string) =>
+  pattern.test(value);
 
 /**
  * Validates that the value is a valid email address.

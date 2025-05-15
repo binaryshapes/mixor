@@ -62,7 +62,9 @@ type ValidatorFunction = (...args: ExplicitAny[]) => Validator<ExplicitAny, Vali
  *
  * @internal
  */
-type BooleanValidator = (...args: ExplicitAny[]) => (value: ExplicitAny) => boolean;
+type BooleanValidator<A extends Args = ExplicitAny[]> = (
+  ...args: A
+) => (value: ExplicitAny) => boolean;
 
 /**
  * A type that reverses an array.
