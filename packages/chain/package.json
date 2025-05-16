@@ -1,0 +1,27 @@
+{
+  "name": "@daikit/chain",
+  "version": "1.0.0",
+  "description": "A general purpose suite for building functional chains",
+  "author": "Carlos Cosming",
+  "license": "MIT",
+  "keywords": [
+    "chaining",
+    "builder-pattern",
+    "functional-programming",
+    "design-patterns"
+  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "moonx -u -s test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@daikit/result": "workspace:*",
+    "@types/jest": "^29.5.14",
+    "@unokit/jest": "^1.0.0",
+    "tslib": "^2.8.1",
+    "tsx": "^4.19.4"
+  }
+}
