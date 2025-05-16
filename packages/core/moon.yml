@@ -1,0 +1,16 @@
+id: '@daikit/core'
+language: typescript
+type: library
+
+project:
+  name: Core library
+  description: Core library for Daikit with abstractions, design patterns and utilities
+  maintainers:
+    - Carlos Cosming
+  metadata:
+    license: MIT
+    public: true
+    repository:
+      type: git
+      url: https://github.com/binaryshapes/daikit
+      directory: packages/core
