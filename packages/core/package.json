@@ -1,0 +1,26 @@
+{
+  "name": "@daikit/core",
+  "version": "1.0.0",
+  "description": "Core library for Daikit with abstractions, design patterns and utilities",
+  "author": "Carlos Cosming",
+  "license": "MIT",
+  "keywords": [
+    "design-patterns",
+    "utilities"
+  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "moonx -u -s test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@daikit/result": "workspace:*",
+    "@types/jest": "^29.5.14",
+    "@unokit/jest": "^1.0.0",
+    "tsd": "^0.32.0",
+    "tslib": "^2.8.1",
+    "tsx": "^4.19.4"
+  }
+}
