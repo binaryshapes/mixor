@@ -1,18 +1,15 @@
-import { Pipeline } from './pipeline';
-
-/**
- * Represents a function that can transform a value.
- * This type can be either synchronous or asynchronous.
+/*
+ * This file is part of the Daikit project.
  *
- * @typeParam I - The type of the input value.
- * @typeParam O - The type of the output value.
+ * Copyright (c) 2025, Binary Shapes.
  *
- * @public
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
-type TransformFn<I, O> = (value: I) => O | Promise<O>;
+import { Pipeline, type StepFn } from './pipeline';
 
 declare module './pipeline' {
-  interface Pipeline<I, O, E> {
+  interface Pipeline<I, O> {
     /**
      * Transforms the value flowing through the pipeline using the provided function.
      * The function can be either synchronous or asynchronous.
@@ -24,25 +21,24 @@ declare module './pipeline' {
      *
      * @example
      * ```ts
-     * const pipeline = Pipeline.create<number, number>('Number pipeline')
-     *   .map(n => n * 2, 'Double the number') // Sync function with custom description
-     *   .map(async n => await fetchData(n)); // Async function with default description
+     * const pipeline = Pipeline.create((n: number) => n * 2, 'Double the number')
+     *   .map(n => n + 1, 'Add one')
+     *   .map(async n => await fetchData(n));
      * ```
      *
      * @public
      */
-    map<U>(fn: TransformFn<O, U>, description?: string): Pipeline<I, U, E>;
+    map<U>(fn: StepFn<O, U>, description?: string): Pipeline<I, U>;
   }
 }
 
-Pipeline.prototype.map = function <I, O, E, U>(
-  this: Pipeline<I, O, E>,
-  fn: TransformFn<O, U>,
+// Map function implementation.
+Pipeline.prototype.map = function map<I, O, U>(
+  this: Pipeline<I, O>,
+  fn: StepFn<O, U>,
   description?: string,
-): Pipeline<I, U, E> {
+) {
   const next = this.createNext<U>();
   next.addStep('map', 'Transform value', fn, description);
   return next;
 };
-
-export type { TransformFn };
