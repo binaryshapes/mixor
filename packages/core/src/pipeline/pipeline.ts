@@ -46,18 +46,16 @@ type PipelineMode = { type: 'sync'; value: unknown } | { type: 'async'; value: P
  * The Pipeline class allows for chaining operations in a type-safe way.
  * Each pipeline maintains a list of steps that will be executed when run.
  *
- * @typeParam I - The type of the input value that flows through the pipeline.
- * @typeParam O - The type of the output value that flows through the pipeline.
- * @typeParam E - The type of the error that can occur in the pipeline.
- *
  * @example
  * ```ts
- * const pipeline = Pipeline.create<number, string>('Number processing pipeline');
+ * const pipeline = Pipeline.create()
+ *   .from((n: number) => n * 2)
+ *   .map(n => n.toString());
  * ```
  *
  * @public
  */
-class Pipeline<I, O = I, E = unknown> {
+class Pipeline<I = unknown, O = unknown> {
   private readonly steps: PipelineStep[] = [];
 
   /**
@@ -70,7 +68,7 @@ class Pipeline<I, O = I, E = unknown> {
   private constructor(description?: string) {
     if (description) {
       this.steps.push({
-        type: 'init',
+        type: 'create',
         description,
       });
     }
@@ -85,8 +83,8 @@ class Pipeline<I, O = I, E = unknown> {
    *
    * @internal
    */
-  protected createNext<U>(): Pipeline<I, U, E> {
-    const next = new Pipeline<I, U, E>();
+  protected createNext<U>(): Pipeline<I, U> {
+    const next = new Pipeline<I, U>();
     this.steps.forEach((step) => {
       next.addStep(step.type, step.description, step.fn);
     });
@@ -140,11 +138,10 @@ class Pipeline<I, O = I, E = unknown> {
    *
    * @example
    * ```ts
-   * const pipeline = Pipeline.create<number, string>('Number pipeline')
+   * const pipeline = Pipeline.create()
    *   .from((n: number) => n * 2)
    *   .map(n => n.toString());
    *
-   * // Sync execution
    * const result = pipeline.runSync(5); // "10"
    * ```
    *
@@ -173,10 +170,10 @@ class Pipeline<I, O = I, E = unknown> {
    *
    * @example
    * ```ts
-   * const pipeline = Pipeline.create<number, string>('Async pipeline')
+   * const pipeline = Pipeline.create()
    *   .map(async n => await fetchData(n));
    *
-   * const asyncResult = await pipeline.runAsync(5); // Promise<string>
+   * const result = await pipeline.runAsync(5);
    * ```
    *
    * @public
@@ -221,56 +218,32 @@ class Pipeline<I, O = I, E = unknown> {
    * Initializes the pipeline with a function or value.
    * This method infers the initial type from the provided function or value.
    *
-   * @typeParam I - The type of the input value.
-   * @typeParam O - The type of the output value.
-   * @typeParam E - The type of the error.
+   * @typeParam U - The type of the output value.
    * @param fn - The function or value to initialize the pipeline.
    * @param description - Optional description for this step.
    * @returns A new pipeline with the inferred type.
    *
    * @example
    * ```ts
-   * const pipeline = Pipeline.create<number, number>('Number pipeline')
+   * const pipeline = Pipeline.create('Number pipeline')
    *   .from((n: number) => n * 2, 'Double the number')
    *   .map(n => n.toString(), 'Convert to string');
    * ```
    *
    * @public
    */
-  public from<U>(fn: (value: I) => U | Promise<U>, description?: string): Pipeline<I, U, E> {
-    const next = new Pipeline<I, U, E>(description);
-    next.addStep('from', 'Initial value', fn);
+  public static create<I, U>(fn: StepFn<I, U>, description?: string): Pipeline<I, U> {
+    const next = new Pipeline<I, U>(description);
+    next.addStep('init', 'Initial value', fn);
     return next;
-  }
-
-  /**
-   * Static method to create a new pipeline.
-   * This is a more fluent way to create pipelines.
-   *
-   * @typeParam I - The type of the input value.
-   * @typeParam O - The type of the output value.
-   * @param description - Optional description for this pipeline.
-   * @returns A new pipeline instance.
-   *
-   * @example
-   * ```ts
-   * const pipeline = Pipeline.create<number, string>('Number pipeline')
-   *   .from((n: number) => n * 2, 'Double the number')
-   *   .map(n => n.toString(), 'Convert to string');
-   * ```
-   *
-   * @public
-   */
-  public static create<I, O = I>(description?: string): Pipeline<I, O, unknown> {
-    return new Pipeline<I, O, unknown>(description);
   }
 }
 
-// Type augmentation for pipeline operators
+// Type augmentation for pipeline operators.
 declare module './pipeline' {
   // eslint-disable-next-line @typescript-eslint/no-empty-interface, @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unused-vars
-  interface Pipeline<I, O, E> {
-    // This interface will be augmented by each operator
+  interface Pipeline<I, O> {
+    // This interface will be augmented by each operator.
   }
 }
 
