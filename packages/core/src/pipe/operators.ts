@@ -6,126 +6,116 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import type { Operator, StepFn } from './pipe';
+import type { Any, Prettify } from '../types';
+import type { PipeFn } from './pipe';
+
+// *********************************************************************************************
+// Operators types.
+// *********************************************************************************************
 
 /**
- * Creates a map operator that transforms each value using the provided function.
+ * Map operator type.
  *
- * @typeParam I - The type of the input value.
- * @typeParam O - The type of the output value.
- * @param fn - The function to transform each value.
- * @param description - Optional description for this operator.
+ * @typeParam A - The type of the input value.
+ * @typeParam B - The type of the output value.
+ * @param f - The function to apply to the value.
+ * @returns A map operator that can be used in a pipeline.
+ *
+ * @internal
+ */
+type MapFn = <A, B>(fn: PipeFn<A, B>) => (ma: A) => B;
+
+/**
+ * Bind operator type.
+ *
+ * @typeParam T - The type of the input value.
+ * @typeParam K - The key type for the new property.
+ * @typeParam V - The value type for the new property.
+ * @param key - The key to identify this bind operation.
+ * @param fn - The function that returns a new value to be merged.
+ * @returns A bind operator that can be used in a pipeline.
+ *
+ * @internal
+ */
+type BindFn = <T, K extends string, V>(
+  key: K,
+  fn: PipeFn<T, V>,
+) => (value: T) => Prettify<T & { [P in K]: V }>;
+
+/**
+ * Tap operator type.
+ *
+ * @typeParam A - The type of the value.
+ * @param f - The function to execute as a side effect.
+ * @returns A tap operator that can be used in a pipeline.
+ *
+ * @internal
+ */
+type TapFn = <A>(fn: PipeFn<A, void>) => (ma: A) => A;
+
+// *********************************************************************************************
+// Operators implementations.
+// *********************************************************************************************
+
+/**
+ * Creates a map operator that applies a function to the value.
+ *
+ * @typeParam A - The type of the input value.
+ * @typeParam B - The type of the output value.
+ * @param fn - The function to apply to the value.
  * @returns A map operator that can be used in a pipeline.
  *
  * @example
  * ```ts
- * const pipeline = d.pipe('String pipeline', [
- *   d.map((n: number) => n.toString(), 'Convert to string')
- * ]);
+ * const pipeline = pipe()
+ *  .step('Double', map((n: number) => n * 2))
  * ```
  *
  * @public
  */
-export function map<I, O>(fn: StepFn<I, O>, description = 'Map transformation'): Operator<I, O> {
-  return {
-    type: 'map',
-    description,
-    fn,
-  };
-}
-
-/**
- * Creates a from operator that initializes the pipeline with a value or function.
- *
- * @typeParam I - The type of the input value.
- * @typeParam O - The type of the output value.
- * @param fn - The function to initialize the pipeline.
- * @param description - Optional description for this operator.
- * @returns A from operator that can be used in a pipeline.
- *
- * @example
- * ```ts
- * const pipeline = d.pipe('Number pipeline', [
- *   d.from((n: number) => n * 2, 'Double the number')
- * ]);
- * ```
- *
- * @public
- */
-export function from<I, O>(fn: StepFn<I, O>, description = 'Initial value'): Operator<I, O> {
-  return {
-    type: 'from',
-    description,
-    fn,
-  };
-}
-
-/**
- * Creates a tap operator that allows side effects without changing the value.
- *
- * @typeParam T - The type of the value.
- * @param fn - The function to execute as a side effect.
- * @param description - Optional description for this operator.
- * @returns A tap operator that can be used in a pipeline.
- *
- * @example
- * ```ts
- * const pipeline = d.pipe('Number pipeline', [
- *   d.tap((n: number) => console.log('Current value:', n), 'Log value')
- * ]);
- * ```
- *
- * @public
- */
-export function tap<T>(
-  fn: (value: T) => void | Promise<void>,
-  description = 'Tap operation',
-): Operator<T, T> {
-  return {
-    type: 'tap',
-    description,
-    fn: async (value: T) => {
-      await fn(value);
-      return value;
-    },
-  };
-}
+const map: MapFn = (fn) => (ma) => fn(ma);
 
 /**
  * Creates a bind operator that merges the result with the previous value.
  *
- * @typeParam I - The type of the input value.
- * @typeParam O - The type of the output value.
+ * @typeParam T - The type of the input value.
+ * @typeParam K - The key type for the new property.
+ * @typeParam V - The value type for the new property.
  * @param key - The key to identify this bind operation.
  * @param fn - The function that returns a new value to be merged.
- * @param description - Optional description for this operator.
  * @returns A bind operator that can be used in a pipeline.
  *
  * @example
  * ```ts
- * const pipeline = d.pipe('Number pipeline', [
- *   d.bind('multiplier', (n: number) => ({
- *     factor: 2,
- *     result: n * 2
- *   }), 'Double with factor')
- * ]);
+ * const pipeline = pipe()
+ *  .step('Double with factor', bind('multiplier', (n: number) => ({
+ *    factor: 2,
+ *    result: n * 2
+ *  })))
  * ```
  *
  * @public
  */
-export function bind<I, O>(
-  key: string,
-  fn: (value: I) => O,
-  description = 'Bind operation',
-): Operator<I, O & I> {
-  return {
-    type: 'bind',
-    description,
-    fn: (value: I) =>
-      ({
-        ...value,
-        // The binded value is merged with the previous value.
-        [key]: fn(value),
-      }) as O & I,
-  };
-}
+const bind: BindFn = (key, fn) => (value) => ({ ...value, [key]: fn(value) }) as Any;
+
+/**
+ * A tap operator, is a function that allows side effects without changing the value.
+ *
+ * @typeParam A - The type of the value.
+ * @param fn - The function to execute as a side effect.
+ * @returns A tap operator that can be used in a pipeline.
+ *
+ * @example
+ * ```ts
+ * const pipeline = pipe()
+ * .step('Log value', tap((n: number) => console.log('Current value:', n)))
+ * ```
+ *
+ * @public
+ */
+const tap: TapFn = (fn) => (ma) => {
+  fn(ma);
+  return ma;
+};
+
+export { map, bind, tap };
