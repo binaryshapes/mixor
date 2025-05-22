@@ -9,18 +9,29 @@
     "utilities"
   ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
   },
   "scripts": {
-    "test": "moonx -u -s test",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest",
+    "test:types": "vitest --project types",
+    "test:runtime": "vitest --project runtime",
+    "test:watch": "vitest --watch",
+    "build": "moonx build -s"
   },
   "devDependencies": {
-    "@daikit/result": "workspace:*",
-    "@types/jest": "^29.5.14",
-    "@unokit/jest": "^1.0.0",
-    "tsd": "^0.32.0",
+    "@unokit/tsup": "^1.0.0",
+    "@unokit/vitest": "^1.0.0",
+    "@vitest/coverage-v8": "^3.1.4",
+    "@vitest/ui": "^3.1.4",
+    "rimraf": "^6.0.1",
     "tslib": "^2.8.1",
-    "tsx": "^4.19.4"
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.4",
+    "vitest": "^3.1.4"
   }
 }
