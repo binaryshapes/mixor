@@ -41,7 +41,7 @@ export type Result<T, E> = Ok<T> | Err<E>;
  * @param value - The value to wrap in a successful result.
  * @returns A new Ok instance containing the value.
  */
-export const ok = <T>(value: T): Ok<T> => ({
+export const ok = <T>(value: T): Result<T, never> => ({
   _tag: 'Ok',
   value,
 });
@@ -54,7 +54,7 @@ export const ok = <T>(value: T): Ok<T> => ({
  * @param error - The error to wrap in a failed result.
  * @returns A new Err instance containing the error.
  */
-export const err = <E extends string>(error: E): Err<E> => ({
+export const err = <E extends string>(error: E): Result<never, E> => ({
   _tag: 'Err',
   error,
 });
