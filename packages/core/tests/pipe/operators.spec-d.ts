@@ -94,21 +94,22 @@ describe('Pipe Operators Types', () => {
 
   describe('Tap', () => {
     it('should preserve input type for simple values', () => {
-      const logNumber = tap((n: number) => console.log(n));
+      const logNumber = tap<number>((n: number) => console.log(n));
       expectTypeOf(logNumber).toBeFunction();
       expectTypeOf(logNumber).parameter(0).toBeNumber();
       expectTypeOf(logNumber).returns.toBeNumber();
     });
 
     it('should preserve input type for objects', () => {
-      const logUser = tap((user: { name: string; age: number }) => console.log(user));
+      type User = { name: string; age: number };
+      const logUser = tap<User>((user: User) => console.log(user));
       expectTypeOf(logUser).toBeFunction();
       expectTypeOf(logUser).parameter(0).toEqualTypeOf<{ name: string; age: number }>();
       expectTypeOf(logUser).returns.toEqualTypeOf<{ name: string; age: number }>();
     });
 
     it('should handle async side effects', () => {
-      const asyncLog = tap(async (n: number) => console.log(n));
+      const asyncLog = tap<number>(async (n: number) => console.log(n));
       expectTypeOf(asyncLog).toBeFunction();
       expectTypeOf(asyncLog).parameter(0).toBeNumber();
       expectTypeOf(asyncLog).returns.toBeNumber();
@@ -122,7 +123,7 @@ describe('Pipe Operators Types', () => {
           values: number[];
         };
       };
-      const logComplex = tap((obj: ComplexType) => console.log(obj));
+      const logComplex = tap<ComplexType>((obj: ComplexType) => console.log(obj));
       expectTypeOf(logComplex).toBeFunction();
       expectTypeOf(logComplex).parameter(0).toEqualTypeOf<ComplexType>();
       expectTypeOf(logComplex).returns.toEqualTypeOf<ComplexType>();
