@@ -1,9 +1,13 @@
 import { describe, expectTypeOf, it } from 'vitest';
 
-import type { Any, DeepAwaited, HasPromise } from '../../src/utils';
+import type { Any, DeepAwaited, HasPromise, Prettify } from '../../src/utils';
 
-describe('Generics Utils', () => {
-  describe('Any type', () => {
+describe('Generics', () => {
+  // *********************************************************************************************
+  // Any type tests.
+  // *********************************************************************************************
+
+  describe('Any', () => {
     it('should handle any type', () => {
       type Test1 = Any;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -11,141 +15,137 @@ describe('Generics Utils', () => {
     });
   });
 
-  describe('DeepAwaited type', () => {
-    describe('Simple promise cases', () => {
-      it('should handle simple promise', () => {
-        type Test1 = Promise<string>;
-        expectTypeOf<string>({} as DeepAwaited<Test1>);
-      });
+  // *********************************************************************************************
+  // DeepAwaited type tests.
+  // *********************************************************************************************
 
-      it('should handle nested promise', () => {
-        type Test2 = Promise<Promise<string>>;
-        expectTypeOf<string>({} as DeepAwaited<Test2>);
-      });
+  describe('DeepAwaited', () => {
+    it('should handle simple promise', () => {
+      type Test1 = Promise<string>;
+      expectTypeOf<string>({} as DeepAwaited<Test1>);
     });
 
-    describe('Object cases', () => {
-      it('should handle object with promise properties', () => {
-        type Test3 = {
+    it('should handle nested promise', () => {
+      type Test2 = Promise<Promise<string>>;
+      expectTypeOf<string>({} as DeepAwaited<Test2>);
+    });
+
+    it('should handle object with promise properties', () => {
+      type Test3 = {
+        name: string;
+        age: Promise<number>;
+      };
+      expectTypeOf<{
+        name: string;
+        age: number;
+      }>({} as DeepAwaited<Test3>);
+    });
+
+    it('should handle nested object with promises', () => {
+      type Test4 = {
+        user: {
           name: string;
           age: Promise<number>;
+          email: Promise<string>;
         };
-        expectTypeOf<{
+      };
+      expectTypeOf<{
+        user: {
           name: string;
           age: number;
-        }>({} as DeepAwaited<Test3>);
-      });
+          email: string;
+        };
+      }>({} as DeepAwaited<Test4>);
+    });
 
-      it('should handle nested object with promises', () => {
-        type Test4 = {
-          user: {
-            name: string;
-            age: Promise<number>;
+    it('should handle array with promises', () => {
+      type Test5 = Promise<string>[];
+      expectTypeOf<string[]>({} as DeepAwaited<Test5>);
+    });
+
+    it('should handle nested array with promises', () => {
+      type Test6 = {
+        items: Promise<string>[];
+        nested: {
+          values: Promise<number>[];
+        };
+      };
+      expectTypeOf<{
+        items: string[];
+        nested: {
+          values: number[];
+        };
+      }>({} as DeepAwaited<Test6>);
+    });
+
+    it('should handle tuple with promises', () => {
+      type Test7 = readonly [string, Promise<number>, Promise<string>];
+      expectTypeOf<readonly [string, number, string]>({} as DeepAwaited<Test7>);
+    });
+
+    it('should handle complex nested structure with promises', () => {
+      type Test8 = {
+        user: {
+          name: string;
+          age: Promise<number>;
+          contacts: {
             email: Promise<string>;
+            phones: Promise<string[]>;
           };
+          tags: Promise<string>[];
         };
-        expectTypeOf<{
-          user: {
-            name: string;
-            age: number;
+        metadata: Promise<{
+          created: string;
+          updated: Promise<string>;
+        }>;
+      };
+      expectTypeOf<{
+        user: {
+          name: string;
+          age: number;
+          contacts: {
             email: string;
+            phones: string[];
           };
-        }>({} as DeepAwaited<Test4>);
-      });
-    });
-
-    describe('Array cases', () => {
-      it('should handle array with promises', () => {
-        type Test5 = Promise<string>[];
-        expectTypeOf<string[]>({} as DeepAwaited<Test5>);
-      });
-
-      it('should handle nested array with promises', () => {
-        type Test6 = {
-          items: Promise<string>[];
-          nested: {
-            values: Promise<number>[];
-          };
-        };
-        expectTypeOf<{
-          items: string[];
-          nested: {
-            values: number[];
-          };
-        }>({} as DeepAwaited<Test6>);
-      });
-    });
-
-    describe('Tuple cases', () => {
-      it('should handle tuple with promises', () => {
-        type Test7 = readonly [string, Promise<number>, Promise<string>];
-        expectTypeOf<readonly [string, number, string]>({} as DeepAwaited<Test7>);
-      });
-    });
-
-    describe('Complex nested structures', () => {
-      it('should handle complex nested structure with promises', () => {
-        type Test8 = {
-          user: {
-            name: string;
-            age: Promise<number>;
-            contacts: {
-              email: Promise<string>;
-              phones: Promise<string[]>;
-            };
-            tags: Promise<string>[];
-          };
-          metadata: Promise<{
-            created: string;
-            updated: Promise<string>;
-          }>;
-        };
-        expectTypeOf<{
-          user: {
-            name: string;
-            age: number;
-            contacts: {
-              email: string;
-              phones: string[];
-            };
-            tags: string[];
-          };
-          metadata: {
-            created: string;
-            updated: string;
-          };
-        }>({} as DeepAwaited<Test8>);
-      });
-    });
-
-    describe('Non-promise types', () => {
-      it('should handle object without promises', () => {
-        type Test9 = {
-          name: string;
-          age: number;
           tags: string[];
         };
-        expectTypeOf<{
-          name: string;
-          age: number;
-          tags: string[];
-        }>({} as DeepAwaited<Test9>);
-      });
+        metadata: {
+          created: string;
+          updated: string;
+        };
+      }>({} as DeepAwaited<Test8>);
+    });
 
-      it('should handle primitive types', () => {
-        type Test10 = string;
-        expectTypeOf<string>({} as DeepAwaited<Test10>);
+    it('should handle object without promises', () => {
+      type Test9 = {
+        name: string;
+        age: number;
+        tags: string[];
+      };
+      expectTypeOf<{
+        name: string;
+        age: number;
+        tags: string[];
+      }>({} as DeepAwaited<Test9>);
+    });
 
-        type Test11 = number;
-        expectTypeOf<number>({} as DeepAwaited<Test11>);
+    it('should handle primitive types', () => {
+      type Test10 = string;
+      expectTypeOf<string>({} as DeepAwaited<Test10>);
 
-        type Test12 = boolean;
-        expectTypeOf<boolean>({} as DeepAwaited<Test12>);
-      });
+      type Test11 = number;
+      expectTypeOf<number>({} as DeepAwaited<Test11>);
+
+      type Test12 = boolean;
+      expectTypeOf<boolean>({} as DeepAwaited<Test12>);
     });
   });
 
-  describe('HasPromise type', () => {
+  // *********************************************************************************************
+  // HasPromise type tests.
+  // *********************************************************************************************
+
+  describe('HasPromise', () => {
     it('should detect promise in simple object', () => {
       type Test1 = {
         name: string;
@@ -206,6 +206,214 @@ describe('Generics Utils', () => {
         items: string[];
       };
       expectTypeOf<false>({} as HasPromise<Test8>);
+    });
+  });
+
+  // *********************************************************************************************
+  // Prettify type tests.
+  // *********************************************************************************************
+
+  describe('Prettify', () => {
+    describe('Primitive types', () => {
+      it('should handle string type', () => {
+        type Test = Prettify<string>;
+        expectTypeOf<string>({} as Test);
+      });
+
+      it('should handle number type', () => {
+        type Test = Prettify<number>;
+        expectTypeOf<number>({} as Test);
+      });
+
+      it('should handle boolean type', () => {
+        type Test = Prettify<boolean>;
+        expectTypeOf<boolean>({} as Test);
+      });
+
+      it('should handle null type', () => {
+        type Test = Prettify<null>;
+        // @ts-expect-error - This should be undefined.
+        expectTypeOf<null>({} as Test);
+      });
+
+      it('should handle undefined type', () => {
+        type Test = Prettify<undefined>;
+        // @ts-expect-error - This should be undefined.
+        expectTypeOf<undefined>({} as Test);
+      });
+    });
+
+    describe('Object types', () => {
+      it('should prettify simple object with primitive types', () => {
+        type Test = Prettify<{
+          name: string;
+          age: number;
+          isActive: boolean;
+        }>;
+        expectTypeOf<{
+          name: string;
+          age: number;
+          isActive: boolean;
+        }>({} as Test);
+      });
+
+      it('should not prettify nested object types', () => {
+        type NestedType = {
+          id: number;
+          value: string;
+        };
+        type Test = Prettify<{
+          data: NestedType;
+          metadata: {
+            created: Date;
+            updated: Date;
+          };
+        }>;
+        expectTypeOf<{
+          data: NestedType;
+          metadata: {
+            created: Date;
+            updated: Date;
+          };
+        }>({} as Test);
+      });
+
+      it('should handle object with optional properties', () => {
+        type Test = Prettify<{
+          name: string;
+          age?: number;
+          email?: string;
+        }>;
+        expectTypeOf<{
+          name: string;
+          age?: number;
+          email?: string;
+        }>({} as Test);
+      });
+
+      it('should handle object with readonly properties', () => {
+        type Test = Prettify<{
+          readonly id: number;
+          readonly createdAt: Date;
+          name: string;
+        }>;
+        expectTypeOf<{
+          readonly id: number;
+          readonly createdAt: Date;
+          name: string;
+        }>({} as Test);
+      });
+    });
+
+    describe('Array types', () => {
+      it('should prettify array of primitive types', () => {
+        type Test = Prettify<string[]>;
+        expectTypeOf<string[]>({} as Test);
+      });
+
+      it('should prettify array of objects with primitive types', () => {
+        type Test = Prettify<
+          Array<{
+            id: number;
+            name: string;
+          }>
+        >;
+        expectTypeOf<
+          Array<{
+            id: number;
+            name: string;
+          }>
+        >({} as Test);
+      });
+
+      it('should not prettify array of complex objects', () => {
+        type ComplexType = {
+          id: number;
+          data: {
+            name: string;
+            metadata: Date;
+          };
+        };
+        type Test = Prettify<ComplexType[]>;
+        expectTypeOf<ComplexType[]>({} as Test);
+      });
+    });
+
+    describe('Complex types', () => {
+      it('should handle intersection types with primitives', () => {
+        type Test = Prettify<{ name: string } & { age: number }>;
+        expectTypeOf<{
+          name: string;
+          age: number;
+        }>({} as Test);
+      });
+
+      it('should handle union types with primitives', () => {
+        type Test = Prettify<{ type: 'user'; name: string } | { type: 'admin'; role: string }>;
+        expectTypeOf<{ type: 'user'; name: string } | { type: 'admin'; role: string }>({} as Test);
+      });
+
+      it('should handle mapped types with primitives', () => {
+        type Test = Prettify<{
+          [K in 'id' | 'name']: K extends 'id' ? number : string;
+        }>;
+        expectTypeOf<{
+          id: number;
+          name: string;
+        }>({} as Test);
+      });
+    });
+
+    describe('Special types', () => {
+      it('should handle Date type', () => {
+        type Test = Prettify<{
+          createdAt: Date;
+          updatedAt: Date;
+        }>;
+        expectTypeOf<{
+          createdAt: Date;
+          updatedAt: Date;
+        }>({} as Test);
+      });
+
+      it('should handle Promise type', () => {
+        type Test = Prettify<{
+          data: Promise<string>;
+          metadata: Promise<number>;
+        }>;
+        expectTypeOf<{
+          data: Promise<string>;
+          metadata: Promise<number>;
+        }>({} as Test);
+      });
+
+      it('should handle Record type with primitives', () => {
+        type Test = Prettify<Record<string, number>>;
+        expectTypeOf<Record<string, number>>({} as Test);
+      });
+    });
+
+    describe('Edge cases', () => {
+      it('should handle empty object type', () => {
+        // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+        type Test = Prettify<{}>;
+        expectTypeOf<Test>({});
+      });
+
+      it('should handle never type', () => {
+        type Test = Prettify<never>;
+        expectTypeOf<never>({} as Test);
+      });
+
+      it('should handle any type', () => {
+        type Test = Prettify<Any>;
+        expectTypeOf<Any>({} as Test);
+      });
+
+      it('should handle unknown type', () => {
+        type Test = Prettify<unknown>;
+        expectTypeOf<unknown>({} as Test);
+      });
     });
   });
 });
