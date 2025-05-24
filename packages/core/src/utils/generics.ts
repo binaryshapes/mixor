@@ -17,6 +17,13 @@
 type Any = any;
 
 /**
+ * PrimitiveType is a type that represents all the primitive types.
+ *
+ * @public
+ */
+type PrimitiveType = string | number | boolean | null | undefined | bigint | symbol;
+
+/**
  * Recursively unwraps all Promise types in a type, including nested objects and arrays.
  *
  * @typeParam T - The type to unwrap Promises from
@@ -88,13 +95,14 @@ type HasPromise<T> =
  *
  * @public
  */
-type Prettify<T> =
-  {} & T extends Array<infer U>
+type Prettify<T> = T extends PrimitiveType
+  ? T
+  : {} & T extends Array<infer U>
     ? Array<Prettify<U>>
     : T extends object
       ? {
-          [K in keyof T]: Prettify<T[K]>;
+          [K in keyof T]: T[K] extends PrimitiveType ? Prettify<T[K]> : T[K];
         }
       : T;
 
-export type { Any, DeepAwaited, HasPromise, Prettify };
+export type { Any, DeepAwaited, HasPromise, Prettify, PrimitiveType };
