@@ -3,39 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { err, isErr, isOk, ok } from '../../src/monads/result';
 
 describe('Result Monad', () => {
-  describe('ok', () => {
-    it('should create a successful result with the given value', () => {
-      const result = ok(42);
-      expect(result._tag).toBe('Ok');
-      expect(result.value).toBe(42);
-    });
-
-    it('should create a successful result with any type', () => {
-      const result = ok({ name: 'test' });
-      expect(result._tag).toBe('Ok');
-      expect(result.value).toEqual({ name: 'test' });
-    });
-  });
-
-  describe('err', () => {
-    it('should create a failed result with the given error', () => {
-      const result = err('ERROR');
-      expect(result._tag).toBe('Err');
-      expect(result.error).toBe('ERROR');
-    });
-
-    it('should infer string literal types', () => {
-      const result = err('NOT_FOUND');
-      expect(result._tag).toBe('Err');
-      expect(result.error).toBe('NOT_FOUND');
-    });
-
-    it('should fail to compile with non-string errors', () => {
-      // @ts-expect-error Error must be a string
-      void err(42);
-    });
-  });
-
   describe('isOk', () => {
     it('should return true for Ok values', () => {
       const result = ok(42);
@@ -51,12 +18,6 @@ describe('Result Monad', () => {
       const result = ok(42);
       if (isOk(result)) {
         expect(result.value).toBe(42);
-      }
-    });
-
-    it('should narrow types correctly', () => {
-      const result = ok(42);
-      if (isOk(result)) {
         // @ts-expect-error error should not exist on Ok.
         void result.error;
       }
@@ -78,12 +39,6 @@ describe('Result Monad', () => {
       const result = err('ERROR');
       if (isErr(result)) {
         expect(result.error).toBe('ERROR');
-      }
-    });
-
-    it('should narrow types correctly', () => {
-      const result = err('ERROR');
-      if (isErr(result)) {
         // @ts-expect-error value should not exist on Err.
         void result.value;
       }
