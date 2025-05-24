@@ -154,7 +154,7 @@ describe('Pipe Operators', () => {
 
       it('should pass the correct value to the side effect', () => {
         let capturedValue: number | undefined;
-        const capture = tap((value: number) => {
+        const capture = tap<number>((value: number) => {
           capturedValue = value;
         });
         capture(42);

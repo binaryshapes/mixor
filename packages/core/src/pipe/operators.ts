@@ -72,7 +72,7 @@ type BindFn = <T, K extends string, V>(
  *
  * @internal
  */
-type TapFn = <A>(fn: PipeFn<A, void>) => (ma: A) => A;
+type TapFn = <A>(fn: <T extends A = A>(value: T) => void) => (ma: A) => A;
 
 // *********************************************************************************************
 // Operators implementations.
