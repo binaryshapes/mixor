@@ -6,8 +6,29 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import type { Any, Prettify } from '../types';
-import type { PipeFn } from './pipe';
+import { type Any, type Prettify, toCamelCase } from '../utils';
+import { type PipeFn, withPipeMetadata } from './pipe';
+
+// *********************************************************************************************
+// Internal functions.
+// *********************************************************************************************
+
+/**
+ * Creates a metadata object for an operator.
+ *
+ * @param fn - The function to create metadata for.
+ * @param operator - The operator name.
+ * @returns A metadata object.
+ *
+ * @internal
+ */
+function operatorMetadata(fn: PipeFn<Any, Any>, operator: string) {
+  return {
+    name: fn.name || toCamelCase(`anonymous_${operator}_${typeof fn}`),
+    operator,
+    isAsync: fn.constructor.name === 'AsyncFunction',
+  };
+}
 
 // *********************************************************************************************
 // Operators types.
@@ -73,7 +94,7 @@ type TapFn = <A>(fn: PipeFn<A, void>) => (ma: A) => A;
  *
  * @public
  */
-const map: MapFn = (fn) => (ma) => fn(ma);
+const map: MapFn = (fn) => withPipeMetadata((ma) => fn(ma), operatorMetadata(fn, 'map'));
 
 /**
  * Creates a bind operator that merges the result with the previous value.
@@ -96,7 +117,11 @@ const map: MapFn = (fn) => (ma) => fn(ma);
  *
  * @public
  */
-const bind: BindFn = (key, fn) => (value) => ({ ...value, [key]: fn(value) }) as Any;
+const bind: BindFn = (key, fn) =>
+  withPipeMetadata(
+    (value) => ({ ...value, [key]: fn(value) }) as Any,
+    operatorMetadata(fn, 'bind'),
+  );
 
 /**
  * A tap operator, is a function that allows side effects without changing the value.
@@ -108,14 +133,18 @@ const bind: BindFn = (key, fn) => (value) => ({ ...value, [key]: fn(value) }) as
  * @example
  * ```ts
  * const pipeline = pipe()
- * .step('Log value', tap((n: number) => console.log('Current value:', n)))
+ * .step('Log value', tap((n: number) => Logger.info('Current value:', n)))
  * ```
  *
  * @public
  */
-const tap: TapFn = (fn) => (ma) => {
-  fn(ma);
-  return ma;
-};
+const tap: TapFn = (fn) =>
+  withPipeMetadata(
+    (ma) => {
+      fn(ma);
+      return ma;
+    },
+    operatorMetadata(fn, 'tap'),
+  );
 
 export { map, bind, tap };
