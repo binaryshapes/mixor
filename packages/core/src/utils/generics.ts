@@ -24,6 +24,14 @@ type Any = any;
 type PrimitiveType = string | number | boolean | null | undefined | bigint | symbol;
 
 /**
+ * PrimitiveTypeExtended is a type that represents all the primitive types and some other types
+ * that are not primitive but are considered primitive in some scenarios.
+ *
+ * @public
+ */
+type PrimitiveTypeExtended = PrimitiveType | Date | RegExp | Array<Any>;
+
+/**
  * Recursively unwraps all Promise types in a type, including nested objects and arrays.
  *
  * @typeParam T - The type to unwrap Promises from
@@ -105,4 +113,4 @@ type Prettify<T> = T extends PrimitiveType
         }
       : T;
 
-export type { Any, DeepAwaited, HasPromise, Prettify, PrimitiveType };
+export type { Any, DeepAwaited, HasPromise, Prettify, PrimitiveType, PrimitiveTypeExtended };
