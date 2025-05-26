@@ -10,8 +10,12 @@
 /**
  * Represents a successful result with a value of type T.
  * This is the happy path of the Result monad.
+ *
+ * @typeParam T - The type of the successful value.
+ *
+ * @public
  */
-export type Ok<T> = {
+type Ok<T> = {
   readonly _tag: 'Ok';
   readonly value: T;
 };
@@ -19,8 +23,12 @@ export type Ok<T> = {
 /**
  * Represents a failed result with an error of type E.
  * This is the error path of the Result monad.
+ *
+ * @typeParam E - The type of the error.
+ *
+ * @public
  */
-export type Err<E> = {
+type Err<E> = {
   readonly _tag: 'Err';
   readonly error: E;
 };
@@ -30,34 +38,43 @@ export type Err<E> = {
  * This is a discriminated union type that allows for type-safe error handling.
  *
  * @typeParam T - The type of the successful value.
- * @typeParam E - The type of the error, must be a string literal.
+ * @typeParam E - The type of the error.
+ *
+ * @public
  */
-export type Result<T, E> = Ok<T> | Err<E>;
+type Result<T, E> = Ok<T> | Err<E>;
 
 /**
  * Creates a successful result with the given value.
  *
  * @typeParam T - The type of the value to wrap.
  * @param value - The value to wrap in a successful result.
- * @returns A new Ok instance containing the value.
+ * @returns A new Ok instance containing the value, typed as `Result<T, never>`.
+ *
+ * @public
  */
-export const ok = <T>(value: T): Result<T, never> => ({
-  _tag: 'Ok',
-  value,
-});
+function ok<T>(value: T): Result<T, never> {
+  return {
+    _tag: 'Ok',
+    value,
+  };
+}
 
 /**
  * Creates a failed result with the given error.
- * The error must be a string literal for proper type inference.
  *
- * @typeParam E - The type of the error, must be a string literal.
+ * @typeParam E - The type of the error, must be a string (recommended to be a string literal).
  * @param error - The error to wrap in a failed result.
- * @returns A new Err instance containing the error.
+ * @returns A new Err instance containing the error, typed as `Result<never, E>`.
+ *
+ * @public
  */
-export const err = <E extends string>(error: E): Result<never, E> => ({
-  _tag: 'Err',
-  error,
-});
+function err<E extends string>(error: E): Result<never, E> {
+  return {
+    _tag: 'Err',
+    error,
+  };
+}
 
 /**
  * Type guard to check if a result is successful.
@@ -66,8 +83,12 @@ export const err = <E extends string>(error: E): Result<never, E> => ({
  * @typeParam E - The type of the error.
  * @param result - The result to check.
  * @returns True if the result is successful (Ok), false otherwise.
+ *
+ * @public
  */
-export const isOk = <T, E>(result: Result<T, E>): result is Ok<T> => result._tag === 'Ok';
+function isOk<T, E>(result: Result<T, E>): result is Ok<T> {
+  return result._tag === 'Ok';
+}
 
 /**
  * Type guard to check if a result is failed.
@@ -76,5 +97,34 @@ export const isOk = <T, E>(result: Result<T, E>): result is Ok<T> => result._tag
  * @typeParam E - The type of the error.
  * @param result - The result to check.
  * @returns True if the result is failed (Err), false otherwise.
+ *
+ * @public
  */
-export const isErr = <T, E>(result: Result<T, E>): result is Err<E> => result._tag === 'Err';
+function isErr<T, E>(result: Result<T, E>): result is Err<E> {
+  return result._tag === 'Err';
+}
+
+/**
+ * Type guard to check if a value is a result.
+ * Verifies that the value is an object with the correct structure:
+ * - Has a '_tag' property
+ * - If '_tag' is 'Ok', has a 'value' property
+ * - If '_tag' is 'Err', has an 'error' property
+ *
+ * @param result - The value to check.
+ * @returns True if the value is a result with the correct structure, false otherwise.
+ *
+ * @public
+ */
+function isResult(result: unknown): result is Result<unknown, unknown> {
+  if (typeof result !== 'object' || result === null) {
+    return false;
+  }
+  return (
+    ('_tag' in result && result._tag === 'Ok' && 'value' in result) ||
+    ('_tag' in result && result._tag === 'Err' && 'error' in result)
+  );
+}
+
+export type { Ok, Err, Result };
+export { isResult, isErr, isOk, ok, err };
