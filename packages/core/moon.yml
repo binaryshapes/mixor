@@ -1,6 +1,8 @@
 id: '@daikit/core'
 language: typescript
 type: library
+tags:
+  - vitest
 
 project:
   name: Core library
