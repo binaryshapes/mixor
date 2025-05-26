@@ -1,6 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest';
 
-import { bind, map, tap } from '../../src/pipe/operators';
+import { bind, map, tap } from '../../src/pipe';
+import { type PipeValue, type PipeValueKind } from '../../src/pipe/pipe';
 
 describe('Pipe Operators Types', () => {
   // *********************************************************************************************
@@ -12,21 +13,23 @@ describe('Pipe Operators Types', () => {
       const double = map((n: number) => n * 2);
       expectTypeOf(double).toBeFunction();
       expectTypeOf(double).parameter(0).toBeNumber();
-      expectTypeOf(double).returns.toBeNumber();
+      expectTypeOf(double).returns.toMatchObjectType<PipeValue<number, 'map', PipeValueKind>>();
     });
 
     it('should infer correct types for type transformations', () => {
       const toString = map((n: number) => n.toString());
       expectTypeOf(toString).toBeFunction();
       expectTypeOf(toString).parameter(0).toBeNumber();
-      expectTypeOf(toString).returns.toBeString();
+      expectTypeOf(toString).returns.toMatchObjectType<PipeValue<string, 'map', PipeValueKind>>();
     });
 
     it('should infer correct types for async transformations', () => {
       const asyncDouble = map(async (n: number) => n * 2);
       expectTypeOf(asyncDouble).toBeFunction();
       expectTypeOf(asyncDouble).parameter(0).toBeNumber();
-      expectTypeOf(asyncDouble).returns.toEqualTypeOf<Promise<number>>();
+      expectTypeOf(asyncDouble).returns.toMatchObjectType<
+        PipeValue<Promise<number>, 'map', PipeValueKind>
+      >();
     });
 
     it('should infer correct types for object transformations', () => {
@@ -36,7 +39,9 @@ describe('Pipe Operators Types', () => {
       }));
       expectTypeOf(transformUser).toBeFunction();
       expectTypeOf(transformUser).parameter(0).toEqualTypeOf<{ name: string; age: number }>();
-      expectTypeOf(transformUser).returns.toEqualTypeOf<{ fullName: string; isAdult: boolean }>();
+      expectTypeOf(transformUser).returns.toMatchObjectType<
+        PipeValue<{ fullName: string; isAdult: boolean }, 'map', PipeValueKind>
+      >();
     });
   });
 
@@ -49,14 +54,18 @@ describe('Pipe Operators Types', () => {
       const addAge = bind('age', () => 25);
       expectTypeOf(addAge).toBeFunction();
       expectTypeOf(addAge).parameter(0).toEqualTypeOf<unknown>();
-      expectTypeOf(addAge).returns.toEqualTypeOf<{ age: number }>();
+      expectTypeOf(addAge).returns.toMatchObjectType<
+        PipeValue<{ age: number }, 'bind', PipeValueKind>
+      >();
     });
 
     it('should infer correct types for async bindings', () => {
       const addAge = bind('age', async () => 25);
       expectTypeOf(addAge).toBeFunction();
       expectTypeOf(addAge).parameter(0).toEqualTypeOf<unknown>();
-      expectTypeOf(addAge).returns.toEqualTypeOf<{ age: Promise<number> }>();
+      expectTypeOf(addAge).returns.toMatchObjectType<
+        PipeValue<{ age: Promise<number> }, 'bind', PipeValueKind>
+      >();
     });
 
     it('should preserve existing type information', () => {
@@ -64,7 +73,9 @@ describe('Pipe Operators Types', () => {
       const addAge = bind('age', (user: { name: string }) => 25);
       expectTypeOf(addAge).toBeFunction();
       expectTypeOf(addAge).parameter(0).toEqualTypeOf<{ name: string }>();
-      expectTypeOf(addAge).returns.toEqualTypeOf<{ name: string; age: number }>();
+      expectTypeOf(addAge).returns.toMatchObjectType<
+        PipeValue<{ name: string; age: number }, 'bind', PipeValueKind>
+      >();
     });
 
     it('should handle complex object types', () => {
@@ -84,7 +95,9 @@ describe('Pipe Operators Types', () => {
       );
       expectTypeOf(addAge).toBeFunction();
       expectTypeOf(addAge).parameter(0).toEqualTypeOf<User>();
-      expectTypeOf(addAge).returns.toEqualTypeOf<UserWithAge>();
+      expectTypeOf(addAge).returns.toMatchObjectType<
+        PipeValue<UserWithAge, 'bind', PipeValueKind>
+      >();
     });
   });
 
@@ -97,7 +110,7 @@ describe('Pipe Operators Types', () => {
       const logNumber = tap<number>((n: number) => console.log(n));
       expectTypeOf(logNumber).toBeFunction();
       expectTypeOf(logNumber).parameter(0).toBeNumber();
-      expectTypeOf(logNumber).returns.toBeNumber();
+      expectTypeOf(logNumber).returns.toMatchObjectType<PipeValue<number, 'tap', PipeValueKind>>();
     });
 
     it('should preserve input type for objects', () => {
@@ -105,14 +118,14 @@ describe('Pipe Operators Types', () => {
       const logUser = tap<User>((user: User) => console.log(user));
       expectTypeOf(logUser).toBeFunction();
       expectTypeOf(logUser).parameter(0).toEqualTypeOf<{ name: string; age: number }>();
-      expectTypeOf(logUser).returns.toEqualTypeOf<{ name: string; age: number }>();
+      expectTypeOf(logUser).returns.toMatchObjectType<PipeValue<User, 'tap', PipeValueKind>>();
     });
 
     it('should handle async side effects', () => {
       const asyncLog = tap<number>(async (n: number) => console.log(n));
       expectTypeOf(asyncLog).toBeFunction();
       expectTypeOf(asyncLog).parameter(0).toBeNumber();
-      expectTypeOf(asyncLog).returns.toBeNumber();
+      expectTypeOf(asyncLog).returns.toMatchObjectType<PipeValue<number, 'tap', PipeValueKind>>();
     });
 
     it('should preserve complex types', () => {
@@ -126,7 +139,9 @@ describe('Pipe Operators Types', () => {
       const logComplex = tap<ComplexType>((obj: ComplexType) => console.log(obj));
       expectTypeOf(logComplex).toBeFunction();
       expectTypeOf(logComplex).parameter(0).toEqualTypeOf<ComplexType>();
-      expectTypeOf(logComplex).returns.toEqualTypeOf<ComplexType>();
+      expectTypeOf(logComplex).returns.toMatchObjectType<
+        PipeValue<ComplexType, 'tap', PipeValueKind>
+      >();
     });
   });
 });

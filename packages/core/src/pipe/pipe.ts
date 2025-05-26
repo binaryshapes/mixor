@@ -6,15 +6,9 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import {
-  type Any,
-  type DeepAwaited,
-  type HasPromise,
-  type Prettify,
-  getMetadata,
-  setMetadata,
-  toCamelCase,
-} from '../utils';
+import { isResult } from '../monads';
+import type { Any, DeepAwaited, HasPromise, Prettify } from '../utils';
+import { getMetadata, setMetadata, toCamelCase } from '../utils';
 
 /**
  * Metadata for a pipe function.
@@ -47,6 +41,29 @@ type PipeMetadata = {
 type PipeFn<A, B> = (a: A) => B;
 
 /**
+ * Kind of pipe value
+ *
+ * @internal
+ */
+type PipeValueKind = 'primitive' | 'object' | 'array' | 'result';
+
+/**
+ * A pipe value is a value that can be used in a pipeline.
+ *
+ * @typeParam T - The type of the value.
+ * @typeParam O - Operator that generates the value.
+ * @typeParam K - Kind of the value.
+ *
+ * @public
+ */
+type PipeValue<T, O extends string, K extends PipeValueKind> = {
+  readonly _tag: 'Value';
+  readonly _operator: O;
+  readonly _kind: K;
+  readonly value: T;
+};
+
+/**
  * A pipe step is a object that contains a key and a function that can be applied to a value.
  * Potentially used to trace and debug the pipeline.
  *
@@ -62,7 +79,29 @@ type PipeStep<A = Any, B = Any> = {
 };
 
 /**
+ * Helper type to extract the value from a PipeValue.
+ * If value is not a PipeValue, it will return the value itself.
+ *
+ * @typeParam T - The type to extract the value from.
+ * @returns The extracted value or the value itself if it is not a PipeValue.
+ *
+ * @internal
+ */
+type ExtractPipeValue<T> = T extends {
+  _tag: 'Value';
+  _operator: Any;
+  _kind: Any;
+  value: infer U;
+}
+  ? U
+  : T;
+
+/**
  * Helper type to detect if any step in the pipeline returns a Promise
+ *
+ * @typeParam S - The type of the steps array.
+ * @returns True if any step returns a Promise.
+ *
  * @internal
  */
 type HasAsyncStep<S extends PipeStep[]> = S extends [infer First, ...infer Rest]
@@ -78,9 +117,11 @@ type HasAsyncStep<S extends PipeStep[]> = S extends [infer First, ...infer Rest]
   : false;
 
 /**
- * Represents the result of the build function.
- * This type is used to ensure that the build function returns the correct type, depending on the
- * pipeline being async or not.
+ * Represents the return type of the build function.
+ * This type is used to ensure that the build function returns the correct execution type ,
+ * depending on the pipeline being async or not.
+ * If the pipeline is async, the function will return a promise.
+ * If the pipeline is sync, the function will return a value.
  *
  * @typeParam A - The type of the input value.
  * @typeParam B - The type of the output value.
@@ -88,12 +129,14 @@ type HasAsyncStep<S extends PipeStep[]> = S extends [infer First, ...infer Rest]
  *
  * @internal
  */
-type BuildResult<A, B, Async extends boolean> = Async extends true
-  ? (value: A) => Promise<B>
-  : (value: A) => Prettify<B>;
+type BuildReturnFn<A, B, Async extends boolean> = Async extends true
+  ? (value: A) => Promise<ExtractPipeValue<B>>
+  : (value: A) => Prettify<ExtractPipeValue<B>>;
 
 /**
  * The Pipe type represents a pipeline of functions that can be applied to a value.
+ * In most cases, this type is not going to be used, because is the representation of the
+ * pipeline created by the {@link pipe} function.
  *
  * @typeParam A - The type of the input value.
  * @typeParam B - The type of the output value.
@@ -114,7 +157,7 @@ type Pipe<I, O = I, S extends PipeStep[] = [], Async extends boolean = HasAsyncS
   step: <OF>(
     description: string,
     fn: PipeFn<O, OF>,
-  ) => Pipe<I, DeepAwaited<OF>, [...S, PipeStep<O, OF>]>;
+  ) => Pipe<I, DeepAwaited<ExtractPipeValue<OF>>, [...S, PipeStep<O, OF>]>;
 
   /**
    * Returns the steps of the pipeline as a list of steps with the respective metadata.
@@ -132,7 +175,7 @@ type Pipe<I, O = I, S extends PipeStep[] = [], Async extends boolean = HasAsyncS
    *
    * @returns The pipeline function.
    */
-  build: () => BuildResult<I, O, Async>;
+  build: () => BuildReturnFn<I, O, Async>;
 };
 
 // *********************************************************************************************
@@ -140,22 +183,61 @@ type Pipe<I, O = I, S extends PipeStep[] = [], Async extends boolean = HasAsyncS
 // *********************************************************************************************
 
 /**
- * Builds an async pipeline.
+ * Type guard to check if a variable is a PipeValue.
  *
- * @typeParam A - The type of the input value.
- * @typeParam B - The type of the output value.
- * @param a - The input value.
- * @param steps - The steps of the pipeline.
- * @returns The async pipeline.
+ * @typeParam T - The type of the value.
+ * @typeParam O - The operator type.
+ * @param value - The variable to check.
+ * @returns True if the variable is a PipeValue.
  *
  * @internal
  */
-function buildAsyncPipe<A, B>(a: A, steps: PipeStep<A, B>[]) {
+function isPipeValue(value: unknown): value is PipeValue<Any, string, PipeValueKind> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    '_tag' in value &&
+    '_operator' in value &&
+    '_kind' in value &&
+    'value' in value
+  );
+}
+
+/**
+ * Extracts the value from a PipeValue or returns the value itself.
+ *
+ * @typeParam T - The type of the value.
+ * @param value - The value to extract from.
+ * @returns The extracted value.
+ *
+ * @internal
+ */
+function extractValue<T>(value: T | PipeValue<T, string, PipeValueKind>): T {
+  return isPipeValue(value) ? value.value : value;
+}
+
+/**
+ * Builds an async pipeline.
+ * Takes the input value and the steps and executes each step in sequence.
+ * It handles any partial promise and resolves them, and it also handles the PipeValue passed
+ * through the pipeline operators.
+ *
+ * @typeParam I - The type of the input value.
+ * @typeParam O - The type of the output value.
+ * @param input - The input value.
+ * @param steps - The steps of the pipeline.
+ * @returns The async pipeline function that can be used to run the pipeline.
+ *
+ * @internal
+ */
+function buildAsyncPipe<I, O>(input: I, steps: PipeStep<I, O>[]) {
   return (async () => {
-    let currentValue: Any = a;
+    let currentValue: Any = input;
     for (const step of steps) {
       currentValue = await step.fn(currentValue);
+      currentValue = extractValue(currentValue);
 
+      // The async operator can return an object with promises, so we need to resolve them.
       if (typeof currentValue === 'object' && currentValue !== null) {
         for (const [key, value] of Object.entries(currentValue)) {
           if (value instanceof Promise) {
@@ -171,22 +253,20 @@ function buildAsyncPipe<A, B>(a: A, steps: PipeStep<A, B>[]) {
 
 /**
  * Builds a sync pipeline.
+ * Takes the input value and the steps and executes each step in sequence.
+ * It handles the PipeValue passed through the pipeline operators.
  *
- * @typeParam A - The type of the input value.
- * @typeParam B - The type of the output value.
- * @param a - The input value.
+ * @typeParam I - The type of the input value.
+ * @typeParam O - The type of the output value.
+ * @param input - The input value.
  * @param steps - The steps of the pipeline.
- * @returns The sync pipeline.
+ * @returns The sync pipeline function that can be used to run the pipeline.
  *
  * @internal
  */
-function buildSyncPipe<A, B>(a: A, steps: PipeStep<A, B>[]) {
-  return steps.reduce<Any>((acc, step) => step.fn(acc), a);
+function buildSyncPipe<I, O>(input: I, steps: PipeStep<I, O>[]) {
+  return steps.reduce<Any>((acc, step) => extractValue(step.fn(acc)), input);
 }
-
-// *********************************************************************************************
-// Public functions.
-// *********************************************************************************************
 
 /**
  * Applies the given metadata to the pipe function.
@@ -198,7 +278,10 @@ function buildSyncPipe<A, B>(a: A, steps: PipeStep<A, B>[]) {
  *
  * @public
  */
-function withPipeMetadata<F extends PipeFn<Any, Any>, M extends PipeMetadata>(fn: F, metadata?: M) {
+function applyPipeMetadata<F extends PipeFn<Any, Any>, M extends Partial<PipeMetadata>>(
+  fn: F,
+  metadata?: M,
+) {
   let existingMetadata: PipeMetadata | undefined;
   try {
     existingMetadata = getMetadata<PipeMetadata>(fn);
@@ -211,13 +294,87 @@ function withPipeMetadata<F extends PipeFn<Any, Any>, M extends PipeMetadata>(fn
     const { name, operator = 'function', isAsync } = metadata ?? {};
 
     setMetadata(fn, {
-      name: name || fn.name || toCamelCase(`${operator}_${Date.now()}`),
+      name: !!name || toCamelCase(`${operator}_${Date.now()}`),
       operator,
       isAsync: isAsync || fn.constructor.name === 'AsyncFunction',
     });
   }
 
   return fn;
+}
+
+/**
+ * Determines the kind of the value.
+ *
+ * @param value - The value to determine the kind of.
+ * @returns The kind of the value.
+ *
+ * @internal
+ */
+function getPipeValueKind(value: unknown): PipeValueKind {
+  return typeof value === 'object'
+    ? 'object'
+    : Array.isArray(value)
+      ? 'array'
+      : isResult(value)
+        ? 'result'
+        : 'primitive';
+}
+
+/**
+ * Creates a new PipeValue.
+ *
+ * @param value - The value to wrap.
+ * @param operator - The operator that generated the value.
+ * @returns A PipeValue with the value, operator and kind.
+ *
+ * @internal
+ */
+function pipeValue<T, O extends string>(value: T, operator: O) {
+  return {
+    value,
+    _operator: operator,
+    _kind: getPipeValueKind(value),
+    _tag: 'Value',
+  } satisfies PipeValue<T, O, PipeValueKind>;
+}
+
+// *********************************************************************************************
+// Public functions.
+// *********************************************************************************************
+
+/**
+ * Creates a new function that can be used as a operator in a pipeline.
+ *
+ * @param operator - The operator name.
+ * @param fn - The function with the operator logic.
+ * @returns A function that can be used as a operator in a pipeline. The internal function will
+ * return a PipeValue with data transformed by the operator and the function is wrapped with the
+ * metadata applied.
+ *
+ * @example
+ * ```ts
+ * const pipeline = pipe()
+ * .step('Log value', tap((n: number) => Logger.info('Current value:', n)))
+ * ```
+ *
+ * @public
+ */
+function pipeOperator<A, B, R, P extends Any[], O extends string = string>(
+  operator: O,
+  fn: (...args: [...P, ...[fn: PipeFn<A, B>]]) => (a: A) => R,
+) {
+  return (...args: Parameters<typeof fn>) => {
+    // Always the last argument is the function defined by the user inside the operator.
+    const fnPipe = args[args.length - 1];
+    const op = (a: A) => pipeValue(fn(...args)(a), operator) as PipeValue<R, O, PipeValueKind>;
+
+    return applyPipeMetadata(op, {
+      name: fnPipe.name,
+      operator,
+      isAsync: fnPipe.constructor.name === 'AsyncFunction',
+    });
+  };
 }
 
 /**
@@ -232,7 +389,7 @@ function withPipeMetadata<F extends PipeFn<Any, Any>, M extends PipeMetadata>(fn
  * const pipeline = pipe<User>()
  *   .step('map', bind('ageRange', (u) => (u.age >= 18 ? 'adult' : 'minor')))
  *   .step('bind', bind('password', () => 'securePassword'))
- *   .step('tap', tap((u) => console.log('The tap:', u)))
+ *   .step('tap', tap((u) => logger.print('The tap:', u)))
  *   .step('map', map((user) => user.ageRange))
  *   .build();
  * ```
@@ -247,7 +404,11 @@ function pipe<A>(name: string): Pipe<A, A, []> {
     step: <C>(description: string, fn: PipeFn<A, C>) => {
       // Registering the step in the steps array, and applying the metadata to the function.
       // If the metadata is not provided, it will be inferred from the function.
-      steps.push({ key: Symbol(description), description, fn: withPipeMetadata(fn) });
+      steps.push({
+        key: Symbol(description),
+        description,
+        fn: applyPipeMetadata(fn),
+      });
 
       // Returning a new Pipe Builder with the new step added.
       return {
@@ -285,5 +446,5 @@ function pipe<A>(name: string): Pipe<A, A, []> {
   return pipeline as Pipe<A, A, []>;
 }
 
-export type { Pipe, PipeFn, PipeMetadata };
-export { pipe, withPipeMetadata };
+export type { Pipe, PipeFn, PipeValue, PipeValueKind };
+export { pipe, pipeOperator };
