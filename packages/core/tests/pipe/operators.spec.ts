@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { bind, map, pipe, tap } from '../../src/pipe';
 
@@ -11,18 +11,22 @@ describe('Pipe Operators', () => {
     describe('Isolated Context', () => {
       it('should transform a value using the provided function', () => {
         const double = map((n: number) => n * 2);
-        expect(double(5)).toBe(10);
+        const result = double(5);
+        expect(result.value).toBe(10);
       });
 
       it('should handle different types of transformations', () => {
         const toString = map((n: number) => n.toString());
-        expect(toString(42)).toBe('42');
+        const result = toString(42);
+        expect(result.value).toBe('42');
       });
 
       it('should work with async functions', async () => {
         const asyncDouble = map(async (n: number) => n * 2);
-        const result = await asyncDouble(5);
-        expect(result).toBe(10);
+        const result = asyncDouble(5);
+        expect(result.value).toBeInstanceOf(Promise);
+        const resultValue = await result.value;
+        expect(resultValue).toBe(10);
       });
     });
 
@@ -64,22 +68,27 @@ describe('Pipe Operators', () => {
       it('should add a new property to an object', () => {
         const addAge = bind('age', () => 25);
         const result = addAge({ name: 'John' });
-        expect(result).toEqual({ name: 'John', age: 25 });
+        expect(result.value).toEqual({ name: 'John', age: 25 });
       });
 
       it('should handle async bindings', async () => {
         const addAge = bind('age', async () => 25);
         const result = addAge({ name: 'John' });
-        // The age field should be a Promise
-        expect(result.age).toBeInstanceOf(Promise);
-        const age = await result.age;
+        expect(result.value.age).toBeInstanceOf(Promise);
+        const age = await result.value.age;
         expect(age).toBe(25);
       });
 
       it('should preserve existing properties', () => {
         const addAge = bind('age', () => 25);
         const result = addAge({ name: 'John', id: 1 });
-        expect(result).toEqual({ name: 'John', id: 1, age: 25 });
+        expect(result.value).toEqual({ name: 'John', id: 1, age: 25 });
+      });
+
+      it('should work with primitive values', () => {
+        const addAge = bind('age', () => 25);
+        const result = addAge(5);
+        expect(result.value).toEqual({ age: 25 });
       });
 
       it('should use the received value as the argument for the function', () => {
@@ -89,7 +98,7 @@ describe('Pipe Operators', () => {
             new Date('2024-05-01').getFullYear() - user.birthdate.getFullYear(),
         );
         const result = addAge({ name: 'John', birthdate: new Date('1990-01-01') });
-        expect(result).toEqual({ name: 'John', birthdate: new Date('1990-01-01'), age: 35 });
+        expect(result.value).toEqual({ name: 'John', birthdate: new Date('1990-01-01'), age: 35 });
       });
     });
 
@@ -138,23 +147,33 @@ describe('Pipe Operators', () => {
         let sideEffect = 0;
         const increment = tap(() => sideEffect++);
         const result = increment(5);
-        expect(result).toBe(5);
+        expect(result.value).toBe(5);
         expect(sideEffect).toBe(1);
       });
 
       it('should work with async side effects', async () => {
+        vi.useFakeTimers();
         let sideEffect = 0;
         const asyncIncrement = tap(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
           sideEffect++;
         });
-        const result = await asyncIncrement(5);
-        expect(result).toBe(5);
-        expect(sideEffect).toBe(1);
+
+        const result = asyncIncrement(5);
+        expect(result.value).toBe(5);
+        expect(sideEffect).toBe(0); // Side effect hasn't happened yet
+
+        // Fast-forward time by 100ms
+        await vi.advanceTimersByTimeAsync(100);
+
+        expect(sideEffect).toBe(1); // Now the side effect should have happened
+
+        vi.useRealTimers();
       });
 
       it('should pass the correct value to the side effect', () => {
         let capturedValue: number | undefined;
-        const capture = tap<number>((value: number) => {
+        const capture = tap((value: number) => {
           capturedValue = value;
         });
         capture(42);

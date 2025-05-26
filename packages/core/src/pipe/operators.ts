@@ -6,145 +6,106 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Any, type Prettify, toCamelCase } from '../utils';
-import { type PipeFn, withPipeMetadata } from './pipe';
-
-// *********************************************************************************************
-// Internal functions.
-// *********************************************************************************************
+import type { PrimitiveTypeExtended } from '../utils';
+import { type PipeFn, pipeOperator } from './pipe';
 
 /**
- * Creates a metadata object for an operator.
- *
- * @param fn - The function to create metadata for.
- * @param operator - The operator name.
- * @returns A metadata object.
- *
- * @internal
- */
-function operatorMetadata(fn: PipeFn<Any, Any>, operator: string) {
-  return {
-    name: fn.name || toCamelCase(`anonymous_${operator}_${typeof fn}`),
-    operator,
-    isAsync: fn.constructor.name === 'AsyncFunction',
-  };
-}
-
-// *********************************************************************************************
-// Operators types.
-// *********************************************************************************************
-
-/**
- * Map operator type.
- *
- * @typeParam A - The type of the input value.
- * @typeParam B - The type of the output value.
- * @param f - The function to apply to the value.
- * @returns A map operator that can be used in a pipeline.
- *
- * @internal
- */
-type MapFn = <A, B>(fn: PipeFn<A, B>) => (ma: A) => B;
-
-/**
- * Bind operator type.
- *
- * @typeParam T - The type of the input value.
- * @typeParam K - The key type for the new property.
- * @typeParam V - The value type for the new property.
- * @param key - The key to identify this bind operation.
- * @param fn - The function that returns a new value to be merged.
- * @returns A bind operator that can be used in a pipeline.
- *
- * @internal
- */
-type BindFn = <T, K extends string, V>(
-  key: K,
-  fn: PipeFn<T, V>,
-) => (value: T) => Prettify<T & { [P in K]: V }>;
-
-/**
- * Tap operator type.
- *
- * @typeParam A - The type of the value.
- * @param f - The function to execute as a side effect.
- * @returns A tap operator that can be used in a pipeline.
- *
- * @internal
- */
-type TapFn = <A>(fn: <T extends A = A>(value: T) => void) => (ma: A) => A;
-
-// *********************************************************************************************
-// Operators implementations.
-// *********************************************************************************************
-
-/**
- * Creates a map operator that applies a function to the value.
- *
- * @typeParam A - The type of the input value.
- * @typeParam B - The type of the output value.
- * @param fn - The function to apply to the value.
- * @returns A map operator that can be used in a pipeline.
+ * A map operator takes the input value of type A and applies a function to it, returning the
+ * result of type B. Note the returned value can be of type A or B, depending on the function.
  *
  * @example
  * ```ts
- * const pipeline = pipe()
- *  .step('Double', map((n: number) => n * 2))
+ * // Keep the type of the input value.
+ * const pipeline = pipe<number>("Double value with map")
+ *  .step('Double', map((n) => n * 2))
+ *  .build()
+ *
+ * const result = pipeline(2) // result: 4 (number)
+ *
+ * // Change the type of the input value.
+ * const pipeline2 = pipe<number>("Transform the value to string")
+ *  .step('Transform', map((n) => n.toString()))
+ *  .build()
+ *
+ * const result2 = pipeline2(2) // result: '2' (string)
  * ```
  *
  * @public
  */
-const map: MapFn = (fn) => withPipeMetadata((ma) => fn(ma), operatorMetadata(fn, 'map'));
+const map = pipeOperator(
+  'map',
+  <A, B>(fn: PipeFn<A, B>) =>
+    (a: A) =>
+      fn(a),
+);
 
 /**
- * Creates a bind operator that merges the result with the previous value.
- *
- * @typeParam T - The type of the input value.
- * @typeParam K - The key type for the new property.
- * @typeParam V - The value type for the new property.
- * @param key - The key to identify this bind operation.
- * @param fn - The function that returns a new value to be merged.
- * @returns A bind operator that can be used in a pipeline.
+ * A tap operator allows executing side effects without changing the input value.
+ * The function is called with the input value, but the operator always returns the original
+ * input value unchanged.
  *
  * @example
  * ```ts
- * const pipeline = pipe()
- *  .step('Double with factor', bind('multiplier', (n: number) => ({
- *    factor: 2,
- *    result: n * 2
- *  })))
+ * const pipeline = pipe<number>("Log value with tap")
+ * .step('Log value', tap((n) => Logger.info('Current value:', n)))
+ *
+ * // The tap function can also be async.
+ * const pipeline2 = pipe<number>("Log value with tap")
+ *  .step('Log value', tap(async (n) => Logger.info('Current value:', n)))
+ *  .build()
+ *
+ * const result2 = pipeline2(2) // result: 2 (number)
  * ```
  *
  * @public
  */
-const bind: BindFn = (key, fn) =>
-  withPipeMetadata(
-    (value) => ({ ...value, [key]: fn(value) }) as Any,
-    operatorMetadata(fn, 'bind'),
-  );
+const tap = pipeOperator('tap', <A>(fn: PipeFn<A, void>) => (a: A) => {
+  fn(a);
+  return a;
+});
 
 /**
- * A tap operator, is a function that allows side effects without changing the value.
- *
- * @typeParam A - The type of the value.
- * @param fn - The function to execute as a side effect.
- * @returns A tap operator that can be used in a pipeline.
+ * A bind operator merges the result of the applied function with the previous value.
+ * If the previous value is not an object, it will be removed.
  *
  * @example
  * ```ts
- * const pipeline = pipe()
- * .step('Log value', tap((n: number) => Logger.info('Current value:', n)))
+ * // With object input.
+ * const pipeline = pipe<{ value: number }>("Double with factor")
+ *  .step('Double value', map((n) => ({ ...n, value: n.value * 2 })))
+ *  .step('Add factor', bind('factor', (n) => n.value * 2))
+ *  .build()
+ *
+ * const result = pipeline({ value: 2 }) // result: { value: 4, factor: 8 }
+ *
+ * // With primitive input.
+ * const pipeline2 = pipe<number>("Double with factor")
+ *  .step('Double value', map((n) => n * 2))
+ *  .step('Add factor', bind('factor', (n) => n * 2))
+ *  .build()
+ *
+ * const result2 = pipeline2(2) // result: { factor: 8 }
+ *
+ * // With array input.
+ * const pipeline3 = pipe<Array<number>>("Double with factor")
+ *  .step('Double value', map((n) => n * 2))
+ *  .step('Add factor', bind('factor', (n) => n * 2))
+ *  .build()
+ *
+ * const result3 = pipeline3([1, 2, 3]) // result: { factor: 8 }
  * ```
  *
  * @public
  */
-const tap: TapFn = (fn) =>
-  withPipeMetadata(
-    (ma) => {
-      fn(ma);
-      return ma;
-    },
-    operatorMetadata(fn, 'tap'),
-  );
+const bind = pipeOperator(
+  'bind',
+  <A, B, K extends string>(key: K, fn: PipeFn<A, B>) =>
+    (a: A) =>
+      ({
+        // We spread the input value only if it is an object and not an array.
+        ...(typeof a === 'object' && !Array.isArray(a) ? a : {}),
+        [key]: fn(a),
+      }) as (A extends PrimitiveTypeExtended ? unknown : A) & { [P in K]: B },
+);
 
 export { map, bind, tap };
