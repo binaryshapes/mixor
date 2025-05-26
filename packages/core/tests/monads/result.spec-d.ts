@@ -3,7 +3,7 @@ import { describe, expectTypeOf, it } from 'vitest';
 import { type Err, type Ok, type Result, err, ok } from '../../src/monads';
 
 describe('Result Type', () => {
-  describe('Result', () => {
+  describe('result', () => {
     it('should be a union of Ok and Err', () => {
       const result: Result<number, string> = ok(42);
       expectTypeOf<Ok<number> | Err<string>>(result);
