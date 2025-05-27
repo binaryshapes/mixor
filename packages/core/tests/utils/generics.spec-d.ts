@@ -1,6 +1,13 @@
 import { describe, expectTypeOf, it } from 'vitest';
 
-import type { Any, DeepAwaited, HasPromise, Prettify } from '../../src/utils';
+import type {
+  Any,
+  ArrayHasType,
+  CompactArray,
+  DeepAwaited,
+  HasPromise,
+  Prettify,
+} from '../../src/utils';
 
 describe('Generics', () => {
   // *********************************************************************************************
@@ -414,6 +421,96 @@ describe('Generics', () => {
         type Test = Prettify<unknown>;
         expectTypeOf<unknown>({} as Test);
       });
+    });
+  });
+
+  // *********************************************************************************************
+  // CompactArray type tests.
+  // *********************************************************************************************
+
+  describe('CompactArray', () => {
+    it('should return single type for array with same type', () => {
+      type Test1 = CompactArray<readonly [string, string, string]>;
+      expectTypeOf<string>({} as Test1);
+    });
+
+    it('should return array type for mixed types', () => {
+      type Test2 = CompactArray<readonly [string, number, boolean]>;
+      expectTypeOf<readonly [string, number, boolean]>({} as Test2);
+    });
+
+    it('should handle empty array', () => {
+      type Test3 = CompactArray<readonly []>;
+      expectTypeOf<readonly []>({} as Test3);
+    });
+
+    it('should handle single element array', () => {
+      type Test4 = CompactArray<readonly [string]>;
+      expectTypeOf<string>({} as Test4);
+    });
+
+    it('should handle array with some same types', () => {
+      type Test5 = CompactArray<readonly [string, string, number]>;
+      expectTypeOf<readonly [string, number]>({} as Test5);
+    });
+
+    it('should handle array with complex types', () => {
+      type ComplexType = { id: number; name: string };
+      type Test6 = CompactArray<readonly [ComplexType, ComplexType]>;
+      expectTypeOf<ComplexType>({} as Test6);
+    });
+  });
+
+  // *********************************************************************************************
+  // ArrayHasType type tests.
+  // *********************************************************************************************
+
+  describe('ArrayHasType', () => {
+    it('should detect type in array', () => {
+      type Test1 = ArrayHasType<[string, number, boolean], string>;
+      expectTypeOf<true>({} as Test1);
+    });
+
+    it('should not detect type not in array', () => {
+      type Test2 = ArrayHasType<[string, number, boolean], Date>;
+      expectTypeOf<false>({} as Test2);
+    });
+
+    it('should handle empty array', () => {
+      type Test3 = ArrayHasType<[], string>;
+      expectTypeOf<false>({} as Test3);
+    });
+
+    it('should handle single element array', () => {
+      type Test4 = ArrayHasType<[string], string>;
+      expectTypeOf<true>({} as Test4);
+    });
+
+    it('should handle array with complex types', () => {
+      type ComplexType = { id: number; name: string };
+      type Test5 = ArrayHasType<[string, ComplexType, number], ComplexType>;
+      expectTypeOf<true>({} as Test5);
+    });
+
+    it('should handle array with union types', () => {
+      type Test6 = ArrayHasType<[string | number, boolean], string>;
+      expectTypeOf<false>({} as Test6);
+    });
+
+    it('should handle array with intersection types', () => {
+      type IntersectionType = { id: number } & { name: string };
+      type Test7 = ArrayHasType<[string, IntersectionType], IntersectionType>;
+      expectTypeOf<true>({} as Test7);
+    });
+
+    it('should match union types in array with union types', () => {
+      type Test8 = ArrayHasType<[string | number, boolean], string | number>;
+      expectTypeOf<true>({} as Test8);
+    });
+
+    it('should match union types in array with single types', () => {
+      type Test9 = ArrayHasType<[string, number, boolean], string | number>;
+      expectTypeOf<true>({} as Test9);
     });
   });
 });
