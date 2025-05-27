@@ -159,6 +159,55 @@ type ArrayHasType<T, U> = T extends [infer H, ...infer R]
     : ArrayHasType<R, U>
   : false;
 
+/**
+ * Get the first element of a tuple.
+ *
+ * @typeParam T - The tuple to get the first element from.
+ * @returns The first element of the tuple.
+ *
+ * @public
+ */
+type Head<T extends Any[]> = T extends [infer H, ...Any[]] ? H : never;
+
+/**
+ * Get the last element of a tuple.
+ *
+ * @typeParam T - The tuple to get the last element from.
+ * @returns The last element of the tuple.
+ *
+ * @public
+ */
+type Tail<T extends Any[]> = T extends [Any, ...infer R] ? R : never;
+
+/**
+ * Check if a tuple is homogeneous. Which means that all elements of the tuple are the same type.
+ * For example, `[string, string, string]` is homogeneous, but `[string, number, string]` is not.
+ * If the tuple is empty, it is considered homogeneous. If you don't want to consider empty tuples
+ * as homogeneous, you may use `IsEmptyTuple` to check if the tuple is empty after the check.
+ *
+ * @typeParam T - The tuple to check.
+ * @returns True if the tuple is homogeneous, false otherwise.
+ *
+ * @public
+ */
+type HomogeneousTuple<T extends Any[]> = T extends []
+  ? true
+  : Tail<T> extends []
+    ? true
+    : Head<T> extends Head<Tail<T>>
+      ? HomogeneousTuple<Tail<T>>
+      : false;
+
+/**
+ * Check if a tuple is empty.
+ *
+ * @typeParam T - The tuple to check.
+ * @returns True if the tuple is empty, false otherwise.
+ *
+ * @public
+ */
+type IsEmptyTuple<T extends Any[]> = T extends [] ? true : false;
+
 export type {
   Any,
   PrimitiveType,
@@ -168,4 +217,8 @@ export type {
   Prettify,
   CompactArray,
   ArrayHasType,
+  Head,
+  Tail,
+  HomogeneousTuple,
+  IsEmptyTuple,
 };

@@ -6,7 +6,11 @@ import type {
   CompactArray,
   DeepAwaited,
   HasPromise,
+  Head,
+  HomogeneousTuple,
+  IsEmptyTuple,
   Prettify,
+  Tail,
 } from '../../src/utils';
 
 describe('Generics', () => {
@@ -511,6 +515,126 @@ describe('Generics', () => {
     it('should match union types in array with single types', () => {
       type Test9 = ArrayHasType<[string, number, boolean], string | number>;
       expectTypeOf<true>({} as Test9);
+    });
+  });
+
+  // *********************************************************************************************
+  // Head type tests.
+  // *********************************************************************************************
+
+  describe('Head', () => {
+    it('should get first element from tuple', () => {
+      type Test1 = Head<[string, number, boolean]>;
+      expectTypeOf<string>({} as Test1);
+    });
+
+    it('should handle empty tuple', () => {
+      type Test2 = Head<[]>;
+      expectTypeOf<never>({} as Test2);
+    });
+
+    it('should handle single element tuple', () => {
+      type Test3 = Head<[string]>;
+      expectTypeOf<string>({} as Test3);
+    });
+
+    it('should handle tuple with complex types', () => {
+      type ComplexType = { id: number; name: string };
+      type Test4 = Head<[ComplexType, string, number]>;
+      expectTypeOf<ComplexType>({} as Test4);
+    });
+  });
+
+  // *********************************************************************************************
+  // Tail type tests.
+  // *********************************************************************************************
+
+  describe('Tail', () => {
+    it('should get remaining elements from tuple', () => {
+      type Test1 = Tail<[string, number, boolean]>;
+      expectTypeOf<[number, boolean]>({} as Test1);
+    });
+
+    it('should handle empty tuple', () => {
+      type Test2 = Tail<[]>;
+      expectTypeOf<[]>({} as Test2);
+    });
+
+    it('should handle single element tuple', () => {
+      type Test3 = Tail<[string]>;
+      expectTypeOf<[]>({} as Test3);
+    });
+
+    it('should handle tuple with complex types', () => {
+      type ComplexType = { id: number; name: string };
+      type Test4 = Tail<[ComplexType, string, number]>;
+      expectTypeOf<[string, number]>({} as Test4);
+    });
+  });
+
+  // *********************************************************************************************
+  // HomogeneousTuple type tests.
+  // *********************************************************************************************
+
+  describe('HomogeneousTuple', () => {
+    it('should detect homogeneous tuple', () => {
+      type Test1 = HomogeneousTuple<[string, string, string]>;
+      expectTypeOf<true>({} as Test1);
+    });
+
+    it('should detect heterogeneous tuple', () => {
+      type Test2 = HomogeneousTuple<[string, number, boolean]>;
+      expectTypeOf<false>({} as Test2);
+    });
+
+    it('should handle empty tuple', () => {
+      type Test3 = HomogeneousTuple<[]>;
+      expectTypeOf<true>({} as Test3);
+    });
+
+    it('should handle single element tuple', () => {
+      type Test4 = HomogeneousTuple<[string]>;
+      expectTypeOf<true>({} as Test4);
+    });
+
+    it('should handle tuple with complex types', () => {
+      type ComplexType = { id: number; name: string };
+      type Test5 = HomogeneousTuple<[ComplexType, ComplexType]>;
+      expectTypeOf<true>({} as Test5);
+    });
+
+    it('should handle tuple with mixed complex types', () => {
+      type ComplexType1 = { id: number; name: string };
+      type ComplexType2 = { id: number; value: string };
+      type Test6 = HomogeneousTuple<[ComplexType1, ComplexType2]>;
+      expectTypeOf<false>({} as Test6);
+    });
+  });
+
+  // *********************************************************************************************
+  // IsEmptyTuple type tests.
+  // *********************************************************************************************
+
+  describe('IsEmptyTuple', () => {
+    it('should detect empty tuple', () => {
+      type Test1 = IsEmptyTuple<[]>;
+      expectTypeOf<true>({} as Test1);
+    });
+
+    it('should detect non-empty tuple', () => {
+      type Test2 = IsEmptyTuple<[string]>;
+      expectTypeOf<false>({} as Test2);
+    });
+
+    it('should detect non-empty tuple with multiple elements', () => {
+      type Test3 = IsEmptyTuple<[string, number, boolean]>;
+      expectTypeOf<false>({} as Test3);
+    });
+
+    it('should handle tuple with complex types', () => {
+      type ComplexType = { id: number; name: string };
+      type Test4 = IsEmptyTuple<[ComplexType]>;
+      expectTypeOf<false>({} as Test4);
     });
   });
 });
