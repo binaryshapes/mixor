@@ -113,4 +113,51 @@ type Prettify<T> = T extends PrimitiveType
         }
       : T;
 
-export type { Any, DeepAwaited, HasPromise, Prettify, PrimitiveType, PrimitiveTypeExtended };
+/**
+ * Detects all unique types in an array and returns the array with the unique types.
+ * If all elements of the array are the same type, return that type.
+ *
+ * @typeParam T - The array to compact.
+ *
+ * @example
+ * ```ts
+ * type Test = CompactArray<[string, string, number]>; // Result: [string, number]
+ * type Test2 = CompactArray<[true, true, true]>; // Result: true
+ * ```
+ *
+ * @public
+ */
+type CompactArray<T extends readonly unknown[]> = T extends readonly [infer H, ...infer R]
+  ? R extends readonly []
+    ? H
+    : R extends readonly [H, ...infer Rest]
+      ? CompactArray<[H, ...Rest]>
+      : T
+  : T;
+
+/**
+ * Inspect if a array of types has a specific type.
+ * The match must be exact. For example, `string | number` is not the same type as `number`.
+ *
+ * @typeParam T - The array to inspect.
+ * @typeParam U - The type to inspect.
+ * @returns True if any of the sub-types are the same type as the given type, false otherwise.
+ *
+ * @public
+ */
+type ArrayHasType<T, U> = T extends [infer H, ...infer R]
+  ? [H] extends [U]
+    ? true
+    : ArrayHasType<R, U>
+  : false;
+
+export type {
+  Any,
+  PrimitiveType,
+  PrimitiveTypeExtended,
+  DeepAwaited,
+  HasPromise,
+  Prettify,
+  CompactArray,
+  ArrayHasType,
+};
