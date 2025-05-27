@@ -143,6 +143,14 @@ type CompactArray<T extends readonly unknown[]> = T extends readonly [infer H, .
  * @typeParam U - The type to inspect.
  * @returns True if any of the sub-types are the same type as the given type, false otherwise.
  *
+ * @example
+ * ```ts
+ * type Test = ArrayHasType<[string, number, boolean], string>; // Result: true
+ * type Test2 = ArrayHasType<[string, number, boolean], number>; // Result: true
+ * type Test3 = ArrayHasType<[string, number, boolean], boolean>; // Result: true
+ * type Test4 = ArrayHasType<[string, number, boolean], string | number>; // Result: true
+ * ```
+ *
  * @public
  */
 type ArrayHasType<T, U> = T extends [infer H, ...infer R]
