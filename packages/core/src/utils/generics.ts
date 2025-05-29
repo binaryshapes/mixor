@@ -59,15 +59,17 @@ type PrimitiveTypeExtended = PrimitiveType | Date | RegExp | Array<Any>;
  * // }
  * ```
  */
-type DeepAwaited<T> =
+type DeepAwaited<T, O extends Record<string, Any> = never> =
   T extends Promise<infer U>
-    ? DeepAwaited<U>
+    ? DeepAwaited<U, O>
     : T extends Array<infer A>
       ? Array<DeepAwaited<A>>
       : T extends object
-        ? {
-            [K in keyof T]: DeepAwaited<T[K]>;
-          }
+        ? T extends O
+          ? T
+          : {
+              [K in keyof T]: DeepAwaited<T[K], O>;
+            }
         : T;
 
 /**
@@ -106,7 +108,9 @@ type HasPromise<T> =
 type Prettify<T> = T extends PrimitiveType
   ? T
   : {} & T extends Array<infer U>
-    ? Array<Prettify<U>>
+    ? // FIXME: Check if this is correct for arrays. We have some cases where the array is
+      // changed. Ej: [string, string, number] -> (string | number)[]. See more in pipe helpers.
+      Array<Prettify<U>>
     : T extends object
       ? {
           [K in keyof T]: T[K] extends PrimitiveType ? Prettify<T[K]> : T[K];
