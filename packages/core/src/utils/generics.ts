@@ -212,6 +212,23 @@ type HomogeneousTuple<T extends Any[]> = T extends []
  */
 type IsEmptyTuple<T extends Any[]> = T extends [] ? true : false;
 
+/**
+ * Remove functions from a type.
+ *
+ * @typeParam T - The type to remove functions from.
+ * @returns The type without functions.
+ *
+ * @public
+ */
+type NonFunction<T> = T extends (...args: Any[]) => infer V ? V : T;
+
+/**
+ * Constructable is a type that represents a constructor function.
+ *
+ * @public
+ */
+type Constructor<A = Any, B = Any> = new (...args: A[]) => B;
+
 export type {
   Any,
   PrimitiveType,
@@ -225,4 +242,6 @@ export type {
   Tail,
   HomogeneousTuple,
   IsEmptyTuple,
+  NonFunction,
+  Constructor,
 };

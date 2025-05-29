@@ -9,6 +9,7 @@ import type {
   Head,
   HomogeneousTuple,
   IsEmptyTuple,
+  NonFunction,
   Prettify,
   Tail,
 } from '../../src/utils';
@@ -635,6 +636,68 @@ describe('Generics', () => {
       type ComplexType = { id: number; name: string };
       type Test4 = IsEmptyTuple<[ComplexType]>;
       expectTypeOf<false>({} as Test4);
+    });
+  });
+
+  // *********************************************************************************************
+  // NonFunction type tests.
+  // *********************************************************************************************
+
+  describe('NonFunction', () => {
+    it('should not change the primitive types', () => {
+      type Test1 = NonFunction<string>;
+      expectTypeOf<string>({} as Test1);
+
+      type Test2 = NonFunction<number>;
+      expectTypeOf<number>({} as Test2);
+
+      type Test3 = NonFunction<boolean>;
+      expectTypeOf<boolean>({} as Test3);
+
+      type Test4 = NonFunction<null>;
+      // @ts-expect-error - This should be undefined.
+      expectTypeOf<null>({} as Test4);
+
+      type Test5 = NonFunction<undefined>;
+      // @ts-expect-error - This should be undefined.
+      expectTypeOf<undefined>({} as Test5);
+
+      type Test7 = NonFunction<symbol>;
+      expectTypeOf<symbol>({} as Test7);
+
+      type Test8 = NonFunction<bigint>;
+      expectTypeOf<bigint>({} as Test8);
+
+      type Test9 = NonFunction<Date>;
+      expectTypeOf<Date>({} as Test9);
+
+      type Test10 = NonFunction<RegExp>;
+      expectTypeOf<RegExp>({} as Test10);
+    });
+
+    it('should remove functions from object', () => {
+      type Test1 = NonFunction<{ name: string; age: number; sayHello: () => void }>;
+      expectTypeOf<{ name: string; age: number }>({} as Test1);
+    });
+
+    it('should remove functions from array', () => {
+      type Test2 = NonFunction<() => void>;
+      expectTypeOf<void>({} as unknown as Test2);
+    });
+
+    it('should maintain the tuple type', () => {
+      type Test3 = NonFunction<readonly [string, number, () => void]>;
+      expectTypeOf<readonly [string, number, () => void]>({} as Test3);
+    });
+
+    it('should remove functions from union', () => {
+      type Test4 = NonFunction<(string | number) | (() => void)>;
+      expectTypeOf<string | number | void>({} as Test4);
+    });
+
+    it('should remove functions from intersection', () => {
+      type Test5 = NonFunction<{ name: string } & { age: number } & { sayHello: () => void }>;
+      expectTypeOf<{ name: string } & { age: number }>({} as Test5);
     });
   });
 });
