@@ -6,7 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import type { PrimitiveTypeExtended } from '../utils';
+import type { NonFunction, PrimitiveTypeExtended } from '../utils';
 import { type PipeFn, pipeOperator } from './pipe';
 
 /**
@@ -108,4 +108,159 @@ const bind = pipeOperator(
       }) as (A extends PrimitiveTypeExtended ? unknown : A) & { [P in K]: B },
 );
 
-export { map, bind, tap };
+/**
+ * A conditional operator that executes a function only if a condition is met.
+ * If the condition is false, it returns undefined.
+ *
+ * Notes:
+ * - The condition function must return a boolean.
+ * - The then function is only executed if the condition is true.
+ * - Returns undefined if the condition is false.
+ *
+ * ```text
+ * Conditional execution diagram:
+ *
+ *               ┌─────────────┐       ┌─────────────┐
+ *   Input  ──▶  │ Condition   │ ────▶ |    Then     | ──▶ Then function result (if true)
+ *               └─────────────┘   |   └─────────────┘
+ *                                 └────▶ undefined (if false)
+ *
+ * Example with values:
+ *
+ *               ┌─────────────┐       ┌─────────────┐
+ *       n=5 ──▶ │ n > 3: true │ ────▶ |    n*2      | ──▶ 10
+ *               └─────────────┘       └─────────────┘
+ *
+ *               ┌─────────────┐
+ *       n=2 ──▶ │ n > 3: false│ ────▶ Undefined
+ *               └─────────────┘
+ * ```
+ *
+ * @param fn - A function that takes the input and returns an object with the condition and
+ * the then function if condition is true.
+ * @returns A function that takes a value of type A and returns either a value of type B or undefined.
+ *
+ * @example
+ * ```ts
+ * const pipeline = pipe<number>("Double if greater than 3")
+ *   .step('Conditional double', ifThen(
+ *     (n) => ({
+ *       if: n > 3,
+ *       then: n * 2,
+ *     })
+ *   ))
+ *   .build()
+ *
+ * const result1 = pipeline(5) // result: 10
+ * const result2 = pipeline(2) // result: undefined
+ * ```
+ *
+ * @public
+ */
+const ifThen = pipeOperator(
+  'ifThen',
+  <A, B>(
+    fn: (a: A) => {
+      if: boolean;
+      then: NonFunction<B>;
+    },
+  ) =>
+    (a: A) => {
+      const { if: condition, then } = fn(a);
+      return condition ? then : undefined;
+    },
+);
+
+/**
+ * A conditional operator that executes one of two functions based on a condition.
+ * If the condition is true, it executes the 'then' function, otherwise it executes the 'else'
+ * function.
+ *
+ * Notes:
+ * - The condition function must return a boolean.
+ * - The then function is executed if the condition is true.
+ * - The else function is executed if the condition is false.
+ * - Both functions must return the same type.
+ *
+ * ```text
+ * Conditional execution diagram:
+ *
+ *                   (true)         ┌──────────────┐
+ *                     ┌──────────-▶│    Then      │ ─────┐
+ *                     │            └──────────────┘      │
+ *                ┌────────────┐                          │
+ *    Input ───▶  │ Condition  │                          ├──▶ Result (from then or else)
+ *                └────────────┘                          │
+ *                     │            ┌──────────────┐      │
+ *                     └─-─────────▶│    Else      │ ─────┘
+ *                  (false)         └──────────────┘
+ *
+ *
+ * Example with values:
+ *
+ *                   (true)         ┌──────────────┐
+ *                     ┌──────────-▶│   100 / 2    │ ─────┐
+ *                     │            └──────────────┘      │
+ *                 ┌────────────┐                         │
+ *  [100, 2] ───▶  │   2 > 0    │                         ├──▶ 50
+ *                 └────────────┘                         │
+ *                     │            ┌──────────────┐      │
+ *                     └─-─────────▶│    Error     │ ─────┘
+ *                  (false)         └──────────────┘
+ *
+ *
+ *                   (false)        ┌──────────────┐
+ *                     ┌──────────-▶│    100 / 0   │ ─────┐
+ *                     │            └──────────────┘      │
+ *                 ┌────────────┐                         │
+ *  [100, 0] ───▶  │   0 > 0    │                         ├──▶ Error
+ *                 └────────────┘                         │
+ *                     │            ┌──────────────┐      │
+ *                     └─-─────────▶│    Error     │ ─────┘
+ *                  (false)         └──────────────┘
+ *
+ * ```
+ *
+ * @param condition - A function that takes the input value and returns a boolean.
+ * @param then - A function that takes the input value and returns a value of type B.
+ * @param elseFn - A function that takes the input value and returns a value of type B.
+ * @returns A function that takes a value of type A and returns a value of type B.
+ *
+ * @example
+ * ```ts
+ * const pipeline = pipe<[number, number]>('Division')
+ *   .step(
+ *     'Divide two numbers or throw error',
+ *     ifThenElse(
+ *       ([a, b]: [number, number]) => ({
+ *         if: b !== 0,
+ *         then: a / b,
+ *         else: () => {
+ *           throw new Error(`Cannot execute division by zero for this input: ${a}/${b}`);
+ *         },
+ *       }),
+ *     ),
+ *   )
+ *   .build();
+ *
+ * const result = pipeline([100, 0]) // Error: Cannot execute division by zero for this input: 100/0
+ * const result2 = pipeline([100, 2]) // result: 50
+ * ```
+ * @public
+ */
+const ifThenElse = pipeOperator(
+  'ifThenElse',
+  <A, B, C>(
+    fn: (a: A) => {
+      if: boolean;
+      then: NonFunction<B>;
+      else: NonFunction<C>;
+    },
+  ) =>
+    (a: A) => {
+      const { if: condition, then, else: elseFn } = fn(a);
+      return (condition ? then : elseFn) as B extends C ? B : B | C;
+    },
+);
+
+export { map, bind, tap, ifThen, ifThenElse };
