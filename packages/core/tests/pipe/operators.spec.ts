@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, suite, vi } from 'vitest';
 
-import { bind, map, pipe, tap } from '../../src/pipe';
+import { bind, ifThen, ifThenElse, map, pipe, tap } from '../../src/pipe';
+import type { PipeValue } from '../../src/pipe';
 
 describe('Pipe Operators', () => {
   // *********************************************************************************************
@@ -223,6 +224,190 @@ describe('Pipe Operators', () => {
         expect(effect1).toBe(1);
         expect(effect2).toBe(1);
       });
+    });
+  });
+
+  // *********************************************************************************************
+  // IfThen Operator.
+  // *********************************************************************************************
+
+  suite('IfThen', () => {
+    it('should execute the then function when condition is true', () => {
+      const doubleIfPositive = ifThen((n: number) => ({
+        if: n > 0,
+        then: n * 2,
+      }));
+      const result = doubleIfPositive(5);
+      expect(result.value).toBe(10);
+
+      // Generic Typechecking.
+      expectTypeOf(doubleIfPositive).toBeFunction();
+      expectTypeOf(doubleIfPositive).parameter(0).toBeNumber();
+      expectTypeOf(doubleIfPositive).returns.toMatchObjectType<
+        PipeValue<number | undefined, 'ifThen'>
+      >();
+
+      // Values Typechecking.
+      expectTypeOf(result).toEqualTypeOf<PipeValue<number | undefined, 'ifThen'>>();
+      expectTypeOf(result.value).toEqualTypeOf<number | undefined>();
+    });
+
+    it('should return undefined when condition is false', () => {
+      const doubleIfPositive = ifThen((n: number) => ({
+        if: n > 0,
+        then: n * 2,
+      }));
+      const result = doubleIfPositive(-5);
+      expect(result.value).toBeUndefined();
+
+      // Generic Typechecking.
+      expectTypeOf(doubleIfPositive).toBeFunction();
+      expectTypeOf(doubleIfPositive).parameter(0).toBeNumber();
+      expectTypeOf(doubleIfPositive).returns.toMatchObjectType<
+        PipeValue<number | undefined, 'ifThen'>
+      >();
+
+      // Values Typechecking.
+      expectTypeOf(result).toEqualTypeOf<PipeValue<number | undefined, 'ifThen'>>();
+      expectTypeOf(result.value).toEqualTypeOf<number | undefined>();
+    });
+
+    it('should handle complex conditions and transformations', () => {
+      type User = {
+        isAdult: boolean;
+        age: number;
+        name: string;
+      };
+
+      const processUser = ifThen((user: { age: number; name: string }) => ({
+        if: user.age >= 18,
+        then: { ...user, isAdult: true },
+      }));
+      const result = processUser({ name: 'John', age: 20 });
+      expect(result.value).toEqual({ name: 'John', age: 20, isAdult: true });
+
+      // Generic Typechecking.
+      expectTypeOf(processUser).toBeFunction();
+      expectTypeOf(processUser).parameter(0).toEqualTypeOf<{ age: number; name: string }>();
+      expectTypeOf(processUser).returns.toEqualTypeOf<PipeValue<User | undefined, 'ifThen'>>();
+
+      // Values Typechecking.
+      expectTypeOf(result).toEqualTypeOf<PipeValue<User | undefined, 'ifThen'>>();
+      expectTypeOf(result.value).toEqualTypeOf<User | undefined>();
+    });
+
+    it('should work within a pipeline', () => {
+      const pipeline = pipe<number>('test')
+        .step(
+          'double-if-positive',
+          ifThen((n) => ({
+            if: n > 0,
+            then: n * 2,
+          })),
+        )
+        .build();
+
+      const resultTrue = pipeline(5);
+      const resultFalse = pipeline(-5);
+      expect(resultTrue).toBe(10);
+      expect(resultFalse).toBeUndefined();
+
+      // Generic Typechecking.
+      expectTypeOf(pipeline).toBeFunction();
+      expectTypeOf(pipeline).parameter(0).toBeNumber();
+      expectTypeOf(pipeline).returns.toEqualTypeOf<number | undefined>();
+
+      // Values Typechecking.
+      expectTypeOf(resultTrue).toEqualTypeOf<number | undefined>();
+      expectTypeOf(resultFalse).toEqualTypeOf<number | undefined>();
+    });
+  });
+
+  // *********************************************************************************************
+  // IfThenElse Operator.
+  // *********************************************************************************************
+
+  describe('IfThenElse', () => {
+    it('should execute the then function when condition is true', () => {
+      const safeDivide = ifThenElse((a: [number, number]) => ({
+        if: a[1] !== 0,
+        then: a[0] / a[1],
+        else: 0,
+      }));
+      const result = safeDivide([10, 2]);
+      expect(result.value).toBe(5);
+
+      // Generic Typechecking.
+      expectTypeOf(safeDivide).toBeFunction();
+      expectTypeOf(safeDivide).parameter(0).toEqualTypeOf<[number, number]>();
+      expectTypeOf(safeDivide).returns.toEqualTypeOf<PipeValue<number, 'ifThenElse'>>();
+
+      // Values Typechecking.
+      expectTypeOf(result).toEqualTypeOf<PipeValue<number, 'ifThenElse'>>();
+      expectTypeOf(result.value).toEqualTypeOf<number>();
+    });
+
+    it('should execute the else function when condition is false', () => {
+      const safeDivide = ifThenElse((a: [number, number]) => ({
+        if: a[1] !== 0,
+        then: a[0] / a[1],
+        else: false,
+      }));
+      const result = safeDivide([10, 0]);
+      expect(result.value).toBe(false);
+
+      // Generic Typechecking.
+      expectTypeOf(safeDivide).toBeFunction();
+      expectTypeOf(safeDivide).parameter(0).toEqualTypeOf<[number, number]>();
+      expectTypeOf(safeDivide).returns.toEqualTypeOf<PipeValue<boolean | number, 'ifThenElse'>>();
+
+      // Values Typechecking.
+      expectTypeOf(result).toEqualTypeOf<PipeValue<boolean | number, 'ifThenElse'>>();
+      expectTypeOf(result.value).toEqualTypeOf<boolean | number>();
+    });
+
+    it('should handle complex conditions and transformations', () => {
+      type User = {
+        name: string;
+        age: number;
+        status: string;
+      };
+
+      const processUser = ifThenElse((user: { age: number; name: string }) => ({
+        if: user.age >= 18,
+        then: { ...user, status: 'adult' },
+        else: { ...user, status: 'minor' },
+      }));
+      const adultResult = processUser({ name: 'John', age: 20 });
+      const minorResult = processUser({ name: 'Jane', age: 15 });
+
+      expect(adultResult.value).toEqual({ name: 'John', age: 20, status: 'adult' });
+      expect(minorResult.value).toEqual({ name: 'Jane', age: 15, status: 'minor' });
+
+      // Generic Typechecking.
+      expectTypeOf(processUser).toBeFunction();
+      expectTypeOf(processUser).parameter(0).toEqualTypeOf<{ age: number; name: string }>();
+      expectTypeOf(processUser).returns.toEqualTypeOf<PipeValue<User, 'ifThenElse'>>();
+
+      // Values Typechecking.
+      expectTypeOf(adultResult).toEqualTypeOf<PipeValue<User, 'ifThenElse'>>();
+      expectTypeOf(adultResult.value).toEqualTypeOf<User>();
+    });
+
+    it('should work within a pipeline', () => {
+      const pipeline = pipe<[number, number]>('test')
+        .step(
+          'safe-divide',
+          ifThenElse((a: [number, number]) => ({
+            if: a[1] !== 0,
+            then: a[0] / a[1],
+            else: NaN,
+          })),
+        )
+        .build();
+
+      expect(pipeline([10, 2])).toBe(5);
+      expect(pipeline([10, 0])).toBe(NaN);
     });
   });
 });
