@@ -126,5 +126,5 @@ function isResult(result: unknown): result is Result<unknown, unknown> {
   );
 }
 
-export type { Ok, Err, Result };
-export { isResult, isErr, isOk, ok, err };
+export type { Err, Ok, Result };
+export { err, isErr, isOk, isResult, ok };
