@@ -374,7 +374,7 @@ const pipeValue = <T, O extends string>(value: T, operator: O) =>
     _operator: operator,
     _kind: getPipeValueKind(value),
     value,
-  }) as const;
+  }) as PipeValue<T, O>;
 
 // *********************************************************************************************
 // Public functions.
