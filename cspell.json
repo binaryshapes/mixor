@@ -13,7 +13,8 @@
     "Daikit",
     "nodemon",
     "tasker",
-    "Taskers"
+    "Taskers",
+    "vitest"
   ],
   "ignoreWords": [
     "unokit",
@@ -28,7 +29,9 @@
     "moonx",
     "binaryshapes",
     "refact",
-    "prefs"
+    "prefs",
+    "FFAA",
+    "daixo"
   ],
   "import": []
 }
