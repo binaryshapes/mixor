@@ -7,6 +7,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+// *********************************************************************************************
+// General purpose types.
+// *********************************************************************************************
+
 /**
  * Any is used to reflect justified `any` values through the codebase and avoid use the explicit
  * `any` type.
@@ -118,6 +122,55 @@ type Prettify<T> = T extends PrimitiveType
       : T;
 
 /**
+ * Remove functions from a type.
+ *
+ * @typeParam T - The type to remove functions from.
+ * @returns The type without functions.
+ *
+ * @public
+ */
+type NonFunction<T> = T extends (...args: Any[]) => infer V ? V : T;
+
+/**
+ * Constructable is a type that represents a constructor function.
+ *
+ * @public
+ */
+type Constructor<A = Any, B = Any> = new (...args: A[]) => B;
+
+/**
+ * Stringify is a type that converts a type into a string representation.
+ *
+ * @typeParam T - The type to stringify.
+ * @returns The string representation of the type.
+ *
+ * @public
+ */
+type Stringify<T> = T extends string
+  ? 'string'
+  : T extends number
+    ? 'number'
+    : T extends boolean
+      ? 'boolean'
+      : T extends bigint
+        ? 'bigint'
+        : T extends null
+          ? 'null'
+          : T extends undefined
+            ? 'undefined'
+            : T extends (...args: Any[]) => Any
+              ? T extends (arg: infer I) => infer O
+                ? `(value: ${Stringify<I>}) => ${Stringify<O>}`
+                : 'Function'
+              : T extends object
+                ? 'Object'
+                : 'Unknown';
+
+// *********************************************************************************************
+// Generics related with tuples.
+// *********************************************************************************************
+
+/**
  * Detects all unique types in an array and returns the array with the unique types.
  * If all elements of the array are the same type, return that type.
  *
@@ -131,6 +184,7 @@ type Prettify<T> = T extends PrimitiveType
  *
  * @public
  */
+// TODO: change name to CompactTuple.
 type CompactArray<T extends readonly unknown[]> = T extends readonly [infer H, ...infer R]
   ? R extends readonly []
     ? H
@@ -157,6 +211,7 @@ type CompactArray<T extends readonly unknown[]> = T extends readonly [infer H, .
  *
  * @public
  */
+// TODO: change name to TupleHasType.
 type ArrayHasType<T, U> = T extends [infer H, ...infer R]
   ? [H] extends [U]
     ? true
@@ -212,36 +267,54 @@ type HomogeneousTuple<T extends Any[]> = T extends []
  */
 type IsEmptyTuple<T extends Any[]> = T extends [] ? true : false;
 
-/**
- * Remove functions from a type.
- *
- * @typeParam T - The type to remove functions from.
- * @returns The type without functions.
- *
- * @public
- */
-type NonFunction<T> = T extends (...args: Any[]) => infer V ? V : T;
+// *********************************************************************************************
+// Generics related to type errors.
+// *********************************************************************************************
 
 /**
- * Constructable is a type that represents a constructor function.
+ * TypeError is a type that represents a type error.
+ * Useful to define type errors in a type-safe way.
+ *
+ * @typeParam Msg - The message of the error.
+ * @returns The type error.
  *
  * @public
  */
-type Constructor<A = Any, B = Any> = new (...args: A[]) => B;
+type TypeError<Scope extends Uppercase<string>, Msg extends string> = {
+  error: `${Scope}: ${Msg}`;
+};
+
+/**
+ * WithError is a type that adds an error message to a type.
+ * Useful to add an error message to a type that already has a type error.
+ *
+ * @typeParam T - The type to add the error message to.
+ * @typeParam M - The type that contains the error message.
+ * @returns The type with the error message.
+ *
+ * public
+ */
+type WithError<T, M> = M extends { error: infer Msg } ? Msg & T : T;
 
 export type {
+  // General purpose types.
   Any,
   PrimitiveType,
   PrimitiveTypeExtended,
   DeepAwaited,
   HasPromise,
   Prettify,
+  NonFunction,
+  Constructor,
+  Stringify,
+  // Generics related with tuples.
   CompactArray,
   ArrayHasType,
   Head,
   Tail,
   HomogeneousTuple,
   IsEmptyTuple,
-  NonFunction,
-  Constructor,
+  // Generics related with type errors.
+  TypeError,
+  WithError,
 };
