@@ -12,6 +12,8 @@ import type {
   NonFunction,
   Prettify,
   Tail,
+  TypeError,
+  WithError,
 } from '../../src/utils';
 
 describe('Generics', () => {
@@ -698,6 +700,28 @@ describe('Generics', () => {
     it('should remove functions from intersection', () => {
       type Test5 = NonFunction<{ name: string } & { age: number } & { sayHello: () => void }>;
       expectTypeOf<{ name: string } & { age: number }>({} as Test5);
+    });
+  });
+
+  // *********************************************************************************************
+  // TypeError type tests.
+  // *********************************************************************************************
+
+  describe('TypeError', () => {
+    it('should create a type error', () => {
+      type Test1 = TypeError<'TEST', 'This is a test error'>;
+      expectTypeOf<{ error: 'TEST: This is a test error' }>({} as Test1);
+    });
+  });
+
+  // *********************************************************************************************
+  // WithError type tests.
+  // *********************************************************************************************
+
+  describe('WithError', () => {
+    it('should add an error message to a type', () => {
+      type Test1 = WithError<{ name: string }, { error: 'This is a test error' }>;
+      expectTypeOf<{ name: string } & 'This is a test error'>({} as Test1);
     });
   });
 });
