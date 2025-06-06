@@ -111,7 +111,7 @@ const chainPipe = <
   S extends PipeStep<Any, Any>[] = ChainPipeSteps<F>,
 >(
   name: string,
-) => pipe<I>(name) as unknown as Pipe<I, O, S, HasAsyncStep<S>>;
+) => pipe<I>(name) as unknown as Pipe<I, O, HasAsyncStep<S>>;
 
 /**
  * Creates a chain as a pipe for a list of functions.
