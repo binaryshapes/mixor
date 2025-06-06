@@ -21,9 +21,9 @@ import { type Pipe, type PipeFn, pipe } from './pipe';
  *
  * @internal
  */
-type InferOutput<P> = P extends Pipe<Any, Any, Any, Any>[]
+type InferOutput<P> = P extends Pipe<Any, Any, Any>[]
   ? {
-      [K in keyof P]: P[K] extends Pipe<Any, infer R, Any, Any> ? R : never;
+      [K in keyof P]: P[K] extends Pipe<Any, infer R, Any> ? R : never;
     }
   : never;
 
@@ -34,36 +34,23 @@ type InferOutput<P> = P extends Pipe<Any, Any, Any, Any>[]
  *
  * @internal
  */
-type InferInput<P> = P extends Pipe<Any, Any, Any, Any>[]
+type InferInput<P> = P extends Pipe<Any, Any, Any>[]
   ? {
-      [K in keyof P]: P[K] extends Pipe<infer I, Any, Any, Any> ? I : never;
+      [K in keyof P]: P[K] extends Pipe<infer I, Any, Any> ? I : never;
     }
   : never;
 
 /**
- * Merges the steps of an array of pipeline functions.
- *
- * @typeParam P - The array of pipeline functions.
- *
- * @internal
- */
-type MergedSteps<P> = P extends Pipe<Any, Any, Any, Any>[]
-  ? {
-      [K in keyof P]: P[K] extends Pipe<Any, Any, infer S, Any> ? S : never;
-    }[number]
-  : never;
-
-/**
- * Merges the steps of an array of pipeline functions.
+ * Checks if any pipeline in the array is async.
  *
  * @typeParam P - The array of pipeline functions.
  *
  * @internal
  */
 type IsPromise<P> = ArrayHasType<
-  P extends Pipe<Any, Any, Any, Any>[]
+  P extends Pipe<Any, Any, Any>[]
     ? {
-        [K in keyof P]: P[K] extends Pipe<Any, Any, Any, infer B> ? B : never;
+        [K in keyof P]: P[K] extends Pipe<Any, Any, infer B> ? B : never;
       }
     : never,
   true
@@ -76,8 +63,8 @@ type IsPromise<P> = ArrayHasType<
  *
  * @internal
  */
-type InferParallelPipe<P> = P extends Pipe<Any, Any, Any, Any>[]
-  ? Pipe<InferInput<P>, InferOutput<P>, MergedSteps<P>, IsPromise<P>>
+type InferParallelPipe<P> = P extends Pipe<Any, Any, Any>[]
+  ? Pipe<InferInput<P>, InferOutput<P>, IsPromise<P>>
   : never;
 
 /**
@@ -87,11 +74,10 @@ type InferParallelPipe<P> = P extends Pipe<Any, Any, Any, Any>[]
  *
  * @internal
  */
-type InferAllParallelPipe<P> = P extends Pipe<Any, Any, Any, Any>[]
+type InferAllParallelPipe<P> = P extends Pipe<Any, Any, Any>[]
   ? Pipe<
       HomogeneousTuple<InferInput<P>> extends true ? CompactArray<InferInput<P>> : never,
       InferOutput<P>,
-      MergedSteps<P>,
       IsPromise<P>
     >
   : never;
@@ -103,11 +89,10 @@ type InferAllParallelPipe<P> = P extends Pipe<Any, Any, Any, Any>[]
  *
  * @internal
  */
-type InferFlowPipe<P> = P extends Pipe<Any, Any, Any, Any>[]
+type InferFlowPipe<P> = P extends Pipe<Any, Any, Any>[]
   ? Pipe<
       HomogeneousTuple<InferInput<P>> extends true ? CompactArray<InferInput<P>> : never,
       HomogeneousTuple<InferOutput<P>> extends true ? CompactArray<InferOutput<P>> : never,
-      MergedSteps<P>,
       IsPromise<P>
     >
   : never;
@@ -124,7 +109,7 @@ type InferFlowPipe<P> = P extends Pipe<Any, Any, Any, Any>[]
  *
  * @internal
  */
-const isAsync = (pipelines: Pipe<Any, Any, Any, Any>[]) =>
+const isAsync = (pipelines: Pipe<Any, Any, Any>[]) =>
   pipelines.some((p) => p.steps().steps.some((s) => s.isAsync));
 
 /**
@@ -136,7 +121,7 @@ const isAsync = (pipelines: Pipe<Any, Any, Any, Any>[]) =>
  *
  * @internal
  */
-function resolveParallel<I, R, P>(name: string, pipelines: Pipe<I, Any, Any, Any>[]) {
+function resolveParallel<I, R, P>(name: string, pipelines: Pipe<I, Any, Any>[]) {
   // A loop that can handle both arrays and single values.
   const loop = (v: I) =>
     Array.isArray(v)
@@ -208,7 +193,7 @@ function resolveParallel<I, R, P>(name: string, pipelines: Pipe<I, Any, Any, Any
  *
  * @public
  */
-const parallel = <P extends Pipe<Any, Any, Any, Any>[]>(...pipelines: P) =>
+const parallel = <P extends Pipe<Any, Any, Any>[]>(...pipelines: P) =>
   resolveParallel<InferInput<P>, InferOutput<P>, InferParallelPipe<P>>('Parallel', pipelines);
 
 /**
@@ -257,7 +242,7 @@ const parallel = <P extends Pipe<Any, Any, Any, Any>[]>(...pipelines: P) =>
  *
  * @public
  */
-const all = <P extends Pipe<Any, Any, Any, Any>[]>(...pipelines: P) =>
+const all = <P extends Pipe<Any, Any, Any>[]>(...pipelines: P) =>
   resolveParallel<
     CompactArray<InferInput<P>>,
     CompactArray<InferOutput<P>>,
@@ -299,7 +284,7 @@ const all = <P extends Pipe<Any, Any, Any, Any>[]>(...pipelines: P) =>
  *
  * @public
  */
-const flow = <P extends Pipe<Any, Any, Any, Any>[]>(...pipelines: P) =>
+const flow = <P extends Pipe<Any, Any, Any>[]>(...pipelines: P) =>
   // FIXME: The type inference is not working as expected when the pipeline input is different
   // from the output of the previous pipeline or something like that.
   pipelines.reduce(
