@@ -7,7 +7,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { type Option, type Result, isOption, isResult } from '../monads';
-import type { Any, DeepAwaited, HasPromise, Prettify } from '../utils';
+import type { Any, DeepAwaited, HasPromise, IsPromise, Prettify } from '../utils';
 import { getMetadata, setMetadata, toCamelCase } from '../utils';
 
 // TODO: We need to ensure that all the data in the pipeline is immutable and that the pipeline is
@@ -138,6 +138,7 @@ type ExtractPipeValue<T> = T extends {
  *
  * @internal
  */
+// TODO: This must be removed because it is not used in this module.
 type HasAsyncStep<S extends PipeStep[]> = S extends [infer First, ...infer Rest]
   ? First extends { fn: infer F }
     ? F extends PipeFn<never, infer R>
@@ -175,13 +176,13 @@ type BuildReturnFn<
  * In most cases, this type is not going to be used, because is the representation of the
  * pipeline created by the {@link pipe} function.
  *
- * @typeParam A - The type of the input value.
- * @typeParam B - The type of the output value.
- * @typeParam S - The type of the steps array.
+ * @typeParam I - The type of the input value.
+ * @typeParam O - The type of the output value.
+ * @typeParam Async - Whether the pipeline is async.
  *
  * @public
  */
-type Pipe<I, O = I, S extends PipeStep[] = [], Async extends boolean = HasAsyncStep<[...S]>> = {
+type Pipe<I, O = I, Async extends boolean = false> = {
   /**
    * Adds a new step to the pipeline.
    * The new step will be added to the end of the pipeline and will be applied to the output
@@ -194,17 +195,17 @@ type Pipe<I, O = I, S extends PipeStep[] = [], Async extends boolean = HasAsyncS
   step: <OF>(
     description: string,
     fn: PipeFn<O, OF>,
-  ) => Pipe<I, NormalizePipeValue<OF>, [...S, PipeStep<O, OF>]>;
+  ) => Pipe<I, NormalizePipeValue<OF>, Async extends true ? true : IsPromise<OF>>;
 
   /**
    * Returns the steps of the pipeline as a list of steps with the respective metadata.
    *
    * @returns The steps of the pipeline.
    */
-  steps: () => PipePrettify<{
+  steps: () => {
     name: string;
-    steps: (Pick<PipeStep, 'key' | 'description'> & PipeMetadata)[];
-  }>;
+    steps: PipePrettify<Pick<PipeStep, 'key' | 'description'> & PipeMetadata>[];
+  };
 
   /**
    * Builds the pipeline and returns a function that can be used to run the pipeline.
@@ -273,6 +274,11 @@ function buildAsyncPipe<I, O>(input: I, steps: PipeStep<I, O>[]) {
     for (const step of steps) {
       currentValue = await step.fn(currentValue);
       currentValue = extractValue(currentValue);
+
+      // If the current value is a promise, we need to resolve it.
+      if (currentValue instanceof Promise) {
+        currentValue = await currentValue;
+      }
 
       // The async operator can return an object with promises, so we need to resolve them.
       if (typeof currentValue === 'object' && currentValue !== null) {
@@ -441,7 +447,7 @@ function pipeOperator<A, B, R, P extends Any[], O extends string = string>(
  *
  * @public
  */
-function pipe<A>(name: string): Pipe<A, A, []> {
+function pipe<A>(name: string): Pipe<A, A, false> {
   const steps: PipeStep[] = [];
   const pipelineName = name;
 
@@ -488,8 +494,8 @@ function pipe<A>(name: string): Pipe<A, A, []> {
     build: () => (a: A) => a,
   };
 
-  return pipeline as Pipe<A, A, []>;
+  return pipeline as Pipe<A, A, false>;
 }
 
-export type { Pipe, PipeFn, PipeValue };
+export type { Pipe, PipeFn, PipeStep, PipeValue, HasAsyncStep };
 export { pipe, pipeOperator };
