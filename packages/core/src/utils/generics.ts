@@ -39,6 +39,7 @@ type PrimitiveTypeExtended = PrimitiveType | Date | RegExp | Array<Any>;
  * Recursively unwraps all Promise types in a type, including nested objects and arrays.
  *
  * @typeParam T - The type to unwrap Promises from
+ * @typeParam O - The type of the object to avoid unwrapping.
  *
  * @example
  * ```ts
@@ -77,6 +78,16 @@ type DeepAwaited<T, O extends Record<string, Any> = never> =
         : T;
 
 /**
+ * Helper type to detect if a type is a Promise
+ *
+ * @typeParam T - The type to check
+ * @returns True if T is a Promise
+ *
+ * @public
+ */
+type IsPromise<T> = T extends Promise<unknown> ? true : false;
+
+/**
  * Inspect if any of the sub-types are promises.
  *
  * @typeParam T - The type to inspect.
@@ -91,7 +102,7 @@ type HasPromise<T> =
       ? HasPromise<U>
       : T extends object
         ? {
-            [K in keyof T]: T[K] extends Promise<unknown>
+            [K in keyof T]: IsPromise<T[K]> extends true
               ? true
               : T[K] extends object
                 ? HasPromise<T[K]>
@@ -302,6 +313,7 @@ export type {
   PrimitiveType,
   PrimitiveTypeExtended,
   DeepAwaited,
+  IsPromise,
   HasPromise,
   Prettify,
   NonFunction,
