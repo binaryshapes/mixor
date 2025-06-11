@@ -2,14 +2,5 @@
   "extends": "./tsconfig.base.json",
   "compileOnSave": false,
   "files": [],
-  "references": [
-    {
-      "path": "./packages/result"
-    }
-  ],
-  "include": [
-    "eslint.config.ts",
-    "prettier.config.mjs",
-    "commitlint.config.ts"
-  ]
+  "include": ["eslint.config.ts", "prettier.config.mjs", "commitlint.config.ts"]
 }
