@@ -19,6 +19,7 @@
       "require": "./dist/index.cjs"
     }
   },
+  "sideEffects": false,
   "scripts": {
     "test": "moonx test -s -u",
     "test:types": "moonx test-types -s -u",
