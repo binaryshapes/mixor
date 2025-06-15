@@ -1,5 +1,8 @@
 {
   // Use the workspace tsdk.
   "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  // This is not a frontend project, so we don't need to highlight colors.
+  "color-highlight.enable": false
 }
