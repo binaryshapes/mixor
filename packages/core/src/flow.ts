@@ -107,6 +107,7 @@ const flow: Flow =
  *   map(({ x, y }) => y === 0 ? err("ZERO_DIVISOR") : ok(x / y))
  * );
  *
+ * // Result<number, "ZERO_DIVISOR">
  * const r = fl(10, 0); // { _id: 'Result', _tag: 'Err', error: 'ZERO_DIVISOR' }
  * const r2 = fl(10, 20); // { _id: 'Result', _tag: 'Ok', value: 0.5 }
  * ```
@@ -131,11 +132,12 @@ const map =
  * @example
  * ```ts
  * const fl = flow(
- *   (x: number, y: number) => ok({ x, y }),
- *   mapErr((e) => err('SOME_ERROR'))
+ *   () => err('SOME_ERROR'),
+ *   mapErr((e) => err(`REPLACE_${e}`)),
  * );
  *
- * const r = fl(10, 0); // { _id: 'Result', _tag: 'Err', error: 'SOME_ERROR' }
+ * // Result<never, "REPLACE_SOME_ERROR">
+ * const r = fl(); // { _id: 'Result', _tag: 'Err', error: 'CHANGED_ERROR: SOME_ERROR' }
  * ```
  *
  * @public
@@ -174,12 +176,28 @@ type MapBothOptions<A, B, E, F> = {
  * @example
  * ```ts
  * const fl = flow(
- *   (x: number, y: number) => ok({ x, y }),
- *   mapBoth({
- *     onOk: ({ x, y }) => y === 0 ? err("ZERO_DIVISOR") : ok(x / y),
- *     onErr: (e) => err('ANOTHER_ERROR')
- *   })
- * );
+ *    (x: number, y: number) => ok({ x, y }),
+ *    map(({ x, y }) => (y === 0 ? err('ERROR_1') : ok(x / y))),
+ *    map((res) => (res < 0 ? err('ERROR_2') : ok(res))),
+ *    mapBoth({
+ *      onOk: (res) => ok(res),
+ *      onErr: (e) => {
+ *        switch (e) {
+ *          case 'ERROR_1':
+ *            return err('CANNOT_DIVIDE_BY_ZERO');
+ *          case 'ERROR_2':
+ *            return err('MUST_BE_POSITIVE');
+ *          default:
+ *            return err('UNEXPECTED_ERROR');
+ *        }
+ *      },
+ *    }),
+ *  );
+ *
+ *  // Result<number, "CANNOT_DIVIDE_BY_ZERO" | "MUST_BE_POSITIVE" | "UNEXPECTED_ERROR">
+ *  const r = fl(10, 0); // { _id: 'Result', _tag: 'Err', error: 'CANNOT_DIVIDE_BY_ZERO' }
+ *  const r2 = fl(10, 20); // { _id: 'Result', _tag: 'Ok', value: 0.5 }
+ *  const r3 = fl(-10, 5); // { _id: 'Result', _tag: 'Err', error: 'MUST_BE_POSITIVE' }
  * ```
  *
  * @public
