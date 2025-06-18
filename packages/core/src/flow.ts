@@ -207,4 +207,35 @@ const mapBoth =
   (r: Result<A, E>) =>
     isOk(r) ? o.onOk(r.value) : o.onErr(r.error);
 
-export { flow, map, mapErr, mapBoth };
+/**
+ * Executes a side effect function. It does not modify the value of the flow.
+ * It can access to the current success value of the flow.
+ *
+ * @typeParam A - The input type.
+ * @typeParam E - The error type.
+ * @param f - The function to execute on the value.
+ * @returns A function that takes a Result and returns the original Result.
+ *
+ * @example
+ * ```ts
+ * const fl = flow(
+ *   () => ok(1),
+ *   tap((v) => console.log('The current flow value is:', v)),
+ * );
+ *
+ * // { _id: 'Result', _tag: 'Ok', value: 1 }
+ * const r = fl();
+ * ```
+ *
+ * @public
+ */
+const tap =
+  <A, E>(f: (v: A) => void) =>
+  (r: Result<A, E>) => {
+    if (isOk(r)) {
+      f(r.value);
+    }
+    return r;
+  };
+
+export { flow, map, mapErr, mapBoth, tap };

@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import { flow, map, mapBoth, mapErr } from '../src/flow';
+import { flow, map, mapBoth, mapErr, tap } from '../src/flow';
 import { type Result, err, isOk, ok } from '../src/result';
 
 const unwrap = <T>(result: Result<T, unknown>) => (isOk(result) ? result.value : result.error);
@@ -146,20 +146,20 @@ describe('Flow', () => {
     });
 
     it('should ommit the map if the result is an error', () => {
-      const someMap = (x: never) => ok(x + 1);
-      const f = flow(() => err('THIS_IS_AN_ERROR'), map(someMap));
+      const someMapSpy = vi.fn(() => ok(true));
+      const f = flow(() => err('THIS_IS_AN_ERROR'), map(someMapSpy));
 
-      // someMap is never called because the result is an error.
-      const fSpy = vi.fn(someMap);
-      expect(fSpy).not.toHaveBeenCalled();
       const r = f();
+
       expect(unwrap(r)).toEqual('THIS_IS_AN_ERROR');
+      // someMap is never called because the result is an error.
+      expect(someMapSpy).not.toHaveBeenCalled();
 
       // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<number, 'THIS_IS_AN_ERROR'>>();
+      expectTypeOf(r).toEqualTypeOf<Result<boolean, 'THIS_IS_AN_ERROR'>>();
       expectTypeOf(f).toBeFunction();
       expectTypeOf(f).parameter(0).toBeVoid();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<number, 'THIS_IS_AN_ERROR'>>();
+      expectTypeOf(f).returns.toEqualTypeOf<Result<boolean, 'THIS_IS_AN_ERROR'>>();
     });
   });
 
@@ -222,15 +222,14 @@ describe('Flow', () => {
     });
 
     it('should ommit the mapErr if the result is ok', () => {
-      const someMapErr = () => err('NOT_MAPPED_ERROR');
+      const someMapErr = vi.fn(() => err('NOT_MAPPED_ERROR'));
       const f = flow((x: number) => ok(x + 1), mapErr(someMapErr));
-
-      // someMapErr is never called because the result is ok.
-      const someMapErrSpy = vi.fn(someMapErr);
-      expect(someMapErrSpy).not.toHaveBeenCalled();
 
       const r = f(1);
       expect(unwrap(r)).toEqual(2);
+
+      // someMapErr is never called because the result is ok.
+      expect(someMapErr).not.toHaveBeenCalled();
 
       // Typechecking.
       expectTypeOf(f).toBeFunction();
@@ -289,5 +288,142 @@ describe('Flow', () => {
       expectTypeOf(f2).parameter(0).toBeNumber();
       expectTypeOf(f2).returns.toEqualTypeOf<Result<string, 'ERROR_2'>>();
     });
+  });
+
+  describe('tap', () => {
+    it('should execute a side effect function', () => {
+      const sideEffectSpy = vi.fn(() => void 0);
+
+      // Flow.
+      const f = flow(() => ok(1), tap(sideEffectSpy));
+      const r = f();
+
+      expect(unwrap(r)).toEqual(1);
+      expect(sideEffectSpy).toHaveBeenCalledExactlyOnceWith(1);
+
+      // Typechecking.
+      expectTypeOf(r).toEqualTypeOf<Result<number, never>>();
+      expectTypeOf(f).toBeFunction();
+      expectTypeOf(f).parameter(0).toBeVoid();
+      expectTypeOf(f).returns.toEqualTypeOf<Result<number, never>>();
+    });
+
+    it('should not execute tap when result is an error', () => {
+      const sideEffectSpy = vi.fn((v: number) => console.log(v));
+      const f = flow(() => err('SOME_ERROR'), tap(sideEffectSpy));
+
+      const r = f();
+
+      expect(unwrap(r)).toEqual('SOME_ERROR');
+      expect(sideEffectSpy).not.toHaveBeenCalled();
+
+      // Typechecking.
+      expectTypeOf(r).toEqualTypeOf<Result<number, 'SOME_ERROR'>>();
+      expectTypeOf(f).toBeFunction();
+      expectTypeOf(f).parameter(0).toBeVoid();
+      expectTypeOf(f).returns.toEqualTypeOf<Result<number, 'SOME_ERROR'>>();
+    });
+
+    it('should work with complex objects', () => {
+      const capturedValues: object[] = [];
+      const sideEffectSpy = vi.fn((v: object) => capturedValues.push(v));
+
+      const complexObject = { id: 1, name: 'test', nested: { value: 42 } };
+      const f = flow(() => ok(complexObject), tap(sideEffectSpy));
+
+      const r = f();
+
+      expect(unwrap(r)).toEqual(complexObject);
+      expect(sideEffectSpy).toHaveBeenCalledExactlyOnceWith(complexObject);
+      expect(capturedValues).toEqual([complexObject]);
+
+      // Typechecking.
+      expectTypeOf(r).toEqualTypeOf<Result<object, never>>();
+      expectTypeOf(f).toBeFunction();
+      expectTypeOf(f).parameter(0).toBeVoid();
+      expectTypeOf(f).returns.toEqualTypeOf<Result<object, never>>();
+    });
+
+    it('should work with multiple tap operations in sequence', () => {
+      const logs: string[] = [];
+      const tap1 = vi.fn((v: number) => logs.push(`tap1: ${v}`));
+      const tap2 = vi.fn((v: number) => logs.push(`tap2: ${v}`));
+
+      const f = flow(
+        (x: number) => ok(x + 1),
+        tap(tap1),
+        map((x: number) => ok(x * 2)),
+        tap(tap2),
+      );
+
+      const r = f(5);
+
+      expect(unwrap(r)).toEqual(12);
+      expect(tap1).toHaveBeenCalledExactlyOnceWith(6);
+      expect(tap2).toHaveBeenCalledExactlyOnceWith(12);
+      expect(logs).toEqual(['tap1: 6', 'tap2: 12']);
+
+      // Typechecking.
+      expectTypeOf(r).toEqualTypeOf<Result<number, never>>();
+      expectTypeOf(f).toBeFunction();
+      expectTypeOf(f).parameter(0).toBeNumber();
+      expectTypeOf(f).returns.toEqualTypeOf<Result<number, never>>();
+    });
+
+    it('should preserve the original result even if tap throws an error', () => {
+      const throwingTap = vi.fn(() => {
+        throw new Error('Tap error');
+      });
+
+      const f = flow(() => ok(42), tap(throwingTap));
+
+      expect(() => f()).toThrow('Tap error');
+      expect(throwingTap).toHaveBeenCalledExactlyOnceWith(42);
+
+      // Typechecking.
+      expectTypeOf(f).toBeFunction();
+      expectTypeOf(f).parameter(0).toBeVoid();
+      expectTypeOf(f).returns.toEqualTypeOf<Result<number, never>>();
+    });
+
+    it('should work with functions that return a value (ignoring the return value)', () => {
+      const voidTap = vi.fn(() => 1);
+
+      const f = flow(() => ok('test'), tap(voidTap));
+      const r = f();
+
+      expect(unwrap(r)).toEqual('test');
+      expect(voidTap).toHaveBeenCalledExactlyOnceWith('test');
+
+      // Typechecking.
+      expectTypeOf(r).toEqualTypeOf<Result<string, never>>();
+      expectTypeOf(f).toBeFunction();
+      expectTypeOf(f).parameter(0).toBeVoid();
+      expectTypeOf(f).returns.toEqualTypeOf<Result<string, never>>();
+    });
+
+    it('should work with tap that modifies external state', () => {
+      const state = { count: 0, lastValue: null as string | null };
+      const stateModifyingTap = vi.fn((v: string) => {
+        state.count++;
+        state.lastValue = v;
+      });
+
+      const f = flow(() => ok('new value'), tap(stateModifyingTap));
+      const r = f();
+
+      expect(unwrap(r)).toEqual('new value');
+      expect(state.count).toEqual(1);
+      expect(state.lastValue).toEqual('new value');
+      expect(stateModifyingTap).toHaveBeenCalledExactlyOnceWith('new value');
+
+      // Typechecking.
+      expectTypeOf(r).toEqualTypeOf<Result<string, never>>();
+      expectTypeOf(f).toBeFunction();
+      expectTypeOf(f).parameter(0).toBeVoid();
+      expectTypeOf(f).returns.toEqualTypeOf<Result<string, never>>();
+    });
+
+    it.todo('should work with async-like side effects (promises)');
   });
 });
