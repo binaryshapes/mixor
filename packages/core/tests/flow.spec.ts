@@ -145,7 +145,7 @@ describe('Flow', () => {
       expectTypeOf(f).returns.toEqualTypeOf<Result<string, never>>();
     });
 
-    it('should ommit the map if the result is an error', () => {
+    it('should omit the map if the result is an error', () => {
       const someMapSpy = vi.fn(() => ok(true));
       const f = flow(() => err('THIS_IS_AN_ERROR'), map(someMapSpy));
 
@@ -221,7 +221,7 @@ describe('Flow', () => {
       >();
     });
 
-    it('should ommit the mapErr if the result is ok', () => {
+    it('should omit the mapErr if the result is ok', () => {
       const someMapErr = vi.fn(() => err('NOT_MAPPED_ERROR'));
       const f = flow((x: number) => ok(x + 1), mapErr(someMapErr));
 
