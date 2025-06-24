@@ -424,6 +424,7 @@ describe('Flow', () => {
       expectTypeOf(f).returns.toEqualTypeOf<Result<string, never>>();
     });
 
+    // TODO: implement this test.
     it.todo('should work with async-like side effects (promises)');
   });
 });
