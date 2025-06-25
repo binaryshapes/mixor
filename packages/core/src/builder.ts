@@ -18,19 +18,19 @@ import { type Result, ok } from './result';
 class BuilderError extends Panic<
   'BUILDER',
   // A corrupted state of the builder.
-  | 'CORRUPTED_METHOD'
-  // A method is not found in the builder.
-  | 'METHOD_NOT_FOUND'
-  // A method is not repeatable in the builder.
-  | 'METHOD_NOT_REPEATABLE'
+  | 'CORRUPTED_FUNCTION'
+  // A function is not found in the builder.
+  | 'FUNCTION_NOT_FOUND'
+  // A function is not repeatable in the builder.
+  | 'FUNCTION_NOT_REPEATABLE'
 >('BUILDER') {}
 
 /**
- * Describes the signature of a method that can be used in the builder.
+ * Describes the signature of a function that can be used in the builder.
  *
- * @typeParam T - The type of the value that the method operates on.
- * @typeParam E - The type of the error that the method can return.
- * @typeParam A - The type of the arguments that the method can take.
+ * @typeParam T - The type of the value that the function operates on.
+ * @typeParam E - The type of the error that the function can return.
+ * @typeParam A - The type of the arguments that the function can take.
  *
  * @internal
  */
@@ -75,7 +75,12 @@ type BuilderFunctionOutput<F> =
  */
 type BuilderFunctionError<F> = F extends BuilderFunction<Any, infer E, Any> ? E : never;
 
-type MethodsRecord = Record<string, BuilderFunction<Any, Any, Any[]>>;
+/**
+ * Record of builder functions.
+ *
+ * @internal
+ */
+type BuilderFunctionsRecord = Record<string, BuilderFunction<Any, Any, Any[]>>;
 
 /**
  * Extract the union of array elements.
@@ -93,9 +98,9 @@ type UnionOfArray<T> = T extends Array<infer U> ? U : never;
  * @typeParam Input - The input type.
  * @typeParam Output - The output type.
  * @typeParam ErrorUnion - The union of all possible errors.
- * @typeParam Used - The already used methods (to control repeatable methods).
- * @typeParam Methods - The available methods.
- * @typeParam Repeatable - The repeatable methods.
+ * @typeParam Used - The already used functions (to control repeatable functions).
+ * @typeParam Functions - The available functions.
+ * @typeParam Repeatable - The repeatable functions.
  *
  * @public
  */
@@ -103,18 +108,18 @@ type Builder<
   Input,
   Output,
   ErrorUnion,
-  Used extends keyof Methods,
-  Methods extends MethodsRecord,
-  Repeatable extends readonly (keyof Methods)[] | undefined = undefined,
+  Used extends keyof Functions,
+  Functions extends BuilderFunctionsRecord,
+  Repeatable extends readonly (keyof Functions)[] | undefined = undefined,
 > = {
-  [K in keyof Methods as K extends Used
+  [K in keyof Functions as K extends Used
     ? K extends UnionOfArray<Repeatable>
       ? K
       : never
-    : K]: Methods[K] extends (...args: infer A) => (a: Output) => Result<infer O, infer E>
-    ? (...args: A) => Builder<Input, O, ErrorUnion | E, Used | K, Methods, Repeatable>
-    : Methods[K] extends (a: Output) => Result<infer O, infer E>
-      ? () => Builder<Input, O, ErrorUnion | E, Used | K, Methods, Repeatable>
+    : K]: Functions[K] extends (...args: infer A) => (a: Output) => Result<infer O, infer E>
+    ? (...args: A) => Builder<Input, O, ErrorUnion | E, Used | K, Functions, Repeatable>
+    : Functions[K] extends (a: Output) => Result<infer O, infer E>
+      ? () => Builder<Input, O, ErrorUnion | E, Used | K, Functions, Repeatable>
       : never;
 } & {
   build(): (input: Input) => Result<Output, ErrorUnion>;
@@ -122,16 +127,16 @@ type Builder<
 
 /**
  * Creates a new builder instance with automatic type inference.
- * Each chained method updates the output type and error union.
+ * Each chained function updates the output type and error union.
  *
- * @typeParam Methods - The record type containing the builder methods.
- * @typeParam Repeatable - The array type of repeatable method keys.
- * @typeParam Input - The input type (inferred from methods).
+ * @typeParam Functions - The record type containing the builder functions.
+ * @typeParam Repeatable - The array type of repeatable function keys.
+ * @typeParam Input - The input type (inferred from functions).
  * @typeParam Output - The output type after transformations.
  * @typeParam ErrorUnion - The union of all possible errors.
- * @typeParam Used - The union of method keys that have been used in the chain.
- * @param methods - The methods to use in the builder.
- * @param repeatable - Array of method names that can be repeated in the chain.
+ * @typeParam Used - The union of function keys that have been used in the chain.
+ * @param functions - The functions to use in the builder.
+ * @param repeatable - Array of function names that can be repeated in the chain.
  * @param steps - Internal state for tracking applied steps.
  * @returns A typed builder instance.
  *
@@ -156,37 +161,39 @@ type Builder<
  * @public
  */
 function builder<
-  Methods extends MethodsRecord,
-  Repeatable extends readonly (keyof Methods)[] | undefined = undefined,
-  Input = BuilderFunctionInput<Methods[keyof Methods]>,
+  Functions extends BuilderFunctionsRecord,
+  Repeatable extends readonly (keyof Functions)[] | undefined = undefined,
+  Input = BuilderFunctionInput<Functions[keyof Functions]>,
   Output = Input,
   ErrorUnion = never,
-  Used extends keyof Methods = never,
+  Used extends keyof Functions = never,
 >(
-  methods: Methods,
+  functions: Functions,
   repeatable?: Repeatable,
-  steps: { key: keyof Methods; args: Any[] }[] = [],
-): Builder<Input, Output, ErrorUnion, Used, Methods, Repeatable> {
+  steps: { key: keyof Functions; args: Any[] }[] = [],
+): Builder<Input, Output, ErrorUnion, Used, Functions, Repeatable> {
   const handler: ProxyHandler<Any> = {
     get(_, prop: string) {
       if (prop === 'build') {
         return () => {
           const fns = steps.map(({ key, args }) => {
-            const method = methods[key];
-            if (!method) {
-              throw new BuilderError('CORRUPTED_METHOD', `Method '${String(key)}' not found.`);
+            const originalFn = functions[key];
+            if (!originalFn) {
+              throw new BuilderError('CORRUPTED_FUNCTION', `Function '${String(key)}' not found.`);
             }
 
             const fn =
-              typeof method === 'function' && args.length > 0 ? (method as Any)(...args) : method;
+              typeof originalFn === 'function' && args.length > 0
+                ? (originalFn as Any)(...args)
+                : originalFn;
             return map(fn);
           });
           return (flow as Any)((x: Any) => ok(x), ...fns) as Any;
         };
       }
 
-      if (!(prop in methods)) {
-        throw new BuilderError('METHOD_NOT_FOUND', `Method '${prop}' not found in builder.`);
+      if (!(prop in functions)) {
+        throw new BuilderError('FUNCTION_NOT_FOUND', `Function '${prop}' not found in builder.`);
       }
 
       const usedCount = steps.filter((s) => s.key === prop).length;
@@ -194,20 +201,20 @@ function builder<
 
       if (usedCount > 0 && !isRepeatable) {
         throw new BuilderError(
-          'METHOD_NOT_REPEATABLE',
-          `Method '${prop}' cannot be used more than once.`,
+          'FUNCTION_NOT_REPEATABLE',
+          `Function '${prop}' cannot be used more than once.`,
         );
       }
 
       return (...args: Any[]) => {
         return builder<
-          Methods,
+          Functions,
           Repeatable,
           Input,
-          BuilderFunctionOutput<Methods[typeof prop & keyof Methods]>,
-          ErrorUnion | BuilderFunctionError<Methods[typeof prop & keyof Methods]>,
-          Used | (typeof prop & keyof Methods)
-        >(methods, repeatable, [...steps, { key: prop, args }]);
+          BuilderFunctionOutput<Functions[typeof prop & keyof Functions]>,
+          ErrorUnion | BuilderFunctionError<Functions[typeof prop & keyof Functions]>,
+          Used | (typeof prop & keyof Functions)
+        >(functions, repeatable, [...steps, { key: prop, args }]);
       };
     },
   };
