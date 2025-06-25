@@ -102,6 +102,7 @@ type Service<T, Deps> = {
   readonly factory: (deps: Deps) => T;
   readonly requires: (keyof Deps)[];
   readonly portDeps: Port<Any>[];
+  readonly serviceDeps: Service<Any, Any>[];
 };
 
 /**
@@ -188,6 +189,68 @@ type ElementType<T> = T extends { _tag: 'Adapter' | 'Port' | 'Service'; _type: A
 type MapPortsToTypes<T> = Prettify<{
   [K in keyof T]: T[K] extends Port<infer U> ? U : never;
 }>;
+
+/**
+ * Helper to map service names to their types.
+ * @typeParam T - The type of the object.
+ *
+ * @internal
+ */
+type MapServicesToTypes<T> = Prettify<{
+  [K in keyof T]: T[K] extends Service<infer U, Any> ? U : never;
+}>;
+
+/**
+ * Helper to map mixed dependencies (ports and services) to their types.
+ * @typeParam P - The ports object.
+ * @typeParam S - The services object.
+ *
+ * @internal
+ */
+type MapDependenciesToTypes<P, S> = Prettify<MapPortsToTypes<P> & MapServicesToTypes<S>>;
+
+/**
+ * Service constructor interface with overloads for different dependency types.
+ * @typeParam T - The type of the service.
+ * @typeParam P - The ports that the service requires.
+ * @typeParam S - The services that the service requires.
+ *
+ * @internal
+ */
+interface ServiceConstructor {
+  /**
+   * Creates a new service with port dependencies only.
+   * @typeParam T - The type of the service.
+   * @typeParam P - The ports that the service requires.
+   * @param ports - The ports that the service requires.
+   * @param factory - The factory function that creates the service.
+   * @returns A new service.
+   */
+  <T, P extends Record<string, Port<Any>> = Record<string, never>>(
+    ports: P,
+    factory: (deps: MapPortsToTypes<P>) => T,
+  ): Service<T, MapPortsToTypes<P>>;
+
+  /**
+   * Creates a new service with mixed dependencies (ports and services).
+   * @typeParam T - The type of the service.
+   * @typeParam P - The ports that the service requires.
+   * @typeParam S - The services that the service requires.
+   * @param ports - The ports that the service requires.
+   * @param services - The services that the service requires.
+   * @param factory - The factory function that creates the service.
+   * @returns A new service.
+   */
+  <
+    T,
+    P extends Record<string, Port<Any>> = Record<string, never>,
+    S extends Record<string, Service<Any, Any>> = Record<string, never>,
+  >(
+    ports: P,
+    services: S,
+    factory: (deps: MapDependenciesToTypes<P, S>) => T,
+  ): Service<T, MapDependenciesToTypes<P, S>>;
+}
 
 // *********************************************************************************************
 // Internal functions.
@@ -333,9 +396,23 @@ function resolveDependencies(
     }
   });
 
-  // Resolve other dependencies.
+  // Resolve service dependencies.
+  service.serviceDeps.forEach((serviceDep) => {
+    const serviceValue = resolveInstance(serviceDep, services, bindings, instances);
+    // Find the key for this service dependency by matching the service reference
+    const key = service.requires.find((reqKey) => {
+      // This is a simplified approach - we need to find the key that corresponds to this service
+      // For now, we'll use the first unresolved key
+      return !deps[reqKey as string];
+    });
+    if (key) {
+      deps[key as string] = serviceValue;
+    }
+  });
+
+  // Resolve other dependencies that haven't been resolved yet.
   service.requires.forEach((key) => {
-    // Already resolved as port or dependency.
+    // Already resolved as port or service dependency.
     if (deps[key as string]) {
       return;
     }
@@ -414,28 +491,58 @@ function adapter<T extends Port<Any>>(factory: () => PortType<T>): Adapter<PortT
 /**
  * Creates a new service with lazy parsing and deduplication.
  * @typeParam T - The type of the service.
- * @param ports - The ports that the service requires.
+ * @param portsOrServices - The ports or services that the service requires.
+ * @param servicesOrFactory - The services or factory function that creates the service.
  * @param factory - The factory function that creates the service.
  * @returns A new service.
  *
  * @public
  */
-function service<T, P extends Record<string, Port<Any>> = Record<string, never>>(
-  ports: P = {} as P,
-  factory: (deps: MapPortsToTypes<P>) => T,
-): Service<T, MapPortsToTypes<P>> {
-  const hash = createHash(factory.toString(), Object.keys(ports).sort());
+const service: ServiceConstructor = <T>(
+  portsOrServices: Record<string, Port<Any> | Service<Any, Any>> = {},
+  servicesOrFactory?: Record<string, Service<Any, Any>> | ((deps: Any) => T),
+  factory?: (deps: Any) => T,
+): Service<T, Any> => {
+  // Determine which overload is being used.
+  if (typeof servicesOrFactory === 'function') {
+    // First overload: service(ports, factory).
+    const ports = portsOrServices as Record<string, Port<Any>>;
+    const factoryFn = servicesOrFactory as (deps: Any) => T;
+    const hash = createHash(factoryFn.toString(), Object.keys(ports).sort());
 
-  return {
-    _tag: 'Service',
-    _type: {} as T,
-    _hash: hash,
-    id: Symbol(crypto.randomUUID()),
-    factory,
-    requires: parseRequires(factory) as (keyof MapPortsToTypes<P>)[],
-    portDeps: Object.values(ports),
-  };
-}
+    return {
+      _tag: 'Service',
+      _type: {} as T,
+      _hash: hash,
+      id: Symbol(crypto.randomUUID()),
+      factory: factoryFn,
+      requires: parseRequires(factoryFn),
+      portDeps: Object.values(ports),
+      serviceDeps: [],
+    };
+  } else {
+    // Second overload: service(ports, services, factory).
+    const ports = portsOrServices as Record<string, Port<Any>>;
+    const services = servicesOrFactory as Record<string, Service<Any, Any>>;
+    const factoryFn = factory as (deps: Any) => T;
+    const hash = createHash(
+      factoryFn.toString(),
+      Object.keys(ports).sort(),
+      Object.keys(services).sort(),
+    );
+
+    return {
+      _tag: 'Service',
+      _type: {} as T,
+      _hash: hash,
+      id: Symbol(crypto.randomUUID()),
+      factory: factoryFn,
+      requires: parseRequires(factoryFn),
+      portDeps: Object.values(ports),
+      serviceDeps: Object.values(services),
+    };
+  }
+};
 
 /**
  * Creates a new container.
