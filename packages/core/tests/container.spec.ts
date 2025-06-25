@@ -1,5 +1,5 @@
 /* eslint-disable jsdoc/require-jsdoc */
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { type Any } from '../src';
 import {
@@ -279,7 +279,176 @@ describe('container', () => {
       expectTypeOf(l2).toEqualTypeOf<ElementType<typeof Logger>>();
     });
 
-    it.todo('should resolve service dependencies from other services');
+    it('should resolve service dependencies from other services', () => {
+      // Create a simple service that provides a value.
+      const ConfigService = service({}, () => ({
+        getAppName: () => 'test-app',
+      }));
+
+      // Create a service that depends on ConfigService.
+      const AppService = service({}, { config: ConfigService }, ({ config }) => ({
+        getAppInfo: () => `App: ${config.getAppName()}`,
+      }));
+
+      const c = container().add(ConfigService).add(AppService);
+
+      // Get the service and verify it can access its dependency.
+      const appService = c.get(AppService);
+      expect(appService.getAppInfo()).toBe('App: test-app');
+
+      // Typechecking.
+      expectTypeOf(c).toEqualTypeOf<Container>();
+      expectTypeOf(appService).toEqualTypeOf<{ getAppInfo: () => string }>();
+    });
+
+    it('should create complex service with mixed dependencies', () => {
+      // To spy on console.log output.
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      // Logger port.
+      const Logger = port<{ log: (msg: string) => void }>();
+
+      // Console logger adapter.
+      const ConsoleLogger = adapter<typeof Logger>(() => ({
+        log: (msg: string) => console.log('[Console]', msg),
+      }));
+
+      // App logger adapter.
+      const AppLogger = adapter<typeof Logger>(() => ({
+        log: (msg: string) => console.log('[App]', msg),
+      }));
+
+      // Database service.
+      const Database = service({ logger: Logger }, ({ logger }) => ({
+        status: () => logger.log('Database is running'),
+      }));
+
+      // Mailer service.
+      const Mailer = service({ logger: Logger }, ({ logger }) => ({
+        status: () => logger.log('Mailer is running'),
+      }));
+
+      // App service.
+      const AppService = service(
+        { logger: Logger },
+        { database: Database, mailer: Mailer },
+        ({ logger, database, mailer }) => ({
+          getStatusApp: () => logger.log('App is running'),
+          getStatusDb: () => database.status(),
+          getStatusMailer: () => mailer.status(),
+        }),
+      );
+
+      // Create container and get app service instance.
+      const c = container().add(Database).add(Mailer).add(AppService).bind(Logger, ConsoleLogger);
+      const s1 = c.get(AppService);
+
+      // Check statuses and logs outputs.
+      expect(s1.getStatusApp()).toBeUndefined();
+      expect(consoleSpy).toHaveBeenCalledWith('[Console]', 'App is running');
+      expect(s1.getStatusDb()).toBeUndefined();
+      expect(consoleSpy).toHaveBeenCalledWith('[Console]', 'Database is running');
+      expect(s1.getStatusMailer()).toBeUndefined();
+      expect(consoleSpy).toHaveBeenCalledWith('[Console]', 'Mailer is running');
+
+      // Override logger and check statuses.
+      const s2 = c.override(Logger, AppLogger).get(AppService);
+      expect(s2.getStatusApp()).toBeUndefined();
+      expect(consoleSpy).toHaveBeenCalledWith('[App]', 'App is running');
+      expect(s2.getStatusDb()).toBeUndefined();
+      expect(consoleSpy).toHaveBeenCalledWith('[App]', 'Database is running');
+      expect(s2.getStatusMailer()).toBeUndefined();
+      expect(consoleSpy).toHaveBeenCalledWith('[App]', 'Mailer is running');
+
+      // Typechecking.
+      expectTypeOf(c).toEqualTypeOf<Container>();
+      expectTypeOf(s1).toEqualTypeOf<{
+        getStatusDb: () => void;
+        getStatusApp: () => void;
+        getStatusMailer: () => void;
+      }>();
+      expectTypeOf(s2).toEqualTypeOf<{
+        getStatusDb: () => void;
+        getStatusApp: () => void;
+        getStatusMailer: () => void;
+      }>();
+    });
+  });
+
+  describe('Special Adapters', () => {
+    it('should create an adapter for a port with a primitive type', () => {
+      const EmailDomain = port<string>();
+      const EmailDomainAdapter = adapter<typeof EmailDomain>(() => 'gmail.com');
+      const c = container().bind(EmailDomain, EmailDomainAdapter);
+      const emailDomain = c.get(EmailDomain);
+      expect(emailDomain).toBe('gmail.com');
+
+      // Typechecking.
+      expectTypeOf(c).toEqualTypeOf<Container>();
+      expectTypeOf(emailDomain).toEqualTypeOf<string>();
+    });
+
+    it('should create an adapter for a port with a specific type', () => {
+      const AppEnv = port<{
+        NODE_ENV: 'development' | 'production';
+      }>();
+
+      const AppEnvAdapter = adapter<typeof AppEnv>(() => ({
+        NODE_ENV: 'development',
+      }));
+
+      const AppService = service({ appEnv: AppEnv }, ({ appEnv }) => ({
+        getAppEnv: () => appEnv,
+      }));
+
+      const c = container().add(AppService).bind(AppEnv, AppEnvAdapter);
+      const appService = c.get(AppService);
+      expect(appService.getAppEnv()).toEqual({ NODE_ENV: 'development' });
+
+      // Typechecking.
+      expectTypeOf(c).toEqualTypeOf<Container>();
+      expectTypeOf(appService).toEqualTypeOf<{
+        getAppEnv: () => { NODE_ENV: 'development' | 'production' };
+      }>();
+    });
+
+    it('should create an adapter for an array port', () => {
+      const ArrayPort = port<Array<string>>();
+      const ArrayAdapter = adapter<typeof ArrayPort>(() => ['hello', 'world']);
+      const c = container().bind(ArrayPort, ArrayAdapter);
+      const arr = c.get(ArrayPort);
+      expect(arr).toEqual(['hello', 'world']);
+
+      // Typechecking.
+      expectTypeOf(c).toEqualTypeOf<Container>();
+      expectTypeOf(arr).toEqualTypeOf<Array<string>>();
+    });
+
+    it('should create an adapter for an object port', () => {
+      const ServerConfig = port<{
+        host: string;
+        port: number;
+      }>();
+
+      const ServerConfigAdapter = adapter<typeof ServerConfig>(() => ({
+        host: 'localhost',
+        port: 8080,
+      }));
+
+      const AppService = service({ serverConfig: ServerConfig }, ({ serverConfig }) => ({
+        getServerConfig: () => serverConfig,
+      }));
+
+      const c = container().add(AppService).bind(ServerConfig, ServerConfigAdapter);
+      const appService = c.get(AppService);
+      expect(appService.getServerConfig()).toEqual({ host: 'localhost', port: 8080 });
+
+      // Typechecking.
+      expectTypeOf(c).toEqualTypeOf<Container>();
+      expectTypeOf(appService).toEqualTypeOf<{
+        getServerConfig: () => { host: string; port: number };
+      }>();
+    });
   });
 
   describe('Error handling', () => {
@@ -536,37 +705,6 @@ describe('Coverage edge cases', () => {
     // Should be the same adapter instance due to deduplication.
     expect(adapter1.id).toBe(adapter2.id);
     expect(adapter1._hash).toBe(adapter2._hash);
-  });
-
-  it('should resolve service dependencies from other services', () => {
-    // This test covers the service dependency resolution logic.
-    // Create a service that requires a dependency that will be provided by another service.
-    const Logger = port<{ log: (msg: string) => void }>();
-    const ConsoleLogger = adapter<typeof Logger>(() => ({
-      log: (msg: string) => console.log(msg),
-    }));
-
-    // Service that provides a dependency.
-    const ConfigService = service({}, () => ({
-      getConfig: () => ({ appName: 'test' }),
-    }));
-
-    // Service that requires a dependency that should be resolved from ConfigService.
-    const AppService = service({}, (deps: Any) => ({
-      getAppName: () => {
-        // This will trigger the dependency resolution logic.
-        if (deps.config) {
-          return deps.config.getConfig().appName;
-        }
-        return 'default';
-      },
-    }));
-
-    const c = container().add(ConfigService).add(AppService).bind(Logger, ConsoleLogger);
-
-    // This should work even if dependency resolution doesn't work as expected.
-    const appService = c.get(AppService);
-    expect(appService.getAppName()).toBeDefined();
   });
 
   it('should handle pool size limit', () => {
