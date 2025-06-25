@@ -6,7 +6,7 @@ import { type Result, err, isOk, ok } from '../src/result';
 const unwrap = <T>(result: Result<T, unknown>) => (isOk(result) ? result.value : result.error);
 
 describe('Builder', () => {
-  // Test methods
+  // Test functions.
   const isString = (value: string) => {
     if (typeof value !== 'string') {
       return err('NOT_STRING');
@@ -39,7 +39,7 @@ describe('Builder', () => {
     return ok(value.toUpperCase());
   };
 
-  const stringMethods = {
+  const stringFunctions = {
     isString,
     minLength,
     maxLength,
@@ -48,8 +48,8 @@ describe('Builder', () => {
   };
 
   describe('Basic functionality', () => {
-    it('should create a builder with methods', () => {
-      const string = builder(stringMethods);
+    it('should create a builder with functions', () => {
+      const string = builder(stringFunctions);
       expect(string).toBeDefined();
       expect(typeof string.isString).toBe('function');
       expect(typeof string.minLength).toBe('function');
@@ -60,12 +60,12 @@ describe('Builder', () => {
 
       // Typechecking.
       expectTypeOf(string).toEqualTypeOf<
-        Builder<string, string, never, never, typeof stringMethods, undefined>
+        Builder<string, string, never, never, typeof stringFunctions, undefined>
       >();
     });
 
     it('should build a validator with no steps', () => {
-      const string = builder(stringMethods);
+      const string = builder(stringFunctions);
       const validator = string.build();
       const result = validator('test');
 
@@ -78,7 +78,7 @@ describe('Builder', () => {
     });
 
     it('should build a validator with one step', () => {
-      const string = builder(stringMethods);
+      const string = builder(stringFunctions);
       const validator = string.isString().build();
       const result = validator('test');
 
@@ -91,7 +91,7 @@ describe('Builder', () => {
     });
 
     it('should build a validator with multiple steps', () => {
-      const string = builder(stringMethods);
+      const string = builder(stringFunctions);
       const validator = string.isString().minLength(3).maxLength(10).build();
 
       const result1 = validator('hello');
@@ -118,8 +118,8 @@ describe('Builder', () => {
       >();
     });
 
-    it('should handle transformation methods', () => {
-      const string = builder(stringMethods);
+    it('should handle transformation functions', () => {
+      const string = builder(stringFunctions);
       const validator = string.isString().toUpperCase().build();
 
       const result = validator('hello');
@@ -132,8 +132,8 @@ describe('Builder', () => {
       expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_STRING'>>();
     });
 
-    it('should handle methods with arguments', () => {
-      const string = builder(stringMethods);
+    it('should handle functions with arguments', () => {
+      const string = builder(stringFunctions);
       const validator = string
         .isString()
         .minLength(3)
@@ -162,8 +162,8 @@ describe('Builder', () => {
       >();
     });
 
-    it('should allow repeatable methods', () => {
-      const string = builder(stringMethods, ['minLength']);
+    it('should allow repeatable functions', () => {
+      const string = builder(stringFunctions, ['minLength']);
       const validator = string.isString().minLength(3).minLength(5).build();
 
       const result1 = validator('hello');
@@ -183,39 +183,39 @@ describe('Builder', () => {
   });
 
   describe('Error handling', () => {
-    it('should throw error for non-existent method', () => {
-      const string = builder(stringMethods);
+    it('should throw error for non-existent function', () => {
+      const string = builder(stringFunctions);
       let panic: BuilderError;
 
       try {
-        // @ts-expect-error - This method is not defined.
-        string.nonExistentMethod();
+        // @ts-expect-error - This function is not defined.
+        string.nonExistentFunction();
       } catch (error: unknown) {
         panic = error as BuilderError;
         expect(panic).toBeInstanceOf(BuilderError);
-        expect(panic.key).toBe('BUILDER:METHOD_NOT_FOUND');
+        expect(panic.key).toBe('BUILDER:FUNCTION_NOT_FOUND');
       }
     });
 
-    it('should throw error for repeated non-repeatable method', () => {
-      const string = builder(stringMethods);
+    it('should throw error for repeated non-repeatable function', () => {
+      const string = builder(stringFunctions);
       let panic: BuilderError;
 
       try {
-        // @ts-expect-error - This method is not defined.
+        // @ts-expect-error - This function is not defined.
         string.isString().isString();
       } catch (error: unknown) {
         panic = error as BuilderError;
         expect(panic).toBeInstanceOf(BuilderError);
-        expect(panic.key).toBe('BUILDER:METHOD_NOT_REPEATABLE');
+        expect(panic.key).toBe('BUILDER:FUNCTION_NOT_REPEATABLE');
       }
     });
 
-    it('should throw error when method is missing from methods object during build', () => {
-      // Manually create a builder with corrupted state where a method key exists in steps
-      // but not in the methods object.
-      const corruptedBuilder = builder(stringMethods, undefined, [
-        { key: 'nonExistentMethod' as keyof typeof stringMethods, args: [] },
+    it('should throw error when function is missing from functions object during build', () => {
+      // Manually create a builder with corrupted state where a function key exists in steps
+      // but not in the functions object.
+      const corruptedBuilder = builder(stringFunctions, undefined, [
+        { key: 'nonExistentFunction' as keyof typeof stringFunctions, args: [] },
       ]);
 
       let panic: BuilderError;
@@ -224,20 +224,20 @@ describe('Builder', () => {
       } catch (error: unknown) {
         panic = error as BuilderError;
         expect(panic).toBeInstanceOf(BuilderError);
-        expect(panic.key).toBe('BUILDER:CORRUPTED_METHOD');
+        expect(panic.key).toBe('BUILDER:CORRUPTED_FUNCTION');
       }
     });
   });
 
   describe('Edge cases', () => {
-    it.todo('should handle empty methods object');
-    it.todo('should handle methods that return errors');
-    it.todo('should handle methods with different input/output types');
+    it.todo('should handle empty functions object');
+    it.todo('should handle functions that return errors');
+    it.todo('should handle functions with different input/output types');
   });
 
   describe('Flow behavior', () => {
-    it('should compose methods using flow', () => {
-      const string = builder(stringMethods);
+    it('should compose functions using flow', () => {
+      const string = builder(stringFunctions);
       const validator = string.isString().minLength(3).maxLength(10).toUpperCase().build();
 
       const result = validator('hello');
@@ -253,7 +253,7 @@ describe('Builder', () => {
     });
 
     it('should stop execution on first error', () => {
-      const string = builder(stringMethods);
+      const string = builder(stringFunctions);
       const validator = string
         .isString()
         .minLength(10) // This will fail.
