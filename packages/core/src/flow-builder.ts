@@ -7,25 +7,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 import type { Any } from './generics';
-import { Panic } from './panic';
-import { type Result, isOk, ok } from './result';
+import { type Result, isErr, isOk, ok } from './result';
 
-// TODO: Store steps metadata to the flow.
 // TODO: Infer the flow input from the first step (support for primitives, arrays and objects).
 // TODO: Implement flow operators (mapErr, mapBoth, tap, bind, ifThen, ifThenElse, etc).
-
-/**
- * Panic error for the flow module.
- *
- * @public
- */
-class FlowError extends Panic<
-  'FLOW',
-  // An async step was found in a sync flow.
-  | 'ASYNC_STEP_IN_SYNC_FLOW'
-  // No async steps found in a async flow.
-  | 'NO_ASYNC_STEPS_IN_ASYNC_FLOW'
->('FLOW') {}
 
 /**
  * A function that can be used as a step in a flow.
@@ -48,6 +33,7 @@ type FlowStep = {
   fn: FlowFunction;
   hash: string;
   operator: string;
+  mapping: 'success' | 'error' | 'both';
 };
 
 /**
@@ -62,15 +48,40 @@ type FlowStep = {
  */
 type Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> = {
   /**
-   * Adds a new step to the flow.
-   * The step can be either sync or async.
+   * Maps over the success value of the flow.
+   * Transforms the success value using the provided function.
    *
    * @param fn - The function to apply to the flow.
-   * @returns A new Flow with the step added.
+   * @returns A new Flow with the transformed success value.
    */
-  step: {
+  map: {
     <B, F extends string>(fn: (a: O) => Result<B, F>): Flow<I, B, E | F, A>;
     <B, F extends string>(fn: (a: O) => Promise<Result<B, F>>): Flow<I, B, E | F, 'async'>;
+  };
+
+  /**
+   * Maps over the error type of the flow.
+   * Transforms errors using the provided function.
+   *
+   * @param fn - The function to apply to the flow.
+   * @returns A new Flow with the transformed error value.
+   */
+  mapErr: {
+    <B, F extends string>(fn: (error: E) => Result<B, F>): Flow<I, B, F, A>;
+    <B, F extends string>(fn: (error: E) => Promise<Result<B, F>>): Flow<I, B, F, 'async'>;
+  };
+
+  /**
+   * Maps over both the success and error values of the flow.
+   * Transforms both the success and error values using the provided function.
+   *
+   * @param fn - The function to apply to the flow.
+   * @returns A new Flow with the transformed success and error values.
+   */
+  mapBoth: {
+    <B, F extends string>(
+      fn: MapBothOptions<O, B, E, F>['sync'] | MapBothOptions<O, B, E, F>['async'],
+    ): Flow<I, B, F, A>;
   };
 
   /**
@@ -90,57 +101,40 @@ type Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> = {
 };
 
 /**
- * Builds a sync flow.
- * Throws an error if any step is async.
+ * Builds a flow function (sync or async) based on the provided steps.
+ * The function processes each step according to its mapping behavior.
  *
- * @param fns - The functions of the flow.
- * @returns A sync function that processes the flow.
- * @throws A {@link FlowError} if any step is async.
+ * @param steps - The steps of the flow.
+ * @param isAsync - Whether to build an async flow.
+ * @returns A function that processes the flow.
  *
  * @internal
  */
-const buildSync =
-  <I>(fns: FlowFunction[]) =>
-  () =>
-  (input: I) => {
-    let result: Result<Any, Any> = ok(input);
-    for (const fn of fns) {
-      if (isOk(result)) {
-        const nextResult = fn(result.value);
-        if (nextResult instanceof Promise) {
-          throw new FlowError(
-            'ASYNC_STEP_IN_SYNC_FLOW',
-            'Async step found in sync flow. Use buildAsync instead.',
-          );
-        }
-        result = nextResult;
-      }
-    }
-    return result;
-  };
+const buildFlow = <I>(steps: FlowStep[], isAsync: boolean) => {
+  const reducer = (v: Any, step: FlowStep) => operators[step.mapping](v, step);
+
+  return isAsync
+    ? async (input: I) =>
+        steps.reduce(async (v, step) => await reducer(await v, step), ok(input) as Any)
+    : (input: I) => steps.reduce((v, step) => reducer(v, step), ok(input));
+};
 
 /**
- * Builds an async flow.
- * Supports both sync and async steps.
+ * Maps flow operators to their corresponding mapping behavior.
+ * This mapping determines how each operator processes the flow's result.
  *
- * @param fns - The functions of the flow.
- * @returns An async function that processes the flow.
- * @throws A {@link FlowError} if no async steps are found.
+ * - `'success'`: Only processes successful results (ok values)
+ * - `'error'`: Only processes error results (err values)
+ * - `'both'`: Processes both success and error results
  *
  * @internal
  */
-const buildAsync =
-  <I>(fns: FlowFunction[]) =>
-  async (input: I) => {
-    let result: Result<Any, Any> = ok(input);
-    for (const fn of fns) {
-      if (isOk(result)) {
-        const nextResult = fn(result.value);
-        result = nextResult instanceof Promise ? await nextResult : nextResult;
-      }
-    }
-    return result;
-  };
+const operatorMapping: Record<string, 'success' | 'error' | 'both'> = {
+  map: 'success',
+  mapErr: 'error',
+  mapBoth: 'both',
+  function: 'success',
+};
 
 /**
  * Creates a new flow step.
@@ -157,7 +151,26 @@ const makeStep = (fn: FlowFunction, operator = 'function'): FlowStep => ({
   fn,
   hash: fn.toString(),
   operator,
+  mapping: operatorMapping[operator],
 });
+
+/**
+ * Creates a flow method that adds a step and returns the appropriate flow type.
+ *
+ * @param steps - The steps array to add to.
+ * @param operator - The operator type for the step.
+ * @param api - The flow API object to return.
+ * @returns A function that creates a step and returns the flow.
+ *
+ * @internal
+ */
+const flowFunction =
+  <I>(steps: FlowStep[], operator: string, api: Any) =>
+  (fn: FlowFunction) => {
+    const step = makeStep(fn, operator);
+    steps.push(step);
+    return step.kind === 'async' ? (api as Flow<I, Any, Any, 'async'>) : api;
+  };
 
 /**
  * Creates a new Result flow.
@@ -191,26 +204,69 @@ function flow<I>(): Flow<I, I, never> {
   const steps: FlowStep[] = [];
 
   const api: Any = {
-    // Step processor.
-    step(fn: FlowFunction) {
-      const step = makeStep(fn);
-      steps.push(step);
-      return step.kind === 'async' ? (api as Flow<I, Any, Any, 'async'>) : api;
-    },
-
-    // Flow builder.
-    build: () => {
-      const fns = steps.map((step) => step.fn);
-      return fns.some((fn) => fn.constructor.name === 'AsyncFunction')
-        ? buildAsync<I>(fns)
-        : buildSync<I>(fns);
-    },
-
-    // Steps list.
+    build: () =>
+      buildFlow<I>(
+        steps,
+        steps.some((step) => step.kind === 'async'),
+      ),
     steps: () => steps,
   };
+
+  api.map = flowFunction<I>(steps, 'map', api);
+  api.mapErr = flowFunction<I>(steps, 'mapErr', api);
+  api.mapBoth = flowFunction<I>(steps, 'mapBoth', api);
   return api;
 }
 
+// *********************************************************************************************
+// Operators logics.
+// *********************************************************************************************
+
+type MapBothOptions<A, B, E, F> = {
+  sync: {
+    ok: (value: A) => Result<B, F>;
+    err: (error: E) => Result<B, F>;
+  };
+  async: {
+    ok: (value: A) => Promise<Result<B, F>>;
+    err: (error: E) => Promise<Result<B, F>>;
+  };
+};
+
+/**
+ * Operator functions that handle different mapping behaviors.
+ * Each operator processes the flow result according to its specific logic.
+ *
+ * @internal
+ */
+const operators = {
+  /**
+   * Processes success values only.
+   * @param v - The value to process.
+   * @param step - The step to process.
+   * @returns The processed value.
+   */
+  success: (v: Any, step: FlowStep) => (isOk(v) ? step.fn(v.value) : v),
+
+  /**
+   * Processes error values only.
+   * @param v - The value to process.
+   * @param step - The step to process.
+   * @returns The processed value.
+   */
+  error: (v: Any, step: FlowStep) => (isErr(v) ? step.fn(v.error) : v),
+
+  /**
+   * Processes both success and error values.
+   * @param v - The value to process.
+   * @param step - The step to process.
+   * @returns The processed value.
+   */
+  both: (v: Any, step: FlowStep) =>
+    isOk(v)
+      ? (step.fn as unknown as MapBothOptions<Any, Any, Any, Any>[typeof step.kind]).ok(v.value)
+      : (step.fn as unknown as MapBothOptions<Any, Any, Any, Any>[typeof step.kind]).err(v.error),
+};
+
 export type { Flow };
-export { flow, FlowError };
+export { flow };
