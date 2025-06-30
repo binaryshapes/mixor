@@ -16,6 +16,7 @@ import { type Result, isOk, ok } from './result';
 
 /**
  * Panic error for the flow module.
+ *
  * @public
  */
 class FlowError extends Panic<
@@ -30,7 +31,7 @@ class FlowError extends Panic<
  * A function that can be used as a step in a flow.
  * Can be either sync or async and must return a Result.
  *
- * @public
+ * @internal
  */
 type FlowFunction = (a: Any) => Result<Any, Any> | Promise<Result<Any, Any>>;
 
@@ -98,8 +99,10 @@ type Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> = {
  *
  * @internal
  */
-function buildSync<I>(fns: FlowFunction[]) {
-  return () => (input: I) => {
+const buildSync =
+  <I>(fns: FlowFunction[]) =>
+  () =>
+  (input: I) => {
     let result: Result<Any, Any> = ok(input);
     for (const fn of fns) {
       if (isOk(result)) {
@@ -115,7 +118,6 @@ function buildSync<I>(fns: FlowFunction[]) {
     }
     return result;
   };
-}
 
 /**
  * Builds an async flow.
@@ -127,8 +129,9 @@ function buildSync<I>(fns: FlowFunction[]) {
  *
  * @internal
  */
-function buildAsync<I>(fns: FlowFunction[]) {
-  return async (input: I) => {
+const buildAsync =
+  <I>(fns: FlowFunction[]) =>
+  async (input: I) => {
     let result: Result<Any, Any> = ok(input);
     for (const fn of fns) {
       if (isOk(result)) {
@@ -138,7 +141,6 @@ function buildAsync<I>(fns: FlowFunction[]) {
     }
     return result;
   };
-}
 
 /**
  * Creates a new flow step.
@@ -146,16 +148,16 @@ function buildAsync<I>(fns: FlowFunction[]) {
  * @param fn - The function to create a step from.
  * @param operator - The operator to use for the step.
  * @returns A new flow step.
+ *
+ * @internal
  */
-const makeStep = (fn: FlowFunction, operator = 'function'): FlowStep => {
-  return {
-    _tag: 'Step',
-    kind: fn.constructor.name === 'AsyncFunction' ? 'async' : 'sync',
-    fn,
-    hash: fn.toString(),
-    operator,
-  };
-};
+const makeStep = (fn: FlowFunction, operator = 'function'): FlowStep => ({
+  _tag: 'Step',
+  kind: fn.constructor.name === 'AsyncFunction' ? 'async' : 'sync',
+  fn,
+  hash: fn.toString(),
+  operator,
+});
 
 /**
  * Creates a new Result flow.
@@ -211,4 +213,4 @@ function flow<I>(): Flow<I, I, never> {
 }
 
 export type { Flow };
-export { flow };
+export { flow, FlowError };
