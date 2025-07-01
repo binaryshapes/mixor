@@ -1,430 +1,405 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import { flow, map, mapBoth, mapErr, tap } from '../src/flow';
-import { type Result, err, isOk, ok } from '../src/result';
-
-const unwrap = <T>(result: Result<T, unknown>) => (isOk(result) ? result.value : result.error);
+import { type Flow, flow } from '../src/flow';
+import { type Result, err, ok, unwrap } from '../src/result';
 
 describe('Flow', () => {
   describe('Basic functionality', () => {
     it('should create a flow with ok result', () => {
       const f = (x: number) => ok(x + 1);
-      const fl = flow(f);
-      const r = fl(1);
+      const fl = flow<number>().map(f);
+
+      const fn = fl.build();
+      const r = fn(1);
       expect(unwrap(r)).toEqual(2);
 
       // Typechecking.
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeNumber();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<number, never>>();
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<number, number, never, 'sync'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeNumber();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<number, never>>();
+      expectTypeOf(r).toEqualTypeOf<Result<number, never>>();
     });
 
     it('should create a flow with err result', () => {
-      const returnError = () => err('Error');
-      const fl = flow(returnError);
-      const r = fl();
-      expect(unwrap(r)).toEqual('Error');
+      const f = () => err('ERROR');
+      const fl = flow<void>().map(f);
+
+      const fn = fl.build();
+      const r = fn();
+      expect(unwrap(r)).toEqual('ERROR');
 
       // Typechecking.
-      expectTypeOf(fl).toBeFunction();
-      expectTypeOf(fl).parameter(0).toBeVoid();
-      expectTypeOf(fl).returns.toEqualTypeOf<Result<never, 'Error'>>();
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, never, 'ERROR', 'sync'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<never, 'ERROR'>>();
+      expectTypeOf(r).toEqualTypeOf<Result<never, 'ERROR'>>();
     });
 
-    it('should create a flow with multiple parameters', () => {
-      const addOne = (x: number, y: number) => ok(x + y);
-      const fl = flow(addOne);
-      const r = fl(1, 2);
-      expect(unwrap(r)).toEqual(3);
+    it('should create a empty flow', () => {
+      const fn = flow<void>().build();
+      const r = fn();
+      expect(unwrap(r)).toEqual(undefined);
 
       // Typechecking.
-      expectTypeOf(fl).toBeFunction();
-      expectTypeOf(fl).parameter(0).toBeNumber();
-      expectTypeOf(fl).parameter(1).toBeNumber();
-      expectTypeOf(fl).returns.toEqualTypeOf<Result<number, never>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<void, never>>();
+      expectTypeOf(r).toEqualTypeOf<Result<void, never>>();
     });
 
-    it('should create a void flow', () => {
-      const addOne = () => ok(1);
-      const fl = flow(addOne);
-      const r = fl();
-      expect(unwrap(r)).toEqual(1);
+    it('should create an async flow', async () => {
+      const f = async (x: number) => ok(x + 1);
+      const fl = flow<number>().map(f);
 
-      // Typechecking.
-      expectTypeOf(fl).toBeFunction();
-      expectTypeOf(fl).parameter(0).toBeVoid();
-      expectTypeOf(fl).returns.toEqualTypeOf<Result<number, never>>();
-    });
-
-    it('should create a flow with a function that returns a tuple', () => {
-      const addOne = (x: number) => ok([x + 1, x + 2, x + 3]);
-      const fl = flow(addOne);
-      const r = fl(1);
-      expect(unwrap(r)).toEqual([2, 3, 4]);
-
-      // Typechecking.
-      expectTypeOf(fl).toBeFunction();
-      expectTypeOf(fl).parameter(0).toBeNumber();
-      expectTypeOf(fl).returns.toEqualTypeOf<Result<number[], never>>();
-    });
-
-    it('should create a flow with a function that returns a object', () => {
-      const addOne = (x: number) => ok({ value: x + 1 });
-      const fl = flow(addOne);
-      const r = fl(1);
-      expect(unwrap(r)).toEqual({ value: 2 });
-
-      // Typechecking.
-      expectTypeOf(fl).toBeFunction();
-      expectTypeOf(fl).parameter(0).toBeNumber();
-      expectTypeOf(fl).returns.toEqualTypeOf<Result<{ value: number }, never>>();
-    });
-
-    it('should create a flow with a function that returns a object with a function', () => {
-      const addOne = (x: number) => ok({ value: x + 1, addTwo: () => ok(x + 2) });
-      const fl = flow(addOne);
-      const r = fl(1);
-      expect(unwrap(r)).toEqual({ value: 2, addTwo: expect.any(Function) });
-
-      // Typechecking.
-      expectTypeOf(fl).toBeFunction();
-      expectTypeOf(fl).parameter(0).toBeNumber();
-      expectTypeOf(fl).returns.toEqualTypeOf<
-        Result<{ value: number; addTwo: () => Result<number, never> }, never>
-      >();
-    });
-  });
-
-  describe('map', () => {
-    it('should map over the value', () => {
-      const f = flow(
-        (x: number) => ok(x),
-        map((x) => ok(x + 1)),
-      );
-      const r = f(1);
+      const fn = fl.build();
+      const r = await fn(1);
       expect(unwrap(r)).toEqual(2);
 
       // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<number, number, never, 'async'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeNumber();
+      expectTypeOf(fn).returns.toEqualTypeOf<Promise<Result<number, never>>>();
       expectTypeOf(r).toEqualTypeOf<Result<number, never>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeNumber();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<number, never>>();
     });
 
-    it('should support multiple maps', () => {
-      const f = flow(
-        (x: number) => ok(x),
-        map((x) => ok(x + 1)),
-        map((x) => ok(x + 2)),
-      );
+    it('should create a flow with multiple steps', () => {
+      const f1 = (x: number) => ok(x + 1);
+      const f2 = (x: number) => ok(x + 2);
+      const fl = flow<number>().map(f1).map(f2);
 
-      const r = f(1);
+      const fn = fl.build();
+      const r = fn(1);
       expect(unwrap(r)).toEqual(4);
 
       // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<number, number, never, 'sync'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeNumber();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<number, never>>();
       expectTypeOf(r).toEqualTypeOf<Result<number, never>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeNumber();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<number, never>>();
     });
 
-    it('should support multiple maps with different types', () => {
-      const f = flow(
-        (x: number) => ok(x),
-        map((x) => ok(x + 1)),
-        map((x) => ok(x.toString())),
-      );
+    it('should create a flow with multiple sync and async steps', async () => {
+      const f1 = (x: number) => ok(x + 1);
+      const f2 = async (x: number) => ok(x + 2);
+      const f3 = (x: number) => ok(x + 3);
+      const fl = flow<number>().map(f1).map(f2).map(f3);
 
-      const r = f(1);
-      expect(unwrap(r)).toEqual('2');
+      const fn = fl.build();
+      const r = await fn(1);
+      expect(unwrap(r)).toEqual(7);
 
       // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<string, never>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeNumber();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<string, never>>();
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<number, number, never, 'async'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeNumber();
+      expectTypeOf(fn).returns.toEqualTypeOf<Promise<Result<number, never>>>();
+      expectTypeOf(r).toEqualTypeOf<Result<number, never>>();
     });
 
-    it('should omit the map if the result is an error', () => {
-      const someMapSpy = vi.fn(() => ok(true));
-      const f = flow(() => err('THIS_IS_AN_ERROR'), map(someMapSpy));
+    it('should accumulate errors in sync flow', () => {
+      // Sync.
+      const f1 = () => err('ERROR');
+      const f2 = () => err('ERROR2');
+      const f3 = () => err('ERROR3');
+      const fl = flow<void>().map(f1).map(f2).map(f3);
 
-      const r = f();
-
-      expect(unwrap(r)).toEqual('THIS_IS_AN_ERROR');
-      // someMap is never called because the result is an error.
-      expect(someMapSpy).not.toHaveBeenCalled();
+      const fn = fl.build();
+      const r = fn();
+      expect(unwrap(r)).toEqual('ERROR');
 
       // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<boolean, 'THIS_IS_AN_ERROR'>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeVoid();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<boolean, 'THIS_IS_AN_ERROR'>>();
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, never, 'ERROR' | 'ERROR2' | 'ERROR3', 'sync'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<never, 'ERROR' | 'ERROR2' | 'ERROR3'>>();
+      expectTypeOf(r).toEqualTypeOf<Result<never, 'ERROR' | 'ERROR2' | 'ERROR3'>>();
+    });
+
+    it('should accumulate errors in async flow', async () => {
+      const f1 = async () => err('ERROR');
+      const f2 = async () => err('ERROR2');
+      const f3 = async () => err('ERROR3');
+      const fl = flow<void>().map(f1).map(f2).map(f3);
+
+      const fn = fl.build();
+      const r = await fn();
+      expect(unwrap(r)).toEqual('ERROR');
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, never, 'ERROR' | 'ERROR2' | 'ERROR3', 'async'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<
+        Promise<Result<never, 'ERROR' | 'ERROR2' | 'ERROR3'>>
+      >();
+      expectTypeOf(r).toEqualTypeOf<Result<never, 'ERROR' | 'ERROR2' | 'ERROR3'>>();
+    });
+
+    it('should have all steps in the flow with correct types', () => {
+      const f1 = () => ok('SUCCESS');
+      const f2 = () => ok('SUCCESS2');
+      const f3 = async () => ok('SUCCESS3');
+      const f4 = () => err('ERROR');
+      const f5 = async () => err('ERROR2');
+      const fl = flow<void>().map(f1).map(f2).map(f3).map(f4).map(f5);
+
+      const steps = fl.steps();
+
+      expect(steps).toHaveLength(5);
+      expect(steps[0].kind).toEqual('sync');
+      expect(steps[1].kind).toEqual('sync');
+      expect(steps[2].kind).toEqual('async');
+      expect(steps[3].kind).toEqual('sync');
+      expect(steps[4].kind).toEqual('async');
     });
   });
 
-  describe('mapErr', () => {
-    it('should map over the error', () => {
-      const f = flow(
-        () => err('ORIGINAL_ERROR'),
-        mapErr((error) => (error === 'ORIGINAL_ERROR' ? err('REPLACED_ERROR') : err(error))),
-      );
-      const r = f();
+  describe('Mapping', () => {
+    it('should not map an error in a map if the result is an error in sync flow', () => {
+      const f1 = () => err('ERROR');
+      const f2 = vi.fn(() => ok('SUCCESS'));
+      const f3 = vi.fn(() => ok('SUCCESS2'));
+      const fl = flow<void>().map(f1).map(f2).map(f3);
+
+      const fn = fl.build();
+      const r = fn();
+      expect(unwrap(r)).toEqual('ERROR');
+
+      // The map is not called because the result is an error.
+      expect(f2).not.toHaveBeenCalled();
+      expect(f3).not.toHaveBeenCalled();
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, string, 'ERROR', 'sync'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<string, 'ERROR'>>();
+      expectTypeOf(r).toEqualTypeOf<Result<string, 'ERROR'>>();
+    });
+
+    it('should not map an error in a map if the result is an error in async flow', async () => {
+      const f1 = async () => err('ERROR');
+      const f2 = vi.fn(() => ok('SUCCESS'));
+      const f3 = vi.fn(() => ok('SUCCESS2'));
+      const fl = flow<void>().map(f1).map(f2).map(f3);
+
+      const fn = fl.build();
+      const r = await fn();
+      expect(unwrap(r)).toEqual('ERROR');
+
+      // The map is not called because the result is an error.
+      expect(f2).not.toHaveBeenCalled();
+      expect(f3).not.toHaveBeenCalled();
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, string, 'ERROR', 'async'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Promise<Result<string, 'ERROR'>>>();
+      expectTypeOf(r).toEqualTypeOf<Result<string, 'ERROR'>>();
+    });
+
+    it('should map an error and replace it with another error in sync flow', () => {
+      const f1 = () => err('ERROR');
+      const f2 = (e: 'ERROR') => err(`REPLACED_${e}`);
+      const fl = flow<void>().map(f1).mapErr(f2);
+
+      const fn = fl.build();
+      const r = fn();
       expect(unwrap(r)).toEqual('REPLACED_ERROR');
 
       // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, never, 'REPLACED_ERROR', 'sync'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<never, 'REPLACED_ERROR'>>();
       expectTypeOf(r).toEqualTypeOf<Result<never, 'REPLACED_ERROR'>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeVoid();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<never, 'REPLACED_ERROR'>>();
     });
 
-    it('should map multiple errors and replace them', () => {
-      const f = flow(
-        (x: number) =>
-          x > 0 ? err('POSITIVE_NUMBER') : x === 0 ? err('ZERO_NUMBER') : err('NEGATIVE_NUMBER'),
-        mapErr((error) => {
-          switch (error) {
-            case 'POSITIVE_NUMBER':
-              return err('REPLACED_POSITIVE_NUMBER');
-            case 'NEGATIVE_NUMBER':
-              return err('REPLACED_NEGATIVE_NUMBER');
-            default:
-              return err(error); // ZERO_NUMBER is not replaced.
-          }
-        }),
-      );
+    it('should map an error and replace it with another error in async flow', async () => {
+      const f1 = async () => err('ERROR');
+      const f2 = async (e: 'ERROR') => err(`REPLACED_${e}`);
+      const fl = flow<void>().map(f1).mapErr(f2);
 
-      const rp = f(1);
-      expect(unwrap(rp)).toEqual('REPLACED_POSITIVE_NUMBER');
-
-      const rn = f(-1);
-      expect(unwrap(rn)).toEqual('REPLACED_NEGATIVE_NUMBER');
-
-      const rz = f(0);
-      expect(unwrap(rz)).toEqual('ZERO_NUMBER');
+      const fn = fl.build();
+      const r = await fn();
+      expect(unwrap(r)).toEqual('REPLACED_ERROR');
 
       // Typechecking.
-      expectTypeOf(rp).toEqualTypeOf<
-        Result<never, 'REPLACED_NEGATIVE_NUMBER' | 'REPLACED_POSITIVE_NUMBER' | 'ZERO_NUMBER'>
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, never, 'REPLACED_ERROR', 'async'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Promise<Result<never, 'REPLACED_ERROR'>>>();
+      expectTypeOf(r).toEqualTypeOf<Result<never, 'REPLACED_ERROR'>>();
+    });
+
+    it('should map multiple errors and replace them in sync flow', () => {
+      const f1 = () => err('ERROR_1');
+      const f2 = () => err('ERROR_2');
+      const f3 = () => err('ERROR_3');
+      const f4 = (e: 'ERROR_1' | 'ERROR_2' | 'ERROR_3') => err(`REPLACED_${e}`);
+      const fl = flow<void>().map(f1).map(f2).map(f3).mapErr(f4);
+
+      const fn = fl.build();
+      const r = fn();
+      expect(unwrap(r)).toEqual('REPLACED_ERROR_1');
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<
+        Flow<void, never, 'REPLACED_ERROR_1' | 'REPLACED_ERROR_2' | 'REPLACED_ERROR_3', 'sync'>
       >();
-      expectTypeOf(rn).toEqualTypeOf<
-        Result<never, 'REPLACED_NEGATIVE_NUMBER' | 'REPLACED_POSITIVE_NUMBER' | 'ZERO_NUMBER'>
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<
+        Result<never, 'REPLACED_ERROR_1' | 'REPLACED_ERROR_2' | 'REPLACED_ERROR_3'>
       >();
-      expectTypeOf(rz).toEqualTypeOf<
-        Result<never, 'REPLACED_NEGATIVE_NUMBER' | 'REPLACED_POSITIVE_NUMBER' | 'ZERO_NUMBER'>
-      >();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeNumber();
-      expectTypeOf(f).returns.toEqualTypeOf<
-        Result<never, 'REPLACED_NEGATIVE_NUMBER' | 'REPLACED_POSITIVE_NUMBER' | 'ZERO_NUMBER'>
+      expectTypeOf(r).toEqualTypeOf<
+        Result<never, 'REPLACED_ERROR_1' | 'REPLACED_ERROR_2' | 'REPLACED_ERROR_3'>
       >();
     });
 
-    it('should omit the mapErr if the result is ok', () => {
-      const someMapErr = vi.fn(() => err('NOT_MAPPED_ERROR'));
-      const f = flow((x: number) => ok(x + 1), mapErr(someMapErr));
+    it('should map multiple errors and replace them in async flow', async () => {
+      const f1 = async () => err('ERROR_1');
+      const f2 = async () => err('ERROR_2');
+      const f3 = async () => err('ERROR_3');
+      const f4 = async (e: 'ERROR_1' | 'ERROR_2' | 'ERROR_3') => err(`REPLACED_${e}`);
+      const fl = flow<void>().map(f1).map(f2).map(f3).mapErr(f4);
 
-      const r = f(1);
+      const fn = fl.build();
+      const r = await fn();
+      expect(unwrap(r)).toEqual('REPLACED_ERROR_1');
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<
+        Flow<void, never, 'REPLACED_ERROR_1' | 'REPLACED_ERROR_2' | 'REPLACED_ERROR_3', 'async'>
+      >();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<
+        Promise<Result<never, 'REPLACED_ERROR_1' | 'REPLACED_ERROR_2' | 'REPLACED_ERROR_3'>>
+      >();
+      expectTypeOf(r).toEqualTypeOf<
+        Result<never, 'REPLACED_ERROR_1' | 'REPLACED_ERROR_2' | 'REPLACED_ERROR_3'>
+      >();
+    });
+
+    it('should not call mapErr when the flow has a success result in sync flow', () => {
+      const f1 = (x: number) => ok(x + 1);
+      const f2 = vi.fn(() => err('ERROR'));
+      const fl = flow<number>().map(f1).mapErr(f2);
+
+      const fn = fl.build();
+      const r = fn(1);
       expect(unwrap(r)).toEqual(2);
 
-      // someMapErr is never called because the result is ok.
-      expect(someMapErr).not.toHaveBeenCalled();
+      // The mapErr is not called because the result is a success.
+      expect(f2).not.toHaveBeenCalled();
 
       // Typechecking.
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeNumber();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<number, 'NOT_MAPPED_ERROR'>>();
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<number, number, 'ERROR', 'sync'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeNumber();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<number, 'ERROR'>>();
+      expectTypeOf(r).toEqualTypeOf<Result<number, 'ERROR'>>();
+    });
+
+    it('should not call mapErr when the flow has a success result in async flow', async () => {
+      const f1 = async (x: number) => ok(x + 1);
+      const f2 = vi.fn(async () => err('ERROR'));
+      const fl = flow<number>().map(f1).mapErr(f2);
+
+      const fn = fl.build();
+      const r = await fn(1);
+      expect(unwrap(r)).toEqual(2);
+
+      // The mapErr is not called because the result is a success.
+      expect(f2).not.toHaveBeenCalled();
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<number, number, 'ERROR', 'async'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeNumber();
+      expectTypeOf(fn).returns.toEqualTypeOf<Promise<Result<number, 'ERROR'>>>();
+      expectTypeOf(r).toEqualTypeOf<Result<number, 'ERROR'>>();
     });
   });
 
-  describe('mapBoth', () => {
-    it('should map over onOk', () => {
-      const f = flow(
-        (x: number) => ok(x),
-        mapBoth({ onOk: (x) => ok(x + 1), onErr: (error) => err(error) }),
-      );
+  it('should map both success and error in sync flow', () => {
+    const f1 = (v: number) => (v > 0 ? ok(v) : err('MUST_BE_POSITIVE'));
+    const onOk = vi.fn((v: number) => ok(v));
+    const onErr = vi.fn((e: 'MUST_BE_POSITIVE') => err(`REPLACED_${e}`));
 
-      const r = f(1);
-      expect(unwrap(r)).toEqual(2);
-
-      // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<number, never>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeNumber();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<number, never>>();
+    const fl = flow<number>().map(f1).mapBoth({
+      onOk,
+      onErr,
     });
 
-    it('should map over onErr', () => {
-      const f = flow(
-        () => err('ORIGINAL_ERROR'),
-        mapBoth({ onOk: (x) => ok(x + 1), onErr: (error) => err(error) }),
-      );
+    const fn = fl.build();
 
-      const r = f();
-      expect(unwrap(r)).toEqual('ORIGINAL_ERROR');
+    const sr = fn(1);
+    expect(unwrap(sr)).toEqual(1);
+    expect(onOk).toHaveBeenCalledWith(1);
 
-      // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<number, 'ORIGINAL_ERROR'>>();
-    });
+    const er = fn(-1);
+    expect(unwrap(er)).toEqual('REPLACED_MUST_BE_POSITIVE');
+    expect(onErr).toHaveBeenCalledWith('MUST_BE_POSITIVE');
 
-    it('should map and replace previous values and errors', () => {
-      const f1 = flow((x: number) => (x === 0 ? err('ERROR_1') : ok(x)));
-      const f2 = flow(f1, mapBoth({ onOk: (v) => ok(v.toString()), onErr: () => err('ERROR_2') }));
-
-      const r1 = f1(1);
-      expect(unwrap(r1)).toEqual(1);
-
-      const r2 = f2(1);
-      expect(unwrap(r2)).toEqual('1');
-
-      // Typechecking.
-      expectTypeOf(r1).toEqualTypeOf<Result<number, 'ERROR_1'>>();
-      expectTypeOf(r2).toEqualTypeOf<Result<string, 'ERROR_2'>>();
-      expectTypeOf(f1).toBeFunction();
-      expectTypeOf(f1).parameter(0).toBeNumber();
-      expectTypeOf(f1).returns.toEqualTypeOf<Result<number, 'ERROR_1'>>();
-      expectTypeOf(f2).toBeFunction();
-      expectTypeOf(f2).parameter(0).toBeNumber();
-      expectTypeOf(f2).returns.toEqualTypeOf<Result<string, 'ERROR_2'>>();
-    });
+    // Typechecking.
+    expectTypeOf(fl).toBeObject();
+    expectTypeOf(fl).toEqualTypeOf<Flow<number, number, 'REPLACED_MUST_BE_POSITIVE', 'sync'>>();
+    expectTypeOf(fn).toBeFunction();
+    expectTypeOf(fn).parameter(0).toBeNumber();
+    expectTypeOf(fn).returns.toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
+    expectTypeOf(sr).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
+    expectTypeOf(er).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
   });
 
-  describe('tap', () => {
-    it('should execute a side effect function', () => {
-      const sideEffectSpy = vi.fn(() => void 0);
+  it('should map both success and error in async flow', async () => {
+    const f1 = async (v: number) => (v > 0 ? ok(v) : err('MUST_BE_POSITIVE'));
+    const onOk = vi.fn(async (v: number) => ok(v));
+    const onErr = vi.fn(async (e: 'MUST_BE_POSITIVE') => err(`REPLACED_${e}`));
 
-      // Flow.
-      const f = flow(() => ok(1), tap(sideEffectSpy));
-      const r = f();
-
-      expect(unwrap(r)).toEqual(1);
-      expect(sideEffectSpy).toHaveBeenCalledExactlyOnceWith(1);
-
-      // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<number, never>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeVoid();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<number, never>>();
+    const fl = flow<number>().map(f1).mapBoth({
+      onOk,
+      onErr,
     });
 
-    it('should not execute tap when result is an error', () => {
-      const sideEffectSpy = vi.fn((v: number) => console.log(v));
-      const f = flow(() => err('SOME_ERROR'), tap(sideEffectSpy));
+    const fn = fl.build();
 
-      const r = f();
+    const sr = await fn(1);
+    expect(unwrap(sr)).toEqual(1);
+    expect(onOk).toHaveBeenCalledWith(1);
 
-      expect(unwrap(r)).toEqual('SOME_ERROR');
-      expect(sideEffectSpy).not.toHaveBeenCalled();
+    const er = await fn(-1);
+    expect(unwrap(er)).toEqual('REPLACED_MUST_BE_POSITIVE');
+    expect(onErr).toHaveBeenCalledWith('MUST_BE_POSITIVE');
 
-      // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<number, 'SOME_ERROR'>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeVoid();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<number, 'SOME_ERROR'>>();
-    });
-
-    it('should work with complex objects', () => {
-      const capturedValues: object[] = [];
-      const sideEffectSpy = vi.fn((v: object) => capturedValues.push(v));
-
-      const complexObject = { id: 1, name: 'test', nested: { value: 42 } };
-      const f = flow(() => ok(complexObject), tap(sideEffectSpy));
-
-      const r = f();
-
-      expect(unwrap(r)).toEqual(complexObject);
-      expect(sideEffectSpy).toHaveBeenCalledExactlyOnceWith(complexObject);
-      expect(capturedValues).toEqual([complexObject]);
-
-      // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<object, never>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeVoid();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<object, never>>();
-    });
-
-    it('should work with multiple tap operations in sequence', () => {
-      const logs: string[] = [];
-      const tap1 = vi.fn((v: number) => logs.push(`tap1: ${v}`));
-      const tap2 = vi.fn((v: number) => logs.push(`tap2: ${v}`));
-
-      const f = flow(
-        (x: number) => ok(x + 1),
-        tap(tap1),
-        map((x: number) => ok(x * 2)),
-        tap(tap2),
-      );
-
-      const r = f(5);
-
-      expect(unwrap(r)).toEqual(12);
-      expect(tap1).toHaveBeenCalledExactlyOnceWith(6);
-      expect(tap2).toHaveBeenCalledExactlyOnceWith(12);
-      expect(logs).toEqual(['tap1: 6', 'tap2: 12']);
-
-      // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<number, never>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeNumber();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<number, never>>();
-    });
-
-    it('should preserve the original result even if tap throws an error', () => {
-      const throwingTap = vi.fn(() => {
-        throw new Error('Tap error');
-      });
-
-      const f = flow(() => ok(42), tap(throwingTap));
-
-      expect(() => f()).toThrow('Tap error');
-      expect(throwingTap).toHaveBeenCalledExactlyOnceWith(42);
-
-      // Typechecking.
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeVoid();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<number, never>>();
-    });
-
-    it('should work with functions that return a value (ignoring the return value)', () => {
-      const voidTap = vi.fn(() => 1);
-
-      const f = flow(() => ok('test'), tap(voidTap));
-      const r = f();
-
-      expect(unwrap(r)).toEqual('test');
-      expect(voidTap).toHaveBeenCalledExactlyOnceWith('test');
-
-      // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<string, never>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeVoid();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<string, never>>();
-    });
-
-    it('should work with tap that modifies external state', () => {
-      const state = { count: 0, lastValue: null as string | null };
-      const stateModifyingTap = vi.fn((v: string) => {
-        state.count++;
-        state.lastValue = v;
-      });
-
-      const f = flow(() => ok('new value'), tap(stateModifyingTap));
-      const r = f();
-
-      expect(unwrap(r)).toEqual('new value');
-      expect(state.count).toEqual(1);
-      expect(state.lastValue).toEqual('new value');
-      expect(stateModifyingTap).toHaveBeenCalledExactlyOnceWith('new value');
-
-      // Typechecking.
-      expectTypeOf(r).toEqualTypeOf<Result<string, never>>();
-      expectTypeOf(f).toBeFunction();
-      expectTypeOf(f).parameter(0).toBeVoid();
-      expectTypeOf(f).returns.toEqualTypeOf<Result<string, never>>();
-    });
-
-    // TODO: implement this test.
-    it.todo('should work with async-like side effects (promises)');
+    // Typechecking.
+    expectTypeOf(fl).toBeObject();
+    expectTypeOf(fl).toEqualTypeOf<Flow<number, number, 'REPLACED_MUST_BE_POSITIVE', 'async'>>();
+    expectTypeOf(fn).toBeFunction();
+    expectTypeOf(fn).parameter(0).toBeNumber();
+    expectTypeOf(fn).returns.toEqualTypeOf<Promise<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>>();
+    expectTypeOf(sr).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
+    expectTypeOf(er).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
   });
 });
