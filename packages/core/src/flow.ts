@@ -25,7 +25,7 @@ type FlowFunction = (a: Any) => Result<Any, Any> | Promise<Result<Any, Any>>;
  *
  * @internal
  */
-type FlowOperatorMapping = 'success' | 'error' | 'both';
+type FlowMapping = 'success' | 'error' | 'both' | 'sideEffect';
 
 /**
  * Flow step is a representation of a function in a flow.
@@ -40,7 +40,7 @@ type FlowStep = {
   fn: FlowFunction;
   hash: string;
   operator: string;
-  mapping: FlowOperatorMapping;
+  mapping: FlowMapping;
 };
 
 /**
@@ -62,8 +62,8 @@ type Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> = {
      * @param fn - The function to apply to the flow.
      * @returns A new Flow with the transformed success value.
      */
-    <B, F extends string>(fn: (a: O) => Result<B, F>): Flow<I, B, E | F, A>;
-    <B, F extends string>(fn: (a: O) => Promise<Result<B, F>>): Flow<I, B, E | F, 'async'>;
+    <B, F extends string>(fn: (v: O) => Result<B, F>): Flow<I, B, E | F, A>;
+    <B, F extends string>(fn: (v: O) => Promise<Result<B, F>>): Flow<I, B, E | F, 'async'>;
   };
 
   mapErr: {
@@ -74,8 +74,8 @@ type Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> = {
      * @param fn - The function to apply to the flow.
      * @returns A new Flow with the transformed error value.
      */
-    <B, F extends string>(fn: (error: E) => Result<B, F>): Flow<I, O | B, F, A>;
-    <B, F extends string>(fn: (error: E) => Promise<Result<B, F>>): Flow<I, O | B, F, 'async'>;
+    <B, F extends string>(fn: (e: E) => Result<B, F>): Flow<I, O | B, F, A>;
+    <B, F extends string>(fn: (e: E) => Promise<Result<B, F>>): Flow<I, O | B, F, 'async'>;
   };
 
   mapBoth: {
@@ -96,20 +96,78 @@ type Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> = {
     }): Flow<I, B, F, 'async'>;
   };
 
+  tap: {
+    /**
+     * A tap is a side-effect function that does not change the flow result.
+     * It is useful for logging, debugging, tracing, etc.
+     * Only is applied if the flow result is a success.
+     *
+     * @param fn - The function to apply to the flow.
+     * @returns A new Flow with the side-effect applied.
+     */
+    (fn: (v: O) => void): Flow<I, O, E, A>;
+    (fn: (v: O) => Promise<void>): Flow<I, O, E, 'async'>;
+  };
+
   /**
    * Builds the flow in a type-safe way, automatically inferring the flow input and output types.
    * Handles both sync and async steps.
    *
    * @returns A function that processes the flow.
    */
-  build: A extends 'async'
-    ? () => (input: I) => Promise<Result<O, E>>
-    : () => (input: I) => Result<O, E>;
+  build: A extends 'async' ? () => (v: I) => Promise<Result<O, E>> : () => (v: I) => Result<O, E>;
 
   /**
    * The steps of the flow.
    */
   steps: () => FlowStep[];
+};
+
+/**
+ * Operator functions that handle different mapping behaviors.
+ * Each operator processes the flow result according to its specific logic.
+ *
+ * @internal
+ */
+const mappings: Record<FlowMapping, (v: Any, step: FlowStep) => Any> = {
+  /**
+   * Processes success values only.
+   * @param v - The value to process.
+   * @param step - The step to process.
+   * @returns The processed value.
+   */
+  success: (v: Any, step: FlowStep) => (isOk(v) ? step.fn(v.value) : v),
+
+  /**
+   * Processes error values only.
+   * @param v - The value to process.
+   * @param step - The step to process.
+   * @returns The processed value.
+   */
+  error: (v: Any, step: FlowStep) => (isErr(v) ? step.fn(v.error) : v),
+
+  /**
+   * Processes both success and error values.
+   * @param v - The value to process.
+   * @param step - The step to process.
+   * @returns The processed value.
+   */
+  both: (v: Any, step: FlowStep) =>
+    isOk(v) ? (step.fn as Any).onOk(v.value) : (step.fn as Any).onErr(v.error),
+
+  /**
+   * Processes a side-effect function without changing anything in the flow.
+   * @param v - The value to process.
+   * @param step - The step to process.
+   * @returns The processed value.
+   */
+  sideEffect: (v: Any, step: FlowStep) => {
+    if (isOk(v)) {
+      step.fn(v.value);
+    }
+
+    return v;
+  },
 };
 
 /**
@@ -124,12 +182,9 @@ type Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> = {
  */
 const buildFlow = <I>(steps: FlowStep[], isAsync: boolean) =>
   isAsync
-    ? async (input: I) =>
-        steps.reduce(
-          async (v, step) => await operators[step.mapping](await v, step),
-          ok(input) as Any,
-        )
-    : (input: I) => steps.reduce((v, step) => operators[step.mapping](v, step), ok(input));
+    ? async (v: I) =>
+        steps.reduce(async (v, step) => await mappings[step.mapping](await v, step), ok(v) as Any)
+    : (v: I) => steps.reduce((v, step) => mappings[step.mapping](v, step), ok(v));
 
 /**
  * Creates a flow method that adds a step and returns the appropriate flow type.
@@ -143,7 +198,7 @@ const buildFlow = <I>(steps: FlowStep[], isAsync: boolean) =>
  * @internal
  */
 const flowFunction =
-  <I>(steps: FlowStep[], operator: string, mapping: FlowOperatorMapping, api: Any) =>
+  <I>(steps: FlowStep[], operator: string, mapping: FlowMapping, api: Any) =>
   (fn: FlowFunction) => {
     const step = {
       _tag: 'Step',
@@ -201,58 +256,9 @@ function flow<I>(): Flow<I, I, never> {
   api.map = flowFunction<I>(steps, 'map', 'success', api);
   api.mapErr = flowFunction<I>(steps, 'mapErr', 'error', api);
   api.mapBoth = flowFunction<I>(steps, 'mapBoth', 'both', api);
+  api.tap = flowFunction<I>(steps, 'tap', 'sideEffect', api);
   return api;
 }
-
-// *********************************************************************************************
-// Operators logics.
-// *********************************************************************************************
-
-type MapBoth<A, B, E, F> = {
-  sync: {
-    onOk: (v: A) => Result<B, F>;
-    onErr: (e: E) => Result<B, F>;
-  };
-  async: {
-    onOk: (v: A) => Promise<Result<B, F>>;
-    onErr: (e: E) => Promise<Result<B, F>>;
-  };
-};
-
-/**
- * Operator functions that handle different mapping behaviors.
- * Each operator processes the flow result according to its specific logic.
- *
- * @internal
- */
-const operators = {
-  /**
-   * Processes success values only.
-   * @param v - The value to process.
-   * @param step - The step to process.
-   * @returns The processed value.
-   */
-  success: (v: Any, step: FlowStep) => (isOk(v) ? step.fn(v.value) : v),
-
-  /**
-   * Processes error values only.
-   * @param v - The value to process.
-   * @param step - The step to process.
-   * @returns The processed value.
-   */
-  error: (v: Any, step: FlowStep) => (isErr(v) ? step.fn(v.error) : v),
-
-  /**
-   * Processes both success and error values.
-   * @param v - The value to process.
-   * @param step - The step to process.
-   * @returns The processed value.
-   */
-  both: (v: Any, step: FlowStep) =>
-    isOk(v)
-      ? (step.fn as unknown as MapBoth<Any, Any, Any, Any>[typeof step.kind]).onOk(v.value)
-      : (step.fn as unknown as MapBoth<Any, Any, Any, Any>[typeof step.kind]).onErr(v.error),
-};
 
 export type { Flow };
 export { flow };
