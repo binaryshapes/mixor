@@ -341,65 +341,153 @@ describe('Flow', () => {
       expectTypeOf(fn).returns.toEqualTypeOf<Promise<Result<number, 'ERROR'>>>();
       expectTypeOf(r).toEqualTypeOf<Result<number, 'ERROR'>>();
     });
-  });
 
-  it('should map both success and error in sync flow', () => {
-    const f1 = (v: number) => (v > 0 ? ok(v) : err('MUST_BE_POSITIVE'));
-    const onOk = vi.fn((v: number) => ok(v));
-    const onErr = vi.fn((e: 'MUST_BE_POSITIVE') => err(`REPLACED_${e}`));
+    it('should map both success and error in sync flow', () => {
+      const f1 = (v: number) => (v > 0 ? ok(v) : err('MUST_BE_POSITIVE'));
+      const onOk = vi.fn((v: number) => ok(v));
+      const onErr = vi.fn((e: 'MUST_BE_POSITIVE') => err(`REPLACED_${e}`));
 
-    const fl = flow<number>().map(f1).mapBoth({
-      onOk,
-      onErr,
+      const fl = flow<number>().map(f1).mapBoth({
+        onOk,
+        onErr,
+      });
+
+      const fn = fl.build();
+
+      const sr = fn(1);
+      expect(unwrap(sr)).toEqual(1);
+      expect(onOk).toHaveBeenCalledWith(1);
+
+      const er = fn(-1);
+      expect(unwrap(er)).toEqual('REPLACED_MUST_BE_POSITIVE');
+      expect(onErr).toHaveBeenCalledWith('MUST_BE_POSITIVE');
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<number, number, 'REPLACED_MUST_BE_POSITIVE', 'sync'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeNumber();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
+      expectTypeOf(sr).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
+      expectTypeOf(er).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
     });
 
-    const fn = fl.build();
+    it('should map both success and error in async flow', async () => {
+      const f1 = async (v: number) => (v > 0 ? ok(v) : err('MUST_BE_POSITIVE'));
+      const onOk = vi.fn(async (v: number) => ok(v));
+      const onErr = vi.fn(async (e: 'MUST_BE_POSITIVE') => err(`REPLACED_${e}`));
 
-    const sr = fn(1);
-    expect(unwrap(sr)).toEqual(1);
-    expect(onOk).toHaveBeenCalledWith(1);
+      const fl = flow<number>().map(f1).mapBoth({
+        onOk,
+        onErr,
+      });
 
-    const er = fn(-1);
-    expect(unwrap(er)).toEqual('REPLACED_MUST_BE_POSITIVE');
-    expect(onErr).toHaveBeenCalledWith('MUST_BE_POSITIVE');
+      const fn = fl.build();
 
-    // Typechecking.
-    expectTypeOf(fl).toBeObject();
-    expectTypeOf(fl).toEqualTypeOf<Flow<number, number, 'REPLACED_MUST_BE_POSITIVE', 'sync'>>();
-    expectTypeOf(fn).toBeFunction();
-    expectTypeOf(fn).parameter(0).toBeNumber();
-    expectTypeOf(fn).returns.toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
-    expectTypeOf(sr).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
-    expectTypeOf(er).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
+      const sr = await fn(1);
+      expect(unwrap(sr)).toEqual(1);
+      expect(onOk).toHaveBeenCalledWith(1);
+
+      const er = await fn(-1);
+      expect(unwrap(er)).toEqual('REPLACED_MUST_BE_POSITIVE');
+      expect(onErr).toHaveBeenCalledWith('MUST_BE_POSITIVE');
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<number, number, 'REPLACED_MUST_BE_POSITIVE', 'async'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeNumber();
+      expectTypeOf(fn).returns.toEqualTypeOf<
+        Promise<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>
+      >();
+      expectTypeOf(sr).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
+      expectTypeOf(er).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
+    });
   });
 
-  it('should map both success and error in async flow', async () => {
-    const f1 = async (v: number) => (v > 0 ? ok(v) : err('MUST_BE_POSITIVE'));
-    const onOk = vi.fn(async (v: number) => ok(v));
-    const onErr = vi.fn(async (e: 'MUST_BE_POSITIVE') => err(`REPLACED_${e}`));
+  describe('Tapping', () => {
+    it('should tap a success value in sync flow', () => {
+      const f1 = () => ok('SUCCESS');
+      const f2 = vi.fn((x: string) => console.log(`TAPPED: ${x}`));
+      const fl = flow<void>().map(f1).tap(f2);
 
-    const fl = flow<number>().map(f1).mapBoth({
-      onOk,
-      onErr,
+      const fn = fl.build();
+      const r = fn();
+      expect(unwrap(r)).toEqual('SUCCESS');
+
+      // The tap is called with the result.
+      expect(f2).toHaveBeenCalledWith('SUCCESS');
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, string, never, 'sync'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<string, never>>();
+      expectTypeOf(r).toEqualTypeOf<Result<string, never>>();
     });
 
-    const fn = fl.build();
+    it('should tap a success value in async flow', async () => {
+      const f1 = async () => ok('SUCCESS');
+      const f2 = vi.fn(async (x: string) => console.log(`TAPPED: ${x}`));
+      const fl = flow<void>().map(f1).tap(f2);
 
-    const sr = await fn(1);
-    expect(unwrap(sr)).toEqual(1);
-    expect(onOk).toHaveBeenCalledWith(1);
+      const fn = fl.build();
+      const r = await fn();
+      expect(unwrap(r)).toEqual('SUCCESS');
 
-    const er = await fn(-1);
-    expect(unwrap(er)).toEqual('REPLACED_MUST_BE_POSITIVE');
-    expect(onErr).toHaveBeenCalledWith('MUST_BE_POSITIVE');
+      // The tap is called with the success result value.
+      expect(f2).toHaveBeenCalledWith('SUCCESS');
 
-    // Typechecking.
-    expectTypeOf(fl).toBeObject();
-    expectTypeOf(fl).toEqualTypeOf<Flow<number, number, 'REPLACED_MUST_BE_POSITIVE', 'async'>>();
-    expectTypeOf(fn).toBeFunction();
-    expectTypeOf(fn).parameter(0).toBeNumber();
-    expectTypeOf(fn).returns.toEqualTypeOf<Promise<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>>();
-    expectTypeOf(sr).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
-    expectTypeOf(er).toEqualTypeOf<Result<number, 'REPLACED_MUST_BE_POSITIVE'>>();
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, string, never, 'async'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Promise<Result<string, never>>>();
+      expectTypeOf(r).toEqualTypeOf<Result<string, never>>();
+    });
+
+    it('should not tap a error value in sync flow', () => {
+      const f1 = () => err('ERROR');
+      const f2 = vi.fn((x: string) => console.log(`TAPPED: ${x}`));
+      const fl = flow<void>().map(f1).tap(f2);
+
+      const fn = fl.build();
+      const r = fn();
+      expect(unwrap(r)).toEqual('ERROR');
+
+      // The tap is not called because the result is an error.
+      expect(f2).not.toHaveBeenCalled();
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, never, 'ERROR', 'sync'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Result<never, 'ERROR'>>();
+      expectTypeOf(r).toEqualTypeOf<Result<never, 'ERROR'>>();
+    });
+
+    it('should not tap a error value in async flow', async () => {
+      const f1 = async () => err('ERROR');
+      const f2 = vi.fn(async (x: string) => console.log(`TAPPED: ${x}`));
+      const fl = flow<void>().map(f1).tap(f2);
+
+      const fn = fl.build();
+      const r = await fn();
+      expect(unwrap(r)).toEqual('ERROR');
+
+      // The tap is not called because the result is an error.
+      expect(f2).not.toHaveBeenCalled();
+
+      // Typechecking.
+      expectTypeOf(fl).toBeObject();
+      expectTypeOf(fl).toEqualTypeOf<Flow<void, never, 'ERROR', 'async'>>();
+      expectTypeOf(fn).toBeFunction();
+      expectTypeOf(fn).parameter(0).toBeVoid();
+      expectTypeOf(fn).returns.toEqualTypeOf<Promise<Result<never, 'ERROR'>>>();
+      expectTypeOf(r).toEqualTypeOf<Result<never, 'ERROR'>>();
+    });
   });
 });
