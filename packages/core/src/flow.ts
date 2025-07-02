@@ -25,7 +25,7 @@ type FlowFunction = (a: Any) => Result<Any, Any> | Promise<Result<Any, Any>>;
  *
  * @internal
  */
-type FlowMapping = 'success' | 'error' | 'both' | 'sideEffect';
+type FlowMapping = 'success' | 'error' | 'both';
 
 /**
  * Flow step is a representation of a function in a flow.
@@ -109,6 +109,56 @@ type Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> = {
     (fn: (v: O) => Promise<void>): Flow<I, O, E, 'async'>;
   };
 
+  ifThen: {
+    /**
+     * Conditionally executes a function based on a predicate.
+     * Only executes the function if the predicate returns true.
+     * Only applied if the flow result is a success.
+     *
+     * @param fn - The object containing the predicate and the function to execute.
+     * @returns A new Flow with the conditional execution applied.
+     */
+    <B, F extends string>(fn: {
+      if: (v: O) => boolean;
+      then: (v: O) => Result<B, F>;
+    }): Flow<I, O | B, E | F, A>;
+    <B, F extends string>(fn: {
+      if: (v: O) => boolean;
+      then: (v: O) => Promise<Result<B, F>>;
+    }): Flow<I, O | B, E | F, 'async'>;
+  };
+
+  ifThenElse: {
+    /**
+     * Conditionally executes a function based on a predicate.
+     * Only executes the function if the predicate returns true.
+     * Only applied if the flow result is a success.
+     *
+     * @param fn - The object containing the predicate and the function to execute.
+     * @returns A new Flow with the conditional execution applied.
+     */
+    <B, C, F extends string>(fn: {
+      if: (v: O) => boolean;
+      then: (v: O) => Result<B, F>;
+      else: (v: O) => Result<C, F>;
+    }): Flow<I, B | C, E | F, A>;
+    <B, C, F extends string>(fn: {
+      if: (v: O) => boolean;
+      then: (v: O) => Promise<Result<B, F>>;
+      else: (v: O) => Promise<Result<C, F>>;
+    }): Flow<I, B | C, E | F, 'async'>;
+    <B, C, F extends string>(fn: {
+      if: (v: O) => boolean;
+      then: (v: O) => Promise<Result<B, F>>;
+      else: (v: O) => Result<C, F>;
+    }): Flow<I, B | C, E | F, 'async'>;
+    <B, C, F extends string>(fn: {
+      if: (v: O) => boolean;
+      then: (v: O) => Result<B, F>;
+      else: (v: O) => Promise<Result<C, F>>;
+    }): Flow<I, B | C, E | F, 'async'>;
+  };
+
   /**
    * Builds the flow in a type-safe way, automatically inferring the flow input and output types.
    * Handles both sync and async steps.
@@ -136,7 +186,13 @@ const mappings: Record<FlowMapping, (v: Any, step: FlowStep) => Any> = {
    * @param step - The step to process.
    * @returns The processed value.
    */
-  success: (v: Any, step: FlowStep) => (isOk(v) ? step.fn(v.value) : v),
+  success: (v: Any, step: FlowStep) => {
+    if (!isOk(v)) return v;
+
+    return step.operator === 'map'
+      ? step.fn(v.value)
+      : operators[step.operator as FlowOperator](v, step.fn);
+  },
 
   /**
    * Processes error values only.
@@ -154,20 +210,6 @@ const mappings: Record<FlowMapping, (v: Any, step: FlowStep) => Any> = {
    */
   both: (v: Any, step: FlowStep) =>
     isOk(v) ? (step.fn as Any).onOk(v.value) : (step.fn as Any).onErr(v.error),
-
-  /**
-   * Processes a side-effect function without changing anything in the flow.
-   * @param v - The value to process.
-   * @param step - The step to process.
-   * @returns The processed value.
-   */
-  sideEffect: (v: Any, step: FlowStep) => {
-    if (isOk(v)) {
-      step.fn(v.value);
-    }
-
-    return v;
-  },
 };
 
 /**
@@ -198,19 +240,17 @@ const buildFlow = <I>(steps: FlowStep[], isAsync: boolean) =>
  * @internal
  */
 const flowFunction =
-  <I>(steps: FlowStep[], operator: string, mapping: FlowMapping, api: Any) =>
-  (fn: FlowFunction) => {
-    const step = {
+  (steps: FlowStep[], operator: string, mapping: FlowMapping, api: Any) => (fn: FlowFunction) => {
+    steps.push({
       _tag: 'Step',
       kind: fn.constructor.name === 'AsyncFunction' ? 'async' : 'sync',
       fn,
       hash: fn.toString(),
       operator,
       mapping,
-    } satisfies FlowStep;
+    } satisfies FlowStep);
 
-    steps.push(step);
-    return api as Flow<I, Any, Any, typeof step.kind>;
+    return api;
   };
 
 /**
@@ -253,12 +293,46 @@ function flow<I>(): Flow<I, I, never> {
     steps: () => steps,
   };
 
-  api.map = flowFunction<I>(steps, 'map', 'success', api);
-  api.mapErr = flowFunction<I>(steps, 'mapErr', 'error', api);
-  api.mapBoth = flowFunction<I>(steps, 'mapBoth', 'both', api);
-  api.tap = flowFunction<I>(steps, 'tap', 'sideEffect', api);
+  api.map = flowFunction(steps, 'map', 'success', api);
+  api.mapErr = flowFunction(steps, 'mapErr', 'error', api);
+  api.mapBoth = flowFunction(steps, 'mapBoth', 'both', api);
+
+  // Operators.
+  api.tap = flowFunction(steps, 'tap', 'success', api);
+  api.ifThen = flowFunction(steps, 'ifThen', 'success', api);
+  api.ifThenElse = flowFunction(steps, 'ifThenElse', 'success', api);
+
   return api;
 }
+
+// *********************************************************************************************
+// Flow operators.
+// *********************************************************************************************
+
+/**
+ * The operators of the flow.
+ *
+ * @internal
+ */
+type FlowOperator = 'tap' | 'ifThen' | 'ifThenElse';
+
+/**
+ * Operators that handle different flow behaviors.
+ * Each operator processes the flow result according to its specific logic.
+ *
+ * @internal
+ */
+const operators: Record<FlowOperator, (v: Any, fn: FlowFunction) => Any> = {
+  tap: (v: Any, fn: Any) => {
+    if (isOk(v)) {
+      fn(v.value);
+    }
+
+    return v;
+  },
+  ifThen: (v: Any, fn: Any) => (fn.if(v.value) ? fn.then(v.value) : v),
+  ifThenElse: (v: Any, fn: Any) => (fn.if(v.value) ? fn.then(v.value) : fn.else(v.value)),
+};
 
 export type { Flow };
 export { flow };
