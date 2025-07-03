@@ -6,10 +6,10 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { flow, map } from './flow';
+import { flow } from './flow';
 import type { Any } from './generics';
 import { Panic } from './panic';
-import { type Result, ok } from './result';
+import { type Result } from './result';
 
 /**
  * Panic error for the builder module.
@@ -175,20 +175,19 @@ function builder<
   const handler: ProxyHandler<Any> = {
     get(_, prop: string) {
       if (prop === 'build') {
+        // Processing only the used functions and returning a flow.
         return () => {
           const fns = steps.map(({ key, args }) => {
             const originalFn = functions[key];
             if (!originalFn) {
               throw new BuilderError('CORRUPTED_FUNCTION', `Function '${String(key)}' not found.`);
             }
-
-            const fn =
-              typeof originalFn === 'function' && args.length > 0
-                ? (originalFn as Any)(...args)
-                : originalFn;
-            return map(fn);
+            return typeof originalFn === 'function' && args.length > 0
+              ? (originalFn as Any)(...args)
+              : originalFn;
           });
-          return (flow as Any)((x: Any) => ok(x), ...fns) as Any;
+
+          return fns.reduce((acc, fn) => acc.map(fn as Any), flow<Input>()).build();
         };
       }
 
