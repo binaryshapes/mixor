@@ -32,11 +32,11 @@ type FlowMapping = 'success' | 'error' | 'both';
 type FlowOperator = 'tap' | 'ifThen' | 'ifThenElse' | 'bind' | 'map' | 'mapErr' | 'mapBoth';
 
 /**
- * Standardized the value of the flow. Bassically to ensure the shape of the value in flows with
+ * Standardized the value of the flow. Basically to ensure the shape of the value in flows with
  * {@link bind} operations.
  *
  * @remarks
- * Under the hood, it is a union of the input type and the binded properties.
+ * Under the hood, it is a union of the input type and the bound properties.
  * See {@link MergeUnion} for more information.
  *
  * @internal
