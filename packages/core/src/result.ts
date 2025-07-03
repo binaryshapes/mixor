@@ -139,5 +139,24 @@ function isResult(result: unknown): result is Result<unknown, unknown> {
   return isOk || isErr;
 }
 
+// *********************************************************************************************
+// Result helpers.
+// *********************************************************************************************
+
+/**
+ * Unwraps a result.
+ * If the result is ok, returns the value.
+ * If the result is err, returns the error.
+ *
+ * @remarks
+ * Commonly used for testing purposes.
+ *
+ * @param result - The result to unwrap.
+ * @returns The value of the result if it is ok, otherwise the error.
+ *
+ * @public
+ */
+const unwrap = <T>(result: Result<T, unknown>) => (isOk(result) ? result.value : result.error);
+
 export type { Err, Ok, Result };
-export { err, isErr, isOk, isResult, ok };
+export { err, isErr, isOk, isResult, ok, unwrap };
