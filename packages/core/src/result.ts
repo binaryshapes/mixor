@@ -6,6 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import type { Any } from './generics';
 
 /**
  * Represents a successful result with a value of type T.
@@ -70,13 +71,13 @@ function ok<T>(value: T): Result<T, never> {
 /**
  * Creates a failed result with the given error.
  *
- * @typeParam E - The type of the error, must be a string (recommended to be a string literal).
+ * @typeParam E - The type of the error, must be a string literal or object.
  * @param error - The error to wrap in a failed result.
  * @returns A new Err instance containing the error, typed as `Result<never, E>`.
  *
  * @public
  */
-function err<E extends string>(error: E): Result<never, E> {
+function err<E extends string | Record<string, Any>>(error: E): Result<never, E> {
   return {
     _id: 'Result',
     _tag: 'Err',
