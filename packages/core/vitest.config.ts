@@ -1,92 +1,45 @@
 import { defineVitestConfig } from '@unokit/vitest';
 
+// TODO: move this util to @unokit/vitest.
+
+/**
+ * Defines a project for the test runner.
+ *
+ * @param name - The name of the project.
+ * @param typecheck - Whether to enable type checking.
+ * @returns A project configuration object.
+ */
+function project(name: string, typecheck = true) {
+  return {
+    test: {
+      name,
+      include: [`tests/${name}.spec.ts`],
+      typecheck: typecheck
+        ? {
+            enabled: true,
+            include: [`tests/${name}.spec.ts`],
+            checker: 'tsc',
+          }
+        : undefined,
+    },
+  };
+}
+
 export default defineVitestConfig({
   projects: {
     mode: 'replace',
     config: [
-      {
-        test: {
-          name: 'pipe',
-          include: ['tests/pipe.spec.ts'],
-          typecheck: {
-            enabled: true,
-            include: ['tests/pipe.spec.ts'],
-            checker: 'tsc',
-          },
-        },
-      },
-      {
-        test: {
-          name: 'builder',
-          include: ['tests/builder.spec.ts'],
-          typecheck: {
-            enabled: true,
-            include: ['tests/builder.spec.ts'],
-            checker: 'tsc',
-          },
-        },
-      },
-      {
-        test: {
-          name: 'flow2',
-          include: ['tests/flow2.spec.ts'],
-          typecheck: {
-            enabled: true,
-            include: ['tests/flow2.spec.ts'],
-            checker: 'tsc',
-          },
-        },
-      },
-      {
-        test: {
-          name: 'flow',
-          include: ['tests/flow.spec.ts'],
-          typecheck: {
-            enabled: true,
-            include: ['tests/flow.spec.ts'],
-            checker: 'tsc',
-          },
-        },
-      },
-      {
-        test: {
-          name: 'result',
-          include: ['tests/result.spec.ts'],
-          typecheck: {
-            enabled: true,
-            include: ['tests/result.spec.ts'],
-            checker: 'tsc',
-          },
-        },
-      },
-      {
-        test: {
-          name: 'panic',
-          include: ['tests/panic.spec.ts'],
-          typecheck: {
-            enabled: true,
-            include: ['tests/panic.spec.ts'],
-            checker: 'tsc',
-          },
-        },
-      },
-      {
-        test: {
-          name: 'metadata',
-          include: ['tests/metadata.spec.ts'],
-        },
-      },
-      {
-        test: {
-          name: 'container',
-          include: ['tests/container.spec.ts'],
-          typecheck: {
-            enabled: true,
-            include: ['tests/container.spec.ts'],
-            checker: 'tsc',
-          },
-        },
-      },
+      project('builder'),
+      project('container'),
+      project('doc'),
+      project('flow'),
+      project('hash'),
+      project('metadata'),
+      project('panic'),
+      project('pipe'),
+      project('result'),
+      project('schema'),
+      project('value'),
     ],
   },
 });
