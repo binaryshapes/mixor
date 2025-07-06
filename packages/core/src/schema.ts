@@ -7,6 +7,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import type { Any, Prettify } from './generics';
+import { hash } from './hash';
 import { Panic } from './panic';
 import { type Result, err, isOk, ok } from './result';
 import { type Value, isValue } from './value';
@@ -26,100 +27,106 @@ const SchemaError = Panic<
  * A schema is a record of field names and their corresponding validation functions.
  * @internal
  */
-type Schema = Record<string, Value<Any, Any>>;
+type SchemaFields = Record<string, Value<Any, Any>>;
 
 /**
  * The type of the values of the schema.
- * @typeParam S - The schema.
+ * @typeParam S - The schema fields.
  *
  * @internal
  */
-type SchemaValues<S extends Schema> = Prettify<{
+type SchemaValues<S extends SchemaFields> = Prettify<{
   [K in keyof S]: S[K] extends Value<infer T, Any> ? T : never;
 }>;
 
 /**
  * The type of the errors of the schema.
- * @typeParam S - The schema.
+ * @typeParam S - The schema fields.
  *
  * @internal
  */
-type SchemaErrors<S extends Schema> = Prettify<{
+type SchemaErrors<S extends SchemaFields> = Prettify<{
   [K in keyof S]?: S[K] extends Value<Any, infer E> ? E : never;
 }>;
 
 /**
- * A builder for a schema.
+ * A schema that provides both object validation and individual field validation.
+ * It follows the same pattern as Value, being both a function and an object with properties.
  *
- * @internal
- */
-interface SchemaBuilder<S extends Schema = Schema> {
-  /**
-   * The fields of the schema.
-   *
-   * @public
-   */
-  fields: S;
-
-  /**
-   * Builds a function that validates the entire schema using the fields validation functions.
-   *
-   * @returns A function that validates a value.
-   *
-   * @public
-   */
-  build(): (
-    value: SchemaValues<S>,
-    options?: SchemaOptions,
-  ) => Result<SchemaValues<S>, SchemaErrors<S>>;
-}
-
-/**
- * Infer the type of the values of the schema.
- *
- * This utility type extracts the input types from a schema builder,
- * allowing you to get the expected shape of the data to validate.
- *
- * @typeParam S - The schema builder to infer the type from.
+ * @typeParam S - The schema fields.
  *
  * @example
  * ```ts
- * // Define a schema.
- * const userSchema = schema({
+ * // Basic schema creation and usage.
+ * const user = schema({
  *   name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
  *   age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
  * });
  *
- * // Infer the expected input type.
- * type UserInput = InferSchema<typeof userSchema>;
- * // type UserInput = { name: string; age: number }.
+ * // Validate entire object.
+ * const validUser = user({ name: 'John Doe', age: 30 });
+ * // ok({ name: 'John Doe', age: 30 }).
  *
- * // Use the inferred type.
- * const validateUser = (data: UserInput) => {
- *   const validator = userSchema.build();
- *   return validator(data);
- * };
+ * // Validate individual fields.
+ * const userName = user.name('John Doe'); // ok('John Doe').
+ * const userAge = user.age(30); // ok(30).
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Schema with documentation.
+ * const user = schema(
+ *   'User validation schema with name and age fields',
+ *   {
+ *     name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
+ *     age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
+ *   }
+ * );
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Schema with different validation modes.
+ * const user = schema({
+ *   name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
+ *   email: value((value: string) => value.includes('@') ? ok(value) : err('INVALID_EMAIL')),
+ *   age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
+ * });
+ *
+ * // All mode (default) - collects all errors.
+ * const allErrors = user({ name: '', email: 'invalid', age: -5 });
+ * // err({ name: 'EMPTY_NAME', email: 'INVALID_EMAIL', age: 'INVALID_AGE' }).
+ *
+ * // Strict mode - stops at first error.
+ * const strictError = user({ name: '', email: 'invalid', age: -5 }, { mode: 'strict' });
+ * // err({ name: 'EMPTY_NAME' }).
  * ```
  *
  * @public
  */
-type InferSchema<S extends SchemaBuilder<Any>> = Prettify<{
-  [K in keyof S['fields']]: S['fields'][K] extends Value<infer T, Any> ? T : never;
-}>;
+type Schema<S extends SchemaFields = SchemaFields> = ((
+  value: SchemaValues<S>,
+  options?: SchemaOptions,
+) => Result<SchemaValues<S>, SchemaErrors<S>>) & {
+  readonly _tag: 'Schema';
+  readonly _hash: string;
+  readonly doc?: string;
+} & {
+  [K in keyof S]: S[K] extends Value<infer T, infer E> ? (value: T) => Result<T, E> : never;
+};
 
 /**
- * Options for the schema builder.
+ * Options for the schema validation.
  *
  * @example
  * ```ts
  * // All mode (default) - collects all validation errors.
- * const userSchema = schema({
+ * const user = schema({
  *   name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
  *   email: value((value: string) => value.includes('@') ? ok(value) : err('INVALID_EMAIL')),
  * });
  *
- * const validator = userSchema.build();
- * const result = validator(
+ * const result = user(
  *   { name: '', email: 'invalid' },
  *   { mode: 'all' }
  * );
@@ -129,13 +136,12 @@ type InferSchema<S extends SchemaBuilder<Any>> = Prettify<{
  * @example
  * ```ts
  * // Strict mode - stops at first error for better performance.
- * const userSchema = schema({
+ * const user = schema({
  *   name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
  *   email: value((value: string) => value.includes('@') ? ok(value) : err('INVALID_EMAIL')),
  * });
  *
- * const validator = userSchema.build();
- * const result = validator(
+ * const result = user(
  *   { name: '', email: 'invalid' },
  *   { mode: 'strict' }
  * );
@@ -162,7 +168,7 @@ interface SchemaOptions {
  *
  * @internal
  */
-const getFieldOrThrow = (field: string, schema: Schema) => {
+const getFieldOrThrow = (field: string, schema: SchemaFields) => {
   const fieldFn = schema[field];
   if (!isValue(fieldFn)) {
     throw new SchemaError('FIELD_IS_NOT_VALUE', `Field "${field}" is not a value.`);
@@ -171,141 +177,257 @@ const getFieldOrThrow = (field: string, schema: Schema) => {
 };
 
 /**
- * Creates a builder for a schema.
+ * Interface for the schema function overloads.
  *
- * A schema is a collection of field validators that can validate an entire object
- * at once, providing type-safe validation with support for different error modes.
+ * @public
+ */
+interface SchemaConstructor {
+  /**
+   * Creates a schema that provides both object validation and individual field validation.
+   * It provides a simple interface for object validation with support for different error modes.
+   *
+   * @param fields - The schema object containing field validators.
+   * @returns The schema function with field validators as properties.
+   *
+   * @example
+   * ```ts
+   * // Basic schema creation.
+   * const user = schema({
+   *   name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
+   *   age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
+   * });
+   *
+   * // Validate the entire object.
+   * const validUser = user({ name: 'John Doe', age: 30 });
+   * // ok({ name: 'John Doe', age: 30 }).
+   *
+   * // Validate a single field.
+   * const userName = user.name('John Doe'); // ok('John Doe').
+   * const userAge = user.age(30); // ok(30).
+   * ```
+   *
+   * @example
+   * ```ts
+   * // Schema with error handling.
+   * const user = schema({
+   *   name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
+   *   age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
+   * });
+   *
+   * // Handle validation errors.
+   * const result = user({ name: '', age: -5 });
+   * if (isErr(result)) {
+   *   // Do something with the validation errors.
+   *   // { name: 'EMPTY_NAME', age: 'INVALID_AGE' }.
+   * }
+   * ```
+   *
+   * @example
+   * ```ts
+   * // Schema with TypeScript type inference.
+   * const user = schema({
+   *   name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
+   *   age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
+   * });
+   *
+   * // TypeScript will enforce correct input types.
+   * type UserInput = InferSchema<typeof user>;
+   * // type UserInput = { name: string; age: number }.
+   *
+   * const validateUser = (data: UserInput) => user(data);
+   * ```
+   *
+   * @public
+   */
+  <F extends SchemaFields>(fields: F): Schema<F>;
+
+  /**
+   * Creates a schema that provides both object validation and individual field validation with documentation.
+   * It provides a simple interface for object validation with support for different error modes.
+   *
+   * @param doc - Documentation of the schema being created.
+   * @param fields - The schema object containing field validators.
+   * @returns The schema function with field validators as properties.
+   *
+   * @example
+   * ```ts
+   * // Schema with documentation.
+   * const user = schema(
+   *   'User validation schema with name and age fields',
+   *   {
+   *     name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
+   *     age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
+   *   }
+   * );
+   * ```
+   *
+   * @example
+   * ```ts
+   * // Complex schema with documentation and multiple fields.
+   * const userProfile = schema(
+   *   'Complete user profile validation with comprehensive field validation',
+   *   {
+   *     name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
+   *     email: value((value: string) => value.includes('@') ? ok(value) : err('INVALID_EMAIL')),
+   *     age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
+   *     password: value((value: string) => {
+   *       if (value.length < 8) return err('TOO_SHORT');
+   *       if (!/[A-Z]/.test(value)) return err('NO_UPPERCASE');
+   *       if (!/[a-z]/.test(value)) return err('NO_LOWERCASE');
+   *       if (!/\d/.test(value)) return err('NO_NUMBER');
+   *       return ok(value);
+   *     }),
+   *   }
+   * );
+   *
+   * const result = userProfile({
+   *   name: 'John',
+   *   email: 'john@example.com',
+   *   age: 30,
+   *   password: 'StrongP@ss123'
+   * });
+   * // ok({ name: 'John', email: 'john@example.com', age: 30, password: 'StrongP@ss123' }).
+   * ```
+   *
+   * @public
+   */
+  <F extends SchemaFields>(doc: string, fields: F): Schema<F>;
+}
+
+/**
+ * The default schema options.
  *
- * @param s - The schema object containing field validators.
- * @returns The schema builder.
+ * @internal
+ */
+const DEFAULT_SCHEMA_OPTIONS: SchemaOptions = { mode: 'all' };
+
+/**
+ * Creates a schema from a set of fields with optional documentation string.
+ *
+ * @param args - The arguments to create the schema.
+ * @returns The schema.
+ *
+ * @public
+ */
+const schema: SchemaConstructor = <F extends SchemaFields>(...args: Any): Schema<F> => {
+  const doc = typeof args[0] === 'string' ? args[0] : undefined;
+  const fields = typeof args[0] === 'string' ? args[1] : args[0];
+
+  // Create the main schema validation function.
+  const schemaValidator = (
+    value: SchemaValues<F>,
+    options: SchemaOptions = DEFAULT_SCHEMA_OPTIONS,
+  ) => {
+    const { mode } = options;
+
+    if (mode === 'strict') {
+      // Stop at first error mode - more performant for early validation.
+      const result: Record<string, Any> = {};
+
+      for (const fieldName of Object.keys(fields)) {
+        const fieldFn = getFieldOrThrow(fieldName, fields);
+        const fieldResult = fieldFn(value[fieldName as keyof typeof value]);
+
+        if (isOk(fieldResult)) {
+          result[fieldName] = fieldResult.value;
+        } else {
+          // In strict mode, return immediately on first error.
+          return err({ [fieldName]: fieldResult.error } as SchemaErrors<F>);
+        }
+      }
+
+      return ok(result as SchemaValues<F>);
+    } else {
+      // All errors mode - collect all errors.
+      const { result, errors, hasErrors } = Object.keys(fields).reduce(
+        (acc, fieldName) => {
+          const fieldFn = getFieldOrThrow(fieldName, fields);
+          const fieldResult = fieldFn(value[fieldName as keyof typeof value]);
+
+          if (isOk(fieldResult)) {
+            acc.result[fieldName] = fieldResult.value;
+          } else {
+            acc.errors[fieldName] = fieldResult.error;
+            acc.hasErrors = true;
+          }
+
+          return acc;
+        },
+        {
+          result: {} as Record<string, Any>,
+          errors: {} as Record<string, Any>,
+          hasErrors: false,
+        },
+      );
+
+      return hasErrors ? err(errors as SchemaErrors<F>) : ok(result as SchemaValues<F>);
+    }
+  };
+
+  // Create a wrapper function that avoids conflicts with reserved properties.
+  const schemaWrapper = function (value: SchemaValues<F>, options?: SchemaOptions) {
+    return schemaValidator(value, options);
+  };
+
+  // Add properties to the wrapper function.
+  Object.defineProperties(schemaWrapper, {
+    _tag: { value: 'Schema', writable: false, enumerable: true },
+    _hash: { value: hash('schema', fields), writable: false, enumerable: true },
+    doc: { value: doc, writable: false, enumerable: true },
+  });
+
+  // Add field functions as properties.
+  for (const [fieldName, fieldFn] of Object.entries(fields)) {
+    Object.defineProperty(schemaWrapper, fieldName, {
+      value: fieldFn,
+      writable: false,
+      enumerable: true,
+    });
+  }
+
+  return schemaWrapper as Schema<F>;
+};
+
+/**
+ * Infer the type of the values of the schema.
+ *
+ * This utility type extracts the input types from a schema,
+ * allowing you to get the expected shape of the data to validate.
+ *
+ * @typeParam S - The schema to infer the type from.
  *
  * @example
  * ```ts
- * // Basic user schema with string and number validation.
- * const userSchema = schema({
+ * // Basic type inference.
+ * const user = schema({
  *   name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
  *   age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
  * });
  *
- * const validator = userSchema.build();
- *
- * // Valid data.
- * const validResult = validator({ name: 'John', age: 30 });
- * // ok({ name: 'John', age: 30 }).
- *
- * // Invalid data - all mode (default).
- * const invalidResult = validator({ name: '', age: -5 });
- * // err({ name: 'EMPTY_NAME', age: 'INVALID_AGE' }).
+ * type UserInput = InferSchema<typeof user>;
+ * // type UserInput = { name: string; age: number }.
  * ```
  *
  * @example
  * ```ts
- * // Schema with different validation modes.
- * const userSchema = schema({
+ * // Type inference with complex schema.
+ * const userProfile = schema({
  *   name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
  *   email: value((value: string) => value.includes('@') ? ok(value) : err('INVALID_EMAIL')),
  *   age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
+ *   isActive: value((value: boolean) => ok(value)),
  * });
  *
- * const validator = userSchema.build();
+ * type UserProfileInput = InferSchema<typeof userProfile>;
+ * // type UserProfileInput = { name: string; email: string; age: number; isActive: boolean }.
  *
- * // Strict mode - stops at first error.
- * const strictResult = validator(
- *   { name: '', email: 'invalid', age: -5 },
- *   { mode: 'strict' }
- * );
- * // err({ name: 'EMPTY_NAME' }) - stops at first error.
- *
- * // All mode - collects all errors.
- * const allResult = validator(
- *   { name: '', email: 'invalid', age: -5 },
- *   { mode: 'all' }
- * );
- * // err({ name: 'EMPTY_NAME', email: 'INVALID_EMAIL', age: 'INVALID_AGE' }).
- * ```
- *
- * @example
- * ```ts
- * // Schema with complex validation functions.
- * const passwordSchema = schema({
- *   password: value((value: string) => {
- *     if (value.length < 8) return err('TOO_SHORT');
- *     if (!/[A-Z]/.test(value)) return err('NO_UPPERCASE');
- *     if (!/[a-z]/.test(value)) return err('NO_LOWERCASE');
- *     if (!/\d/.test(value)) return err('NO_NUMBER');
- *     return ok(value);
- *   }),
- *   confirmPassword: value((value: string) => {
- *     // This would need access to the original password field.
- *     // For now, just basic validation.
- *     return value.length > 0 ? ok(value) : err('EMPTY_CONFIRMATION');
- *   }),
- * });
- *
- * const validator = passwordSchema.build();
- *
- * const result = validator({
- *   password: 'weak',
- *   confirmPassword: '',
- * });
- * // err({ password: 'TOO_SHORT', confirmPassword: 'EMPTY_CONFIRMATION' }).
+ * // Use the inferred type for type-safe validation.
+ * const validateUserProfile = (data: UserProfileInput) => userProfile(data);
  * ```
  *
  * @public
  */
-function schema<S extends Schema>(s: S): SchemaBuilder<S> {
-  return {
-    fields: s,
-    build() {
-      return (value: SchemaValues<S>, options: SchemaOptions = { mode: 'all' }) => {
-        const { mode } = options;
+type InferSchema<S> = S extends Schema<infer F> ? SchemaValues<F> : never;
 
-        if (mode === 'strict') {
-          // Stop at first error mode - more performant for early validation.
-          const result: Record<string, Any> = {};
-
-          for (const fieldName of Object.keys(this.fields)) {
-            const fieldFn = getFieldOrThrow(fieldName, this.fields);
-            const fieldResult = fieldFn(value[fieldName as keyof typeof value]);
-
-            if (isOk(fieldResult)) {
-              result[fieldName] = fieldResult.value;
-            } else {
-              // In strict mode, return immediately on first error.
-              return err({ [fieldName]: fieldResult.error } as SchemaErrors<S>);
-            }
-          }
-
-          return ok(result as SchemaValues<S>);
-        } else {
-          // All errors mode - collect all errors.
-          const { result, errors, hasErrors } = Object.keys(this.fields).reduce(
-            (acc, fieldName) => {
-              const fieldFn = getFieldOrThrow(fieldName, this.fields);
-              const fieldResult = fieldFn(value[fieldName as keyof typeof value]);
-
-              if (isOk(fieldResult)) {
-                acc.result[fieldName] = fieldResult.value;
-              } else {
-                acc.errors[fieldName] = fieldResult.error;
-                acc.hasErrors = true;
-              }
-
-              return acc;
-            },
-            {
-              result: {} as Record<string, Any>,
-              errors: {} as Record<string, Any>,
-              hasErrors: false,
-            },
-          );
-
-          return hasErrors ? err(errors as SchemaErrors<S>) : ok(result as SchemaValues<S>);
-        }
-      };
-    },
-  };
-}
-
-export type { InferSchema };
+export type { InferSchema, Schema };
 export { schema, SchemaError };
