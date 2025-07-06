@@ -9,6 +9,7 @@
 import crypto from 'node:crypto';
 
 import type { Any, Prettify } from './generics';
+import { hash } from './hash';
 import { Panic } from './panic';
 
 /**
@@ -284,22 +285,6 @@ function parseRequires(factory: unknown): string[] {
 }
 
 /**
- * Creates a hash for deduplication.
- * @param args - The arguments to create the hash from.
- * @returns A hash.
- *
- * @internal
- */
-function createHash(...args: unknown[]): string {
-  const safeArgs = args.map((arg) => {
-    if (typeof arg === 'string') return arg;
-    if (Array.isArray(arg)) return arg.join(',');
-    return JSON.stringify(arg);
-  });
-  return crypto.createHash('sha256').update(safeArgs.join('')).digest('hex').slice(0, 8);
-}
-
-/**
  * Creates a container hash for pooling.
  * @param services - The services that the container provides.
  * @param bindings - The bindings adapters for the container ports.
@@ -320,7 +305,7 @@ function createContainerHash(
     .filter((hash) => !hash.endsWith(':'))
     .sort();
 
-  return createHash(serviceHashes, bindingHashes);
+  return hash(serviceHashes, bindingHashes);
 }
 
 /**
@@ -445,12 +430,12 @@ function resolveDependencies(
  */
 function port<T = Any>(): Port<T> {
   const id = crypto.randomUUID();
-  const hash = createHash(id);
+  const portHash = hash(id);
 
   return {
     _tag: 'Port',
     _type: {} as T,
-    _hash: hash,
+    _hash: portHash,
     id: Symbol(id),
   };
 }
@@ -466,10 +451,10 @@ function port<T = Any>(): Port<T> {
  * @public
  */
 function adapter<T extends Port<Any>>(factory: () => PortType<T>): Adapter<PortType<T>> {
-  const hash = createHash(factory.toString());
+  const adapterHash = hash(factory.toString());
 
   // Check if we already have a similar adapter.
-  const existingAdapter = globalAdapterRegistry.get(hash);
+  const existingAdapter = globalAdapterRegistry.get(adapterHash);
 
   if (existingAdapter && existingAdapter.factory.toString() === factory.toString()) {
     return existingAdapter as Adapter<PortType<T>>;
@@ -478,13 +463,13 @@ function adapter<T extends Port<Any>>(factory: () => PortType<T>): Adapter<PortT
   const newAdapter: Adapter<PortType<T>> = {
     _tag: 'Adapter',
     _type: {} as PortType<T>,
-    _hash: hash,
+    _hash: adapterHash,
     id: Symbol(crypto.randomUUID()),
     factory,
     portDeps: [],
   };
 
-  globalAdapterRegistry.set(hash, newAdapter);
+  globalAdapterRegistry.set(adapterHash, newAdapter);
   return newAdapter;
 }
 
@@ -508,12 +493,12 @@ const service: ServiceConstructor = <T>(
     // First overload: service(ports, factory).
     const ports = portsOrServices as Record<string, Port<Any>>;
     const factoryFn = servicesOrFactory as (deps: Any) => T;
-    const hash = createHash(factoryFn.toString(), Object.keys(ports).sort());
+    const serviceHash = hash(factoryFn.toString(), Object.keys(ports).sort());
 
     return {
       _tag: 'Service',
       _type: {} as T,
-      _hash: hash,
+      _hash: serviceHash,
       id: Symbol(crypto.randomUUID()),
       factory: factoryFn,
       requires: parseRequires(factoryFn),
@@ -525,7 +510,7 @@ const service: ServiceConstructor = <T>(
     const ports = portsOrServices as Record<string, Port<Any>>;
     const services = servicesOrFactory as Record<string, Service<Any, Any>>;
     const factoryFn = factory as (deps: Any) => T;
-    const hash = createHash(
+    const serviceHash = hash(
       factoryFn.toString(),
       Object.keys(ports).sort(),
       Object.keys(services).sort(),
@@ -534,7 +519,7 @@ const service: ServiceConstructor = <T>(
     return {
       _tag: 'Service',
       _type: {} as T,
-      _hash: hash,
+      _hash: serviceHash,
       id: Symbol(crypto.randomUUID()),
       factory: factoryFn,
       requires: parseRequires(factoryFn),
