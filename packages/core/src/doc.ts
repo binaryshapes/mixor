@@ -62,10 +62,7 @@ function doc(strings: TemplateStringsArray, ...values: unknown[]): string {
 
   // Remove the minimum indentation from each line.
   if (minIndent && minIndent > 0) {
-    lines = lines.map((line) => {
-      if (line.trim() === '') return '';
-      return line.slice(minIndent);
-    });
+    lines = lines.map((line) => (line.trim() === '' ? '' : line.slice(minIndent)));
   }
 
   return lines.join('\n');
