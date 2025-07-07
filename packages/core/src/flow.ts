@@ -557,13 +557,13 @@ const flowFunction =
  *
  * // Async flow with bind
  * const asyncFlow = flow<{ name: string; age: number }>()
- *   .bind('isAdult', async (user) => ok(user.age >= 18))
  *   .bind('greeting', async (user) => ok(`Hello ${user.name}!`))
+ *   .bind('status', async (user) => ok(user.age >= 18 ? 'adult' : 'minor'))
  *   .map((user) => ok({ ...user, processed: true }))
  *   .build();
  *
  * const asyncResult = await asyncFlow({ name: 'Alice', age: 25 });
- * // Result<{ name: string; age: number; isAdult: boolean; greeting: string; processed: boolean }, never>
+ * // Result<{ name: string; age: number; greeting: string; status: string; processed: boolean }, never>
  *
  * // Flow with conditional logic
  * const conditionalFlow = flow<{ value: number }>()
@@ -583,6 +583,20 @@ const flowFunction =
  *   .map((data) => data.id === 'invalid' ? err('INVALID_ID') : ok(data))
  *   .mapErr((error) => ok({ error, timestamp: Date.now() }))
  *   .build();
+ *
+ * // Parallel execution of multiple flows
+ * const parallelFlow = flow.parallel(
+ *   flow<{ name: string }>().map((user) => ok(user.name.toUpperCase())),
+ *   flow<{ age: number }>().map((user) => ok(user.age * 2)),
+ *   flow<{ city: string }>().map((user) => ok(user.city.toLowerCase()))
+ * );
+ *
+ * const parallelResult = await parallelFlow([
+ *   { name: 'Alice' },
+ *   { age: 25 },
+ *   { city: 'New York' }
+ * ]);
+ * // [Result<string, never>, Result<number, never>, Result<string, never>]
  * ```
  *
  * @public
@@ -706,6 +720,154 @@ const operators: Record<
   ifThenElse,
   bind,
 };
+
+// *********************************************************************************************
+// Flow constructors.
+// *********************************************************************************************
+
+/**
+ * Flow array type.
+ *
+ * @internal
+ */
+type FlowArray = readonly Flow<Any, Any, Any, Any>[];
+
+/**
+ * Check if any flow in a tuple is async.
+ *
+ * @internal
+ */
+type HasAsyncFlow<T extends FlowArray> = T extends readonly [infer First, ...infer Rest]
+  ? First extends Flow<Any, Any, Any, infer A>
+    ? A extends 'async'
+      ? true
+      : Rest extends readonly Flow<Any, Any, Any, Any>[]
+        ? HasAsyncFlow<Rest>
+        : false
+    : Rest extends readonly Flow<Any, Any, Any, Any>[]
+      ? HasAsyncFlow<Rest>
+      : false
+  : false;
+
+/**
+ * Parallel flow type.
+ *
+ * @internal
+ */
+type ParallelFlow<T extends FlowArray> = (inputs: {
+  [K in keyof T]: T[K] extends Flow<infer I, Any, Any, Any> ? I : never;
+}) => HasAsyncFlow<T> extends true
+  ? Promise<{
+      [K in keyof T]: T[K] extends Flow<Any, infer O, infer E, Any> ? Result<O, E> : never;
+    }>
+  : {
+      [K in keyof T]: T[K] extends Flow<Any, infer O, infer E, Any> ? Result<O, E> : never;
+    };
+
+/**
+ * Executes multiple flows in parallel.
+ * Each flow receives its own input and executes independently.
+ * Returns an array of Results, one for each flow.
+ *
+ * ## Behavior
+ *
+ * - **Parallel execution**: All flows execute simultaneously, not waiting for each other.
+ * - **Independent inputs**: Each flow receives its own input value from the input array.
+ * - **Array output**: Returns an array of Results, maintaining the order of input flows.
+ * - **Async handling**: If any flow is async, the entire operation becomes async and returns a Promise.
+ * - **Error isolation**: Each flow's errors are contained within its own Result, not affecting other flows.
+ *
+ * ## Type Safety
+ *
+ * - Preserves the exact types of each flow's output and error types.
+ * - Returns a tuple type matching the input flows' types.
+ * - Handles both sync and async flows seamlessly.
+ * - Automatically infers Promise return type when any flow is async.
+ *
+ * ## Use Cases
+ *
+ * - **Data validation**: Validate multiple fields independently.
+ * - **API calls**: Make multiple API requests simultaneously.
+ * - **File operations**: Read/write multiple files in parallel.
+ * - **Database queries**: Execute multiple queries concurrently.
+ *
+ * @typeParam Flows - Tuple of flows to execute in parallel.
+ * @param flows - Array of flows to execute in parallel.
+ * @returns A function that takes an array of inputs and returns an array of Results.
+ *
+ * @example
+ * ```ts
+ * // Parallel execution of sync flows
+ * const parallelFlow = flow.parallel(
+ *   flow<{ name: string }>().map((user) => ok(user.name.toUpperCase())),
+ *   flow<{ age: number }>().map((user) => ok(user.age * 2)),
+ *   flow<{ city: string }>().map((user) => ok(user.city.toLowerCase()))
+ * );
+ *
+ * const result = parallelFlow([
+ *   { name: 'Alice' },
+ *   { age: 25 },
+ *   { city: 'New York' }
+ * ]);
+ * // [Result<string, never>, Result<number, never>, Result<string, never>]
+ * // Result: [ok('ALICE'), ok(50), ok('new york')]
+ *
+ * // Parallel execution with async flows
+ * const asyncParallelFlow = flow.parallel(
+ *   flow<{ id: string }>().map(async (user) => {
+ *     await sleep(10);
+ *     return ok(`user_${user.id}`);
+ *   }),
+ *   flow<{ email: string }>().map(async (user) => {
+ *     await sleep(10);
+ *     return ok(user.email.toUpperCase());
+ *   })
+ * );
+ *
+ * const asyncResult = await asyncParallelFlow([
+ *   { id: '123' },
+ *   { email: 'test@example.com' }
+ * ]);
+ * // [Result<string, never>, Result<string, never>]
+ *
+ * // Mixed sync and async flows
+ * const mixedFlow = flow.parallel(
+ *   flow<{ name: string }>().map((user) => ok(user.name.length)),
+ *   flow<{ id: string }>().map(async (user) => {
+ *     await sleep(10);
+ *     return ok(`id_${user.id}`);
+ *   })
+ * );
+ *
+ * const mixedResult = await mixedFlow([
+ *   { name: 'Alice' },
+ *   { id: '123' }
+ * ]);
+ * // Promise<[Result<number, never>, Result<string, never>]>
+ *
+ * // Error handling in parallel flows
+ * const errorFlow = flow.parallel(
+ *   flow<{ value: number }>().map((data) => data.value > 0 ? ok(data.value) : err('NEGATIVE')),
+ *   flow<{ name: string }>().map((data) => data.name.length > 0 ? ok(data.name) : err('EMPTY_NAME'))
+ * );
+ *
+ * const errorResult = errorFlow([
+ *   { value: -5 },
+ *   { name: '' }
+ * ]);
+ * // [Result<number, "NEGATIVE">, Result<string, "EMPTY_NAME">]
+ * // Result: [err('NEGATIVE'), err('EMPTY_NAME')]
+ * ```
+ *
+ * @public
+ */
+flow.parallel = <T extends FlowArray>(...flows: T) =>
+  ((inputs: FlowArray) => {
+    const results = flows.map((flow, index) => flow.build()(inputs[index]));
+    return flows.some((flow) => flow.steps().some((step) => step.kind === 'async'))
+      ? Promise.all(results)
+      : results;
+  }) as ParallelFlow<T>;
 
 export type { Flow };
 export { flow };

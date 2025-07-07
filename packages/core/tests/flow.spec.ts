@@ -1,7 +1,9 @@
+import { setTimeout as sleep } from 'timers/promises';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { type Flow, flow } from '../src/flow';
-import { err, ok, unwrap } from '../src/result';
+import type { Any } from '../src/generics';
+import { type Result, err, ok, unwrap } from '../src/result';
 
 // import { fixtures } from './flow.fixture';
 
@@ -1028,6 +1030,426 @@ describe('Flow', () => {
       expectTypeOf(fl).toEqualTypeOf<ExpectedFlowType['fl']>();
       expectTypeOf(fn).toEqualTypeOf<ExpectedFlowType['fn']>();
       expectTypeOf(r).toEqualTypeOf<ExpectedFlowType['r']>();
+    });
+  });
+
+  describe('Parallel', () => {
+    describe('Basic functionality', () => {
+      it('should execute multiple sync flows in parallel', () => {
+        const flow1 = flow<{ name: string }>().map((user) => ok(user.name.toUpperCase()));
+        const flow2 = flow<{ age: number }>().map((user) => ok(user.age * 2));
+        const flow3 = flow<{ city: string }>().map((user) => ok(user.city.toLowerCase()));
+
+        const parallelFlow = flow.parallel(flow1, flow2, flow3);
+        const result = parallelFlow([
+          { name: 'Alice' },
+          { age: 25 },
+          { city: 'New York' },
+        ]);
+
+        expect(unwrap(result[0])).toEqual('ALICE');
+        expect(unwrap(result[1])).toEqual(50);
+        expect(unwrap(result[2])).toEqual('new york');
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(parallelFlow)
+          .parameter(0)
+          .toEqualTypeOf<[{ name: string }, { age: number }, { city: string }]>();
+        expectTypeOf(parallelFlow).returns.toEqualTypeOf<
+          [Result<string, never>, Result<number, never>, Result<string, never>]
+        >();
+        expectTypeOf(result).toEqualTypeOf<
+          [Result<string, never>, Result<number, never>, Result<string, never>]
+        >();
+      });
+
+      it('should execute multiple async flows in parallel', async () => {
+        const flow1 = flow<{ id: string }>().map(async (user) => {
+          await sleep(10);
+          return ok(`user_${user.id}`);
+        });
+        const flow2 = flow<{ email: string }>().map(async (user) => {
+          await sleep(10);
+          return ok(user.email.toUpperCase());
+        });
+
+        const parallelFlow = flow.parallel(flow1, flow2);
+        const result = await parallelFlow([
+          { id: '123' },
+          { email: 'test@example.com' },
+        ]);
+
+        expect(unwrap(result[0])).toEqual('user_123');
+        expect(unwrap(result[1])).toEqual('TEST@EXAMPLE.COM');
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(parallelFlow)
+          .parameter(0)
+          .toEqualTypeOf<[{ id: string }, { email: string }]>();
+        expectTypeOf(parallelFlow).returns.toEqualTypeOf<
+          Promise<[Result<string, never>, Result<string, never>]>
+        >();
+        expectTypeOf(result).toEqualTypeOf<[Result<string, never>, Result<string, never>]>();
+      });
+
+      it('should execute mixed sync and async flows in parallel', async () => {
+        const syncFlow = flow<{ name: string }>().map((user) => ok(user.name.length));
+        const asyncFlow = flow<{ id: string }>().map(async (user) => {
+          await sleep(10);
+          return ok(`id_${user.id}`);
+        });
+
+        const parallelFlow = flow.parallel(syncFlow, asyncFlow);
+        const result = await parallelFlow([
+          { name: 'Alice' },
+          { id: '456' },
+        ]);
+
+        expect(unwrap(result[0])).toEqual(5);
+        expect(unwrap(result[1])).toEqual('id_456');
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(result).toEqualTypeOf<[Result<number, never>, Result<string, never>]>();
+      });
+
+      it('should handle empty flows array', () => {
+        const parallelFlow = flow.parallel();
+        const result = parallelFlow([]);
+
+        expect(result).toEqual([]);
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+      });
+
+      it('should handle single flow', () => {
+        const singleFlow = flow<{ value: number }>().map((data) => ok(data.value * 2));
+        const parallelFlow = flow.parallel(singleFlow);
+        const result = parallelFlow([{ value: 5 }]);
+
+        expect(unwrap(result[0])).toEqual(10);
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+      });
+    });
+
+    describe('Error handling', () => {
+      it('should handle errors in sync flows independently', () => {
+        const flow1 = flow<{ value: number }>().map((data) =>
+          data.value > 0 ? ok(data.value) : err('NEGATIVE_VALUE'),
+        );
+        const flow2 = flow<{ name: string }>().map((data) =>
+          data.name.length > 0 ? ok(data.name) : err('EMPTY_NAME'),
+        );
+
+        const parallelFlow = flow.parallel(flow1, flow2);
+        const result = parallelFlow([
+          { value: -5 },
+          { name: '' },
+        ]);
+
+        expect(unwrap(result[0])).toEqual('NEGATIVE_VALUE');
+        expect(unwrap(result[1])).toEqual('EMPTY_NAME');
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(result).toEqualTypeOf<
+          [Result<number, 'NEGATIVE_VALUE'>, Result<string, 'EMPTY_NAME'>]
+        >();
+      });
+
+      it('should handle errors in async flows independently', async () => {
+        const flow1 = flow<{ id: string }>().map(async (data) => {
+          await sleep(10);
+          return data.id === 'valid' ? ok('VALID_ID') : err('INVALID_ID');
+        });
+        const flow2 = flow<{ email: string }>().map(async (data) => {
+          await sleep(10);
+          return data.email.includes('@') ? ok('VALID_EMAIL') : err('INVALID_EMAIL');
+        });
+
+        const parallelFlow = flow.parallel(flow1, flow2);
+        const result = await parallelFlow([
+          { id: 'invalid' },
+          { email: 'invalid-email' },
+        ]);
+
+        expect(unwrap(result[0])).toEqual('INVALID_ID');
+        expect(unwrap(result[1])).toEqual('INVALID_EMAIL');
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(result).toEqualTypeOf<
+          [Result<string, 'INVALID_ID'>, Result<string, 'INVALID_EMAIL'>]
+        >();
+      });
+
+      it('should handle mixed success and error results', () => {
+        const successFlow = flow<{ name: string }>().map((data) => ok(data.name.toUpperCase()));
+        const errorFlow = flow<{ value: number }>().map((data) =>
+          data.value > 0 ? ok(data.value) : err('NEGATIVE_VALUE'),
+        );
+
+        const parallelFlow = flow.parallel(successFlow, errorFlow);
+        const result = parallelFlow([
+          { name: 'Alice' },
+          { value: -5 },
+        ]);
+
+        expect(unwrap(result[0])).toEqual('ALICE');
+        expect(unwrap(result[1])).toEqual('NEGATIVE_VALUE');
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(result).toEqualTypeOf<
+          [Result<string, never>, Result<number, 'NEGATIVE_VALUE'>]
+        >();
+      });
+    });
+
+    describe('Type inference', () => {
+      it('should infer sync return type for all sync flows', () => {
+        const flow1 = flow<{ a: number }>().map((data) => ok(data.a + 1));
+        const flow2 = flow<{ b: string }>().map((data) => ok(data.b.length));
+
+        const parallelFlow = flow.parallel(flow1, flow2);
+
+        // Typechecking - should be sync (no Promise).
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(parallelFlow).parameter(0).toEqualTypeOf<[{ a: number }, { b: string }]>();
+        expectTypeOf(parallelFlow).returns.not.toEqualTypeOf<Promise<Any>>();
+        expectTypeOf(parallelFlow).returns.toEqualTypeOf<
+          [Result<number, never>, Result<number, never>]
+        >();
+      });
+
+      it('should infer async return type when any flow is async', () => {
+        const syncFlow = flow<{ a: number }>().map((data) => ok(data.a + 1));
+        const asyncFlow = flow<{ b: string }>().map(async (data) => {
+          await sleep(10);
+          return ok(data.b.length);
+        });
+
+        const parallelFlow = flow.parallel(syncFlow, asyncFlow);
+
+        // Typechecking - should be async (Promise).
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(parallelFlow).parameter(0).toEqualTypeOf<[{ a: number }, { b: string }]>();
+        expectTypeOf(parallelFlow).returns.toEqualTypeOf<
+          Promise<[Result<number, never>, Result<number, never>]>
+        >();
+      });
+
+      it('should preserve exact error types from each flow', () => {
+        const flow1 = flow<{ value: number }>().map((data) =>
+          data.value > 0 ? ok(data.value) : err('NEGATIVE' as const),
+        );
+        const flow2 = flow<{ name: string }>().map((data) =>
+          data.name.length > 0 ? ok(data.name) : err('EMPTY' as const),
+        );
+
+        const parallelFlow = flow.parallel(flow1, flow2);
+
+        // Typechecking - should preserve exact error types.
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(parallelFlow).returns.toEqualTypeOf<
+          [Result<number, 'NEGATIVE'>, Result<string, 'EMPTY'>]
+        >();
+      });
+    });
+
+    describe('Complex scenarios', () => {
+      it('should handle flows with multiple steps', () => {
+        const complexFlow1 = flow<{ user: { name: string; age: number } }>()
+          .map((data) => ok(data.user))
+          .bind('isAdult', (user) => ok(user.age >= 18))
+          .map((user) => ok({ ...user, greeting: `Hello ${user.name}!` }));
+
+        const complexFlow2 = flow<{ numbers: number[] }>()
+          .map((data) => ok(data.numbers))
+          .map((numbers) => ok(numbers.reduce((sum, n) => sum + n, 0)));
+
+        const parallelFlow = flow.parallel(complexFlow1, complexFlow2);
+        const result = parallelFlow([
+          { user: { name: 'Alice', age: 25 } },
+          { numbers: [1, 2, 3, 4, 5] },
+        ]);
+
+        expect(unwrap(result[0])).toEqual({
+          name: 'Alice',
+          age: 25,
+          isAdult: true,
+          greeting: 'Hello Alice!',
+        });
+        expect(unwrap(result[1])).toEqual(15);
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+      });
+
+      it('should handle flows with conditional logic', () => {
+        const conditionalFlow1 = flow<{ value: number }>()
+          .ifThen({
+            if: (data) => data.value > 10,
+            then: (data) => ok({ ...data, status: 'high' }),
+          })
+          .ifThenElse({
+            if: (data) => data.value > 20,
+            then: (data) => ok({ ...data, priority: 'critical' }),
+            else: (data) => ok({ ...data, priority: 'normal' }),
+          });
+
+        const conditionalFlow2 = flow<{ name: string }>().ifThen({
+          if: (data) => data.name.length > 5,
+          then: () => err('NAME_TOO_LONG'),
+        });
+
+        const parallelFlow = flow.parallel(conditionalFlow1, conditionalFlow2);
+        const result = parallelFlow([
+          { value: 25 },
+          { name: 'VeryLongName' },
+        ]);
+
+        expect(unwrap(result[0])).toEqual({
+          value: 25,
+          status: 'high',
+          priority: 'critical',
+        });
+        expect(unwrap(result[1])).toEqual('NAME_TOO_LONG');
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+      });
+
+      it('should handle flows with tap operations', () => {
+        const tapSpy1 = vi.fn();
+        const tapSpy2 = vi.fn();
+
+        const flow1 = flow<{ name: string }>()
+          .tap((data) => tapSpy1(data.name))
+          .map((data) => ok(data.name.toUpperCase()));
+
+        const flow2 = flow<{ age: number }>()
+          .tap((data) => tapSpy2(data.age))
+          .map((data) => ok(data.age * 2));
+
+        const parallelFlow = flow.parallel(flow1, flow2);
+        const result = parallelFlow([
+          { name: 'Alice' },
+          { age: 25 },
+        ]);
+
+        expect(unwrap(result[0])).toEqual('ALICE');
+        expect(unwrap(result[1])).toEqual(50);
+        expect(tapSpy1).toHaveBeenCalledWith('Alice');
+        expect(tapSpy2).toHaveBeenCalledWith(25);
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(result).toEqualTypeOf<[Result<string, never>, Result<number, never>]>();
+      });
+    });
+
+    describe('Code examples', () => {
+      it('should handle basic usage example from documentation', () => {
+        const parallelFlow = flow.parallel(
+          flow<{ name: string }>().map((user) => ok(user.name.toUpperCase())),
+          flow<{ age: number }>().map((user) => ok(user.age * 2)),
+          flow<{ city: string }>().map((user) => ok(user.city.toLowerCase())),
+        );
+
+        const result = parallelFlow([
+          { name: 'Alice' },
+          { age: 25 },
+          { city: 'New York' },
+        ]);
+
+        expect(unwrap(result[0])).toEqual('ALICE');
+        expect(unwrap(result[1])).toEqual(50);
+        expect(unwrap(result[2])).toEqual('new york');
+
+        // Typechecking.
+        expectTypeOf(parallelFlow).toBeFunction();
+        expectTypeOf(result).toEqualTypeOf<
+          [Result<string, never>, Result<number, never>, Result<string, never>]
+        >();
+      });
+
+      it('should handle async usage example from documentation', async () => {
+        const asyncParallelFlow = flow.parallel(
+          flow<{ id: string }>().map(async (user) => {
+            await sleep(10);
+            return ok(`user_${user.id}`);
+          }),
+          flow<{ email: string }>().map(async (user) => {
+            await sleep(10);
+            return ok(user.email.toUpperCase());
+          }),
+        );
+
+        const asyncResult = await asyncParallelFlow([
+          { id: '123' },
+          { email: 'test@example.com' },
+        ]);
+
+        expect(unwrap(asyncResult[0])).toEqual('user_123');
+        expect(unwrap(asyncResult[1])).toEqual('TEST@EXAMPLE.COM');
+
+        // Typechecking.
+        expectTypeOf(asyncParallelFlow).toBeFunction();
+        expectTypeOf(asyncResult).toEqualTypeOf<[Result<string, never>, Result<string, never>]>();
+      });
+
+      it('should handle mixed usage example from documentation', async () => {
+        const mixedFlow = flow.parallel(
+          flow<{ name: string }>().map((user) => ok(user.name.length)),
+          flow<{ id: string }>().map(async (user) => {
+            await sleep(10);
+            return ok(`id_${user.id}`);
+          }),
+        );
+
+        const mixedResult = await mixedFlow([
+          { name: 'Alice' },
+          { id: '123' },
+        ]);
+
+        expect(unwrap(mixedResult[0])).toEqual(5);
+        expect(unwrap(mixedResult[1])).toEqual('id_123');
+
+        // Typechecking.
+        expectTypeOf(mixedFlow).toBeFunction();
+        expectTypeOf(mixedResult).toEqualTypeOf<[Result<number, never>, Result<string, never>]>();
+      });
+
+      it('should handle error handling example from documentation', () => {
+        const errorFlow = flow.parallel(
+          flow<{ value: number }>().map((data) =>
+            data.value > 0 ? ok(data.value) : err('NEGATIVE'),
+          ),
+          flow<{ name: string }>().map((data) =>
+            data.name.length > 0 ? ok(data.name) : err('EMPTY_NAME'),
+          ),
+        );
+
+        const errorResult = errorFlow([
+          { value: -5 },
+          { name: '' },
+        ]);
+
+        expect(unwrap(errorResult[0])).toEqual('NEGATIVE');
+        expect(unwrap(errorResult[1])).toEqual('EMPTY_NAME');
+
+        // Typechecking.
+        expectTypeOf(errorFlow).toBeFunction();
+        expectTypeOf(errorResult).toEqualTypeOf<
+          [Result<number, 'NEGATIVE'>, Result<string, 'EMPTY_NAME'>]
+        >();
+      });
     });
   });
 });
