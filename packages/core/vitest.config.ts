@@ -32,6 +32,7 @@ export default defineVitestConfig({
       project('builder'),
       project('container'),
       project('doc'),
+      project('event'),
       project('flow'),
       project('hash'),
       project('metadata'),
