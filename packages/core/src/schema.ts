@@ -35,9 +35,9 @@ type SchemaFields = Record<string, Value<Any, Any>>;
  *
  * @internal
  */
-type SchemaValues<S extends SchemaFields> = Prettify<{
+type SchemaValues<S extends SchemaFields> = {
   [K in keyof S]: S[K] extends Value<infer T, Any> ? T : never;
-}>;
+};
 
 /**
  * The type of the errors of the schema.
@@ -45,9 +45,9 @@ type SchemaValues<S extends SchemaFields> = Prettify<{
  *
  * @internal
  */
-type SchemaErrors<S extends SchemaFields> = Prettify<{
-  [K in keyof S]?: S[K] extends Value<Any, infer E> ? E : never;
-}>;
+type SchemaErrors<S extends SchemaFields> = {
+  [K in keyof S]: S[K] extends Value<Any, infer E> ? E : never;
+};
 
 /**
  * A schema that provides both object validation and individual field validation.
@@ -427,7 +427,21 @@ const schema: SchemaConstructor = <F extends SchemaFields>(...args: Any): Schema
  *
  * @public
  */
-type InferSchema<S> = S extends Schema<infer F> ? SchemaValues<F> : never;
+type InferSchema<S> = S extends Schema<infer F> ? Prettify<SchemaValues<F>> : never;
 
-export type { InferSchema, Schema };
-export { schema, SchemaError };
+/**
+ * Guard check to determine if a value is a schema.
+ * @param value - The value to check.
+ * @returns True if the value is a schema, false otherwise.
+ *
+ * @public
+ */
+const isSchema = (value: Any): value is Schema<SchemaFields> =>
+  !!value &&
+  typeof value === 'function' &&
+  '_tag' in value &&
+  '_hash' in value &&
+  value._tag === 'Schema';
+
+export type { InferSchema, Schema, SchemaFields, SchemaValues, SchemaErrors, SchemaOptions };
+export { schema, isSchema, SchemaError };
