@@ -99,29 +99,14 @@ interface AggregateStateManager<F extends SchemaFields = SchemaFields> {
 /**
  * Type-safe aggregate instance that exposes only the public interface.
  * This is what the end user gets - only getState() and the defined methods.
+ * State properties are also available as readonly properties for direct access.
  *
  * @typeParam F - The schema fields type.
  * @typeParam M - The methods type.
  *
  * @public
  */
-type AggregateInstance<F extends SchemaFields, M> = M & {
-  /**
-   * Gets the current state as a readonly object.
-   * This is the only way for end users to access the aggregate state.
-   *
-   * @returns A readonly copy of the current state.
-   *
-   * @example
-   * ```ts
-   * const state = user.getState();
-   * console.log(state.name, state.age);
-   * ```
-   *
-   * @public
-   */
-  getState(): Readonly<Prettify<SchemaValues<F>>>;
-};
+type AggregateInstance<F extends SchemaFields, M> = Prettify<Readonly<SchemaValues<F>> & M>;
 
 /**
  * Helper type to extract the state type from a schema.
@@ -253,9 +238,13 @@ type Aggregate<State, Methods, Errors> = {
  * if (isOk(userResult)) {
  *   const user = unwrap(userResult);
  *
- *   // Safe state access
- *   const name = user.get('name'); // string
- *   const age = user.get('age');   // number
+ *   // Direct state access (readonly properties)
+ *   const name = user.name; // string
+ *   const age = user.age;   // number
+ *
+ *   // Alternative: getState() method
+ *   const state = user.getState();
+ *   console.log(state.name, state.age);
  *
  *   // Safe state modification with validation
  *   const renameResult = user.rename('Charlie');
@@ -268,9 +257,9 @@ type Aggregate<State, Methods, Errors> = {
  *   console.log('Creation failed:', unwrap(userResult));
  * }
  *
- * // Direct state access is not possible
- * // user.name = 'Invalid'; // TypeScript error
- * // user.age = -5;         // TypeScript error
+ * // Direct state modification is not possible (readonly properties)
+ * // user.name = 'Invalid'; // TypeScript error and runtime error
+ * // user.age = -5;         // TypeScript error and runtime error
  * ```
  *
  * @example
@@ -309,29 +298,32 @@ function aggregateRoot() {
       return {
         methods<M extends MethodsBuilder<F>>(builder: M) {
           type Methods = ReturnType<M>;
-          type Aggregate = AggregateInstance<F, Methods>;
+          type Errors = Prettify<SchemaErrors<F>>;
 
-          return {
-            create(input: State): Result<Aggregate, Prettify<SchemaErrors<F>>> {
-              // Validate initial input.
-              const validationResult = sch(input as SchemaValues<F>);
-              if (isErr(validationResult)) {
-                return validationResult as Result<Aggregate, Prettify<SchemaErrors<F>>>;
-              }
+          const aggregate = (input: State): Result<AggregateInstance<F, Methods>, Errors> => {
+            // Validate initial input.
+            const validationResult = sch(input as SchemaValues<F>);
+            if (isErr(validationResult)) {
+              return validationResult as Result<AggregateInstance<F, Methods>, Errors>;
+            }
 
-              const validatedState = unwrap(validationResult) as State;
-              const stateManager = createStateManager<F>(sch, validatedState as SchemaValues<F>);
-              const methods = builder(stateManager);
+            const validatedState = unwrap(validationResult) as SchemaValues<F>;
+            const stateManager = createStateManager<F>(sch, validatedState);
+            const methods = builder(stateManager);
 
-              // Create the aggregate instance with only the public interface
-              const aggregate = {
-                ...methods,
-                getState: () => stateManager.getState() as Readonly<Prettify<SchemaValues<F>>>,
-              } as Aggregate;
+            // Create the aggregate instance with public interface and readonly state properties.
+            const instance = {
+              ...stateManager.getState(),
+            };
 
-              return ok(aggregate);
-            },
+            // This avoid the methods to be enumerable.
+            Object.defineProperties(instance, methods);
+
+            // Freeze the instance of the aggregate.
+            return ok(Object.freeze(instance) as AggregateInstance<F, Methods>);
           };
+
+          return aggregate;
         },
       };
     },
