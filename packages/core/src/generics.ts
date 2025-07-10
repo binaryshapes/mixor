@@ -159,7 +159,46 @@ type IsPrimitive<T> = T extends object ? false : true;
 type UnionKeys<T> = T extends T ? keyof T : never;
 
 /**
+ * Checks if two types are equal.
+ *
+ * @typeParam X - The first type to compare.
+ * @typeParam Y - The second type to compare.
+ * @returns True if the types are equal, false otherwise.
+ *
+ * @public
+ */
+type Equal<X, Y> =
+  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
+
+/**
+ * If property K in T is readonly, make V readonly, else leave as is.
+ *
+ * @typeParam T - The type to check.
+ * @typeParam K - The key to check.
+ * @typeParam V - The value to check.
+ * @returns The value with the readonly modifier.
+ *
+ * @public
+ */
+type IfReadonly<T, K extends keyof T, V> =
+  Equal<{ [P in K]: T[P] }, { -readonly [P in K]: T[P] }> extends true ? V : Readonly<V>;
+
+/**
+ * For each property in T, preserve readonly modifier from T in U.
+ *
+ * @typeParam T - The type to check.
+ * @typeParam U - The type to check.
+ * @returns The type with the readonly modifier.
+ *
+ * @public
+ */
+type PreserveReadonly<T, U> = {
+  [K in keyof T]: IfReadonly<T, K, U[Extract<K, keyof U>]>;
+};
+
+/**
  * Merges a union type into a single type.
+ * Preserves readonly modifiers per property.
  *
  * @typeParam T - The type to merge.
  * @returns The merged type.
@@ -182,14 +221,35 @@ type UnionKeys<T> = T extends T ? keyof T : never;
  * // }
  * ```
  *
+ * @example
+ * ```ts
+ * // Preserves readonly modifiers
+ * type ReadonlyUser = {
+ *   readonly name: string;
+ *   readonly email: string;
+ * };
+ *
+ * type MergedReadonlyUser = MergeUnion<ReadonlyUser>;
+ * // Result: { readonly name: string; readonly email: string; }
+ * ```
+ *
  * @public
  */
 type MergeUnion<T> =
   IsPrimitive<T> extends true
     ? T
-    : {
-        [K in UnionKeys<T>]: T extends Any ? (K extends keyof T ? T[K] : never) : never;
-      };
+    : T extends object
+      ? Prettify<
+          PreserveReadonly<
+            T,
+            {
+              [K in UnionKeys<T>]: T extends Any ? (K extends keyof T ? T[K] : never) : never;
+            }
+          >
+        >
+      : {
+          [K in UnionKeys<T>]: T extends Any ? (K extends keyof T ? T[K] : never) : never;
+        };
 
 export type {
   // General purpose types.
@@ -204,4 +264,7 @@ export type {
   // Object manipulation types.
   UnionKeys,
   MergeUnion,
+  Equal,
+  IfReadonly,
+  PreserveReadonly,
 };
