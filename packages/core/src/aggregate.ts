@@ -8,7 +8,8 @@
  */
 import { type Event, type EventStore } from './event';
 import type { Any, Prettify } from './generics';
-import { type Result, isErr, ok, unwrap } from './result';
+import { hash } from './hash';
+import { type Result, isErr, ok } from './result';
 import {
   type Schema,
   type SchemaErrors,
@@ -17,156 +18,146 @@ import {
   isSchema,
   schema as makeSchema,
 } from './schema';
+import { type Specification, isSpec } from './specification';
+
+// TODO: The aggregate object must expose all schema fields constructors as methods.
+
+/**
+ * Type for the fn function that creates methods with specification validation.
+ *
+ * @typeParam T - The arguments type for the method (as tuple).
+ * @typeParam R - The return type for the method.
+ * @typeParam E - The error type for the method.
+ * @typeParam BeforeSpec - The specification type to validate before execution.
+ * @typeParam AfterSpec - The specification type to validate after execution.
+ *
+ * @internal
+ */
+type FnFunction = <
+  T extends unknown[] = [],
+  R = Any,
+  E = Any,
+  BeforeSpec = undefined,
+  AfterSpec = undefined,
+>(
+  doc: string,
+  fn: (...args: T) => Result<R, E>,
+  specs?: {
+    before?: BeforeSpec;
+    after?: AfterSpec;
+  },
+) => (...args: T) => Result<R, E | SpecError<BeforeSpec> | SpecError<AfterSpec>>;
+
+/**
+ * Utility to extract the error type from a specification.
+ *
+ * @typeParam T - The specification type.
+ *
+ * @internal
+ */
+type SpecError<T> = T extends { satisfy: (entity: Any) => Result<Any, infer E> } ? E : never;
 
 /**
  * Type for methods builder function that receives the aggregate state manager and returns methods.
  *
  * @typeParam F - The schema fields type.
- * @typeParam E - The event types union.
+ * @typeParam E - The event type.
+ * @typeParam S - The specification error type.
+ * @typeParam Specs - The specifications object type.
  *
- * @public
+ * @internal
  */
 type MethodsBuilder<
   F extends SchemaFields = SchemaFields,
   E extends Event<string, Any> = Event<string, Any>,
-> = (self: AggregateStateManager<F, E>) => Record<string, (...args: Any[]) => Any>;
+  S = Any,
+  Specs = Record<string, Specification<SchemaValues<F>, S>> | undefined,
+> = (
+  self: AggregateStateManager<F, E, S>,
+  fn: FnFunction,
+  specs: Specs,
+) => Record<string, (...args: Any[]) => Any>;
 
 /**
  * Type-safe state manager for aggregates that encapsulates state and provides validation.
- * This is used internally by the aggregate creator to define methods.
  *
- * @typeParam F - The schema fields type for proper error typing and state inference.
- * @typeParam E - The event types union for type-safe event emission.
+ * @typeParam F - The schema fields type.
+ * @typeParam E - The event type.
+ * @typeParam S - The specification error type.
  *
- * @public
+ * @internal
  */
 interface AggregateStateManager<
   F extends SchemaFields = SchemaFields,
   E extends Event<string, Any> = Event<string, Any>,
+  S = never,
 > {
   /**
-   * Gets a property value from the aggregate state.
+   * Gets a field value from the aggregate state.
    *
-   * @typeParam K - The key of the property to get.
-   * @param key - The property key.
-   * @returns The value of the property.
-   *
-   * @example
-   * ```ts
-   * const name = user.get('name'); // string
-   * const age = user.get('age');   // number
-   * ```
-   *
-   * @public
+   * @param key - The field key to retrieve.
+   * @returns The field value.
    */
   get<K extends keyof SchemaValues<F>>(key: K): SchemaValues<F>[K];
 
   /**
-   * Sets a property value in the aggregate state with automatic validation.
+   * Sets a field value in the aggregate state with validation.
    *
-   * @typeParam K - The key of the property to set.
-   * @param key - The property key.
-   * @param value - The new value to set.
-   * @returns A Result with the updated state on success or validation error.
-   *
-   * @example
-   * ```ts
-   * const result = user.set('name', 'Charlie');
-   * if (isOk(result)) {
-   *   console.log('Name updated successfully, new state:', unwrap(result));
-   * } else {
-   *   console.log('Validation error:', unwrap(result));
-   * }
-   * ```
-   *
-   * @public
+   * @param key - The field key to set.
+   * @param value - The value to set.
+   * @returns A result indicating success or validation error.
    */
   set<K extends keyof SchemaValues<F> & keyof F>(
     key: K,
     value: SchemaValues<F>[K],
-  ): Result<Prettify<SchemaValues<F>>, SchemaErrors<F>[K]>;
+  ): Result<SchemaValues<F>, SchemaErrors<F>[K]>;
 
   /**
    * Gets the current state as a readonly object.
-   * This is useful for creating copies or serializing the aggregate.
    *
    * @returns A readonly copy of the current state.
-   *
-   * @example
-   * ```ts
-   * const state = user.getState();
-   * console.log(state.name, state.age);
-   * ```
-   *
-   * @public
    */
   getState(): Readonly<SchemaValues<F>>;
 
   /**
-   * Emits an event to the aggregate's event store.
-   * This allows aggregates to publish domain events when state changes occur.
+   * Emits an event with the given key and value.
    *
-   * @typeParam K - The event key type.
    * @param key - The event key.
    * @param value - The event value.
-   * @returns The created event.
-   *
-   * @example
-   * ```ts
-   * // Emit a user renamed event.
-   * const event = state.emit('user.renamed', { name: 'Charlie' });
-   * console.log(event.key); // 'user.renamed'
-   * console.log(event.value.name); // 'Charlie'
-   * ```
-   *
-   * @public
+   * @returns The emitted event.
    */
   emit<K extends E['key']>(key: K, value: Extract<E, { key: K }>['value']): Extract<E, { key: K }>;
 
   /**
-   * Gets all events emitted by this aggregate instance.
-   * This is useful for event sourcing or auditing purposes.
+   * Gets all events that have been emitted.
    *
-   * @returns Array of all events emitted by this aggregate.
-   *
-   * @example
-   * ```ts
-   * const events = state.getEvents();
-   * console.log(events.length); // Number of events emitted
-   * ```
-   *
-   * @public
+   * @returns Array of all events.
    */
   getEvents(): E[];
 
   /**
-   * Pulls all events from the aggregate's event store and clears them.
-   * This is useful for processing events and then clearing the store.
+   * Pulls all events and clears the event store.
    *
-   * @returns Array of all events that were in the store.
-   *
-   * @example
-   * ```ts
-   * const events = state.pullEvents();
-   * // events contains all emitted events
-   * // event store is now empty
-   * ```
-   *
-   * @public
+   * @returns Array of all events (clears the store).
    */
   pullEvents(): E[];
+
+  /**
+   * Validates the current state against all specifications.
+   *
+   * @returns A result indicating if all specifications are satisfied.
+   */
+  validateSpecs?(): Result<SchemaValues<F>, S>;
 }
 
 /**
  * Type-safe aggregate instance that exposes only the public interface.
- * This is what the end user gets - only getState() and the defined methods.
- * State properties are also available as readonly properties for direct access.
  *
  * @typeParam F - The schema fields type.
  * @typeParam M - The methods type.
- * @typeParam E - The event types union.
+ * @typeParam E - The event type.
  *
- * @public
+ * @internal
  */
 type AggregateInstance<
   F extends SchemaFields,
@@ -175,341 +166,646 @@ type AggregateInstance<
 > = Prettify<
   Readonly<SchemaValues<F>> &
     M & {
-      /**
-       * Gets all events emitted by this aggregate instance.
-       * This is useful for event sourcing or auditing purposes.
-       *
-       * @returns Array of all events emitted by this aggregate.
-       *
-       * @example
-       * ```ts
-       * const events = user.getEvents();
-       * console.log(events.length); // Number of events emitted
-       * ```
-       *
-       * @public
-       */
       getEvents(): E[];
-
-      /**
-       * Pulls all events from the aggregate's event store and clears them.
-       * This is useful for processing events and then clearing the store.
-       *
-       * @returns Array of all events that were in the store.
-       *
-       * @example
-       * ```ts
-       * const events = user.pullEvents();
-       * // events contains all emitted events
-       * // event store is now empty
-       * ```
-       *
-       * @public
-       */
       pullEvents(): E[];
     }
 >;
 
 /**
- * Interface for the state manager factory function with overloads.
- * This allows for different function signatures based on whether event support is needed.
+ * Type for aggregate specifications.
+ *
+ * @typeParam F - The schema fields type.
+ * @typeParam S - The specification error type.
  *
  * @internal
  */
-interface CreateStateManager {
-  /**
-   * Creates a state manager without event support.
-   *
-   * @typeParam F - The schema fields type.
-   * @param schema - The schema for validation.
-   * @param initialState - The initial state.
-   * @returns A state manager with get, set, and getState methods.
-   */
-  <F extends SchemaFields>(
-    schema: Schema<F>,
-    initialState: SchemaValues<F>,
-  ): AggregateStateManager<F>;
+type AggregateSpecs<F extends SchemaFields, S> = Record<string, Specification<SchemaValues<F>, S>>;
 
-  /**
-   * Creates a state manager with event support.
-   *
-   * @typeParam F - The schema fields type.
-   * @typeParam E - The event types union.
-   * @param schema - The schema for validation.
-   * @param initialState - The initial state.
-   * @param eventStoreInstance - The event store instance.
-   * @returns A state manager with get, set, getState, and event methods.
-   */
-  <F extends SchemaFields, E extends Event<string, Any>>(
-    schema: Schema<F>,
-    initialState: SchemaValues<F>,
-    eventStoreInstance: EventStore<E>,
-  ): AggregateStateManager<F, E>;
+/**
+ * Configuration for state manager features.
+ *
+ * @typeParam F - The schema fields type.
+ * @typeParam E - The event type.
+ * @typeParam S - The specification error type.
+ *
+ * @internal
+ */
+interface StateManagerConfig<F extends SchemaFields, E extends Event<string, Any>, S> {
+  /** The schema for validating state changes. */
+  schema: Schema<F>;
+  /** The initial state for the aggregate. */
+  initialState: SchemaValues<F>;
+  /** Optional event store for handling events. */
+  eventStore?: EventStore<E>;
+  /** Optional specifications for business rule validation. */
+  specifications?: Specification<SchemaValues<F>, S>[];
 }
 
 /**
- * Creates a state manager that encapsulates the aggregate state and provides type-safe access.
- * This function supports both event and non-event scenarios through function overloads.
+ * Creates a state manager with the given configuration.
  *
  * @typeParam F - The schema fields type.
- * @typeParam E - The event types union (optional).
- * @param schema - The schema for validation.
- * @param initialState - The initial state.
- * @param eventStoreInstance - The event store instance (optional).
- * @returns A state manager with appropriate methods based on whether events are supported.
+ * @typeParam E - The event type.
+ * @typeParam S - The specification error type.
+ * @param config - The configuration for the state manager.
+ * @returns A configured state manager.
  *
  * @internal
  */
-const createStateManager: CreateStateManager = <
+function createStateManager<
   F extends SchemaFields,
   E extends Event<string, Any> = Event<string, Any>,
->(
-  schema: Schema<F>,
-  initialState: SchemaValues<F>,
-  eventStoreInstance?: EventStore<E>,
-): AggregateStateManager<F, E> => {
-  let state = { ...initialState };
+  S = never,
+>(config: StateManagerConfig<F, E, S>): AggregateStateManager<F, E, S> {
+  let state = { ...config.initialState };
 
   const baseManager = {
-    get<K extends keyof SchemaValues<F>>(key: K): SchemaValues<F>[K] {
-      return state[key];
-    },
-
+    get: <K extends keyof SchemaValues<F>>(key: K): SchemaValues<F>[K] => state[key],
     set<K extends keyof SchemaValues<F> & keyof F>(
       key: K,
       value: SchemaValues<F>[K],
-    ): Result<Prettify<SchemaValues<F>>, SchemaErrors<F>[K]> {
-      // Validate the specific field using the schema.
-      // The schema object has field validators as properties.
-      const fieldSchema = (schema as Record<string, Any>)[key as string];
+    ): Result<SchemaValues<F>, SchemaErrors<F>[K]> {
+      const fieldSchema = (config.schema as Record<string, unknown>)[key as string];
       if (fieldSchema && typeof fieldSchema === 'function') {
         const validationResult = fieldSchema(value) as Result<void, SchemaErrors<F>[K]>;
         if (isErr(validationResult)) {
           return validationResult;
         }
       }
-
-      // If validation passes, update the state.
       state = { ...state, [key]: value };
-      return ok(state as Prettify<SchemaValues<F>>);
+      return ok(state as SchemaValues<F>);
     },
-
-    getState(): Readonly<SchemaValues<F>> {
-      return Object.freeze({ ...state });
-    },
+    getState: (): Readonly<SchemaValues<F>> => Object.freeze({ ...state }),
   };
 
-  // If no event store is provided, return base manager without event methods.
-  if (!eventStoreInstance) {
-    return baseManager as AggregateStateManager<F, E>;
-  }
+  const eventManager = config.eventStore
+    ? (() => {
+        const eventStore = config.eventStore;
+        return {
+          emit: <K extends E['key']>(
+            key: K,
+            value: Extract<E, { key: K }>['value'],
+          ): Extract<E, { key: K }> => eventStore.add(key, value) as Extract<E, { key: K }>,
+          getEvents: (): E[] => eventStore.list(),
+          pullEvents: (): E[] => eventStore.pull(),
+        };
+      })()
+    : {};
 
-  // Return manager with event support.
+  const specManager = config.specifications
+    ? (() => {
+        const specifications = config.specifications;
+        return {
+          validateSpecs(): Result<SchemaValues<F>, S> {
+            for (const spec of specifications) {
+              const res = spec.satisfy(state);
+              if (isErr(res)) return res;
+            }
+            return ok(state);
+          },
+        };
+      })()
+    : {};
+
   return {
     ...baseManager,
-    emit<K extends E['key']>(
-      key: K,
-      value: Extract<E, { key: K }>['value'],
-    ): Extract<E, { key: K }> {
-      return eventStoreInstance.add(key, value) as Extract<E, { key: K }>;
-    },
+    ...eventManager,
+    ...specManager,
+  } as AggregateStateManager<F, E, S>;
+}
 
-    getEvents(): E[] {
-      return eventStoreInstance.list();
-    },
+/**
+ * Creates a function for method creation with optional specification validation.
+ *
+ * @typeParam S - The specification error type.
+ * @param specifications - Optional specifications for validation.
+ * @param stateManager - Optional state manager for validation context.
+ * @returns A function factory for creating methods.
+ *
+ * @internal
+ */
+function createFnFunction<S = never>(
+  specifications?: Record<string, Specification<Any, S>>,
+  stateManager?: AggregateStateManager<Any, Any, S>,
+): FnFunction {
+  if (!specifications) {
+    return <T extends unknown[] = [], R = Any, E = Any>(
+      doc: string,
+      fn: (...args: T) => Result<R, E>,
+    ) => {
+      const methodFn = (...args: T) => fn(...args);
+      return Object.assign(methodFn, {
+        _tag: 'Method' as const,
+        _doc: doc,
+        _hash: hash(doc, fn),
+      });
+    };
+  }
 
-    pullEvents(): E[] {
-      return eventStoreInstance.pull();
-    },
+  return <
+    T extends unknown[] = [],
+    R = Any,
+    E = Any,
+    BeforeSpec = undefined,
+    AfterSpec = undefined,
+  >(
+    doc: string,
+    fn: (...args: T) => Result<R, E>,
+    specs?: { before?: BeforeSpec; after?: AfterSpec },
+  ) => {
+    const methodFn = (...args: T) => {
+      if (specs?.before && isSpec(specs.before) && stateManager) {
+        const currentState = stateManager.getState();
+        const beforeResult = specs.before.satisfy(currentState);
+        if (isErr(beforeResult)) return beforeResult;
+      }
+
+      const flowFunction = fn(...args);
+      if (isErr(flowFunction)) return flowFunction;
+
+      if (specs?.after && isSpec(specs.after) && stateManager) {
+        const currentState = stateManager.getState();
+        const afterResult = specs.after.satisfy(currentState);
+        if (isErr(afterResult)) return afterResult;
+      }
+
+      return flowFunction;
+    };
+
+    return Object.assign(methodFn, {
+      _tag: 'Method' as const,
+      _doc: doc,
+      _hash: hash(doc, fn, specs),
+    });
   };
-};
+}
+
+/**
+ * Configuration options for aggregate instance creation.
+ *
+ * @internal
+ */
+interface AggregateInstanceOptions {
+  /**
+   * Whether to validate all specifications during instance creation.
+   * If true, the aggregate will validate all specifications against the initial state.
+   * If validation fails, the aggregate creation will return an error instead of the instance.
+   */
+  checkSpecs?: boolean;
+}
+
+/**
+ * Creates an aggregate instance with the given configuration.
+ *
+ * @typeParam F - The schema fields type.
+ * @typeParam M - The methods type.
+ * @typeParam E - The event type.
+ * @typeParam S - The specification error type.
+ * @param config - The configuration for the aggregate.
+ * @param methods - The methods object for the aggregate.
+ * @returns A frozen aggregate instance.
+ *
+ * @internal
+ */
+function createAggregateInstance<
+  F extends SchemaFields,
+  M,
+  E extends Event<string, Any> = Event<string, Any>,
+  S = never,
+>(config: StateManagerConfig<F, E, S>, methods: M): AggregateInstance<F, M, E> {
+  const stateManager = createStateManager(config);
+
+  const instance = {
+    ...stateManager.getState(),
+    ...methods,
+  };
+
+  if (config.eventStore) {
+    Object.assign(instance, {
+      getEvents: () => stateManager.getEvents(),
+      pullEvents: () => stateManager.pullEvents(),
+    });
+  }
+
+  return Object.freeze(instance) as AggregateInstance<F, M, E>;
+}
+
+/**
+ * Creates a unified aggregate method that handles all cases (with/without events,
+ * with/without specifications).
+ *
+ * @typeParam F - The schema fields type.
+ * @typeParam E - The event type.
+ * @typeParam S - The specification error type.
+ * @typeParam SP - The specifications type.
+ * @param schema - The schema for validation.
+ * @param eventStore - Optional event store.
+ * @param specifications - Optional specifications.
+ * @returns A function that creates aggregate instances.
+ *
+ * @internal
+ */
+function createAggregateMethod<
+  F extends SchemaFields,
+  E extends Event<string, Any> = Event<string, Any>,
+  S = Any,
+  SP extends AggregateSpecs<F, S> | undefined = undefined,
+>(schema: Schema<F>, eventStore?: EventStore<E>, specifications?: SP) {
+  return <M extends MethodsBuilder<F, E, S, SP>>(builder: M) => {
+    type Methods = ReturnType<M>;
+    type Errors = Prettify<S>;
+
+    return (
+      input: SchemaValues<F>,
+      options?: AggregateInstanceOptions,
+    ): Result<AggregateInstance<F, Methods, E>, Errors> => {
+      const validationResult = schema(input as SchemaValues<F>);
+      if (isErr(validationResult)) {
+        return validationResult as Result<AggregateInstance<F, Methods, E>, Errors>;
+      }
+
+      const validatedState = validationResult.value;
+      const stateManager = createStateManager<F, E, S>({
+        schema,
+        initialState: validatedState,
+        eventStore,
+        specifications: specifications ? Object.values(specifications) : undefined,
+      });
+
+      // If checkSpecs is enabled and specifications exist, validate all specs.
+      if (options?.checkSpecs && specifications) {
+        const specValidationResult = stateManager.validateSpecs?.();
+        if (specValidationResult && isErr(specValidationResult)) {
+          return specValidationResult as Result<AggregateInstance<F, Methods, E>, Errors>;
+        }
+      }
+
+      const fnFunction = specifications
+        ? createFnFunction<S>(specifications, stateManager)
+        : createFnFunction();
+
+      const methods = builder(stateManager, fnFunction, specifications as SP) as Methods;
+
+      return ok(
+        createAggregateInstance<F, Methods, E, S>(
+          {
+            schema,
+            initialState: validatedState,
+            eventStore,
+            specifications: specifications ? Object.values(specifications) : undefined,
+          },
+          methods,
+        ),
+      );
+    };
+  };
+}
 
 /**
  * Creates a type-safe aggregate root builder.
  *
- * This function provides a fluent, type-safe API for defining aggregates with schemas and methods.
- * It follows the Domain-Driven Design pattern for aggregate roots.
- *
- * The aggregate state is encapsulated and can only be accessed/modified through type-safe methods.
- * All state modifications are automatically validated using the schema.
- *
- * @returns A type-safe aggregate root builder that can be chained with schema and methods.
+ * This function provides a fluent API for building aggregates with schema validation,
+ * event handling, and specification-based business rules.
  *
  * @example
  * ```ts
- * // Type-safe aggregate creation with fluent API using schema fields.
- * const User = aggregateRoot()
+ * // aggregate-001: Basic aggregate with schema validation.
+ * const User = aggregate()
  *   .schema({
- *     name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
- *     age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
+ *     name: value('User name', (value: string) => ok(value)),
+ *     email: value('User email', (value: string) => ok(value)),
  *   })
- *   .methods((self) => ({
- *     rename: (newName: string) => {
- *       return self.set('name', newName);
- *     },
- *     celebrateBirthday: () => {
- *       const currentAge = self.get('age');
- *       return self.set('age', currentAge + 1);
- *     },
- *     getInfo: () => {
- *       const name = self.get('name');
- *       const age = self.get('age');
- *       return `${name} is ${age} years old`;
- *     },
+ *   .methods((state, fn) => ({
+ *     rename: fn('Renames the user', (newName: string) =>
+ *       state.set('name', newName)
+ *     )
  *   }));
  *
- * // TypeScript will enforce correct input types.
- * const userResult = User.create({ name: 'Bob', age: 30 });
- * if (isOk(userResult)) {
- *   const user = unwrap(userResult);
- *
- *   // Direct state access (readonly properties)
- *   const name = user.name; // string
- *   const age = user.age;   // number
- *
- *   // Alternative: getState() method
- *   const state = user.getState();
- *   console.log(state.name, state.age);
- *
- *   // Safe state modification with validation
- *   const renameResult = user.rename('Charlie');
- *   if (isOk(renameResult)) {
- *     console.log('Name updated successfully');
- *   } else {
- *     console.log('Validation error:', unwrap(renameResult));
- *   }
- * } else {
- *   console.log('Creation failed:', unwrap(userResult));
+ * const user = User({ name: 'John', email: 'john@example.com' });
+ * if (isOk(user)) {
+ *   const result = user.value.rename('Jane');
+ *   // unwrap(result): { name: 'Jane', email: 'john@example.com' }.
  * }
- *
- * // Direct state modification is not possible (readonly properties)
- * // user.name = 'Invalid'; // TypeScript error and runtime error
- * // user.age = -5;         // TypeScript error and runtime error
  * ```
  *
  * @example
  * ```ts
- * // Type-safe aggregate creation with pre-defined schema.
- * const userSchema = schema({
- *   name: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_NAME')),
- *   age: value((value: number) => value >= 0 ? ok(value) : err('INVALID_AGE')),
+ * // aggregate-002: Aggregate with events and specifications.
+ * const userEvents = eventStore({
+ *   'User.Renamed': event<UserRenamed>('User renamed event', 'User.Renamed'),
  * });
  *
- * const User = aggregateRoot()
- *   .schema(userSchema)
- *   .methods((self) => ({
- *     rename: (newName: string) => {
- *       return self.set('name', newName);
- *     },
- *     celebrateBirthday: () => {
- *       const currentAge = self.get('age');
- *       return self.set('age', currentAge + 1);
- *     },
- *   }));
+ * const UserMustBeActive = spec<UserSchema>('User must be active')
+ *   .when(() => true)
+ *   .rule('User must be active', (user) =>
+ *     user.isActive ? ok(user) : err('USER_NOT_ACTIVE')
+ *   )
+ *   .build();
  *
- * // Same type safety and validation as above.
- * const userResult = User.create({ name: 'Bob', age: 30 });
+ * const User = aggregate()
+ *   .schema(userSchema)
+ *   .specs({ UserMustBeActive })
+ *   .events(userEvents)
+ *   .methods((state, fn, specs) => ({
+ *     rename: fn(
+ *       'Renames the user',
+ *       (newName: string) =>
+ *         flow<string>()
+ *           .map((name) => state.set('name', name))
+ *           .tap((newState) => state.emit('User.Renamed', { name: newState.name }))
+ *           .build()(newName),
+ *       {
+ *         before: specs.UserMustBeActive,
+ *       },
+ *     ),
+ *   }));
  * ```
  *
  * @example
  * ```ts
- * // Type-safe aggregate creation with events.
- * type UserCreated = Event<'user.created', { email: string; name: string }>;
- * type UserRenamed = Event<'user.renamed', { name: string }>;
- * type UserPasswordChanged = Event<'user.password_changed', { email: string }>;
+ * // aggregate-003: Complex aggregate with multiple specifications.
+ * const AdminMustBeActive = spec<UserSchema>('Admin must be active')
+ *   .when(() => true)
+ *   .rule('User must be admin', (user) =>
+ *     user.role === 'Admin' ? ok(user) : err('NOT_ADMIN')
+ *   )
+ *   .rule('Admin must be active', (user) =>
+ *     user.isActive ? ok(user) : err('ADMIN_NOT_ACTIVE')
+ *   )
+ *   .build();
  *
- * const userEventStore = eventStore<UserCreated | UserRenamed | UserPasswordChanged>();
- *
- * const User = aggregateRoot()
+ * const User = aggregate()
  *   .schema(userSchema)
- *   .events(userEventStore)
- *   .methods((state) => ({
- *     rename: flow<string>()
- *       .map((newName) => state.set('name', newName))
- *       .tap(() => state.emit('user.renamed', { name: newName }))
- *       .build(),
+ *   .specs({ AdminMustBeActive })
+ *   .events(userEvents)
+ *   .methods((state, fn, specs) => ({
+ *     makeAdmin: fn('Makes user admin', () =>
+ *       state.set('role', 'Admin')
+ *     , {
+ *       after: specs.AdminMustBeActive
+ *     })
  *   }));
  * ```
+ *
+ * @returns A fluent builder for creating type-safe aggregates.
  *
  * @public
  */
-function aggregateRoot() {
+function aggregate() {
   return {
+    /**
+     * Sets the schema for the aggregate.
+     *
+     * @param fieldsOrSchema - The schema fields or a pre-built schema.
+     * @returns A builder with schema validation capabilities.
+     *
+     * @example
+     * ```ts
+     * // aggregate-004: Schema definition with field validation.
+     * const User = aggregate()
+     *   .schema({
+     *     name: value('User name', (value: string) =>
+     *       value.length > 0 ? ok(value) : err('EMPTY_NAME'),
+     *     ),
+     *     email: value('User email', (value: string) =>
+     *       value.includes('@') ? ok(value) : err('INVALID_EMAIL'),
+     *     ),
+     *     age: value('User age', (value: number) =>
+     *       value >= 18 ? ok(value) : err('INVALID_AGE'),
+     *     ),
+     *   })
+     *   .methods((state, fn) => ({
+     *     updateName: fn('Updates user name', (name: string) =>
+     *       state.set('name', name)
+     *     )
+     *   }));
+     * ```
+     */
     schema<F extends SchemaFields>(fieldsOrSchema: F | Schema<F>) {
       const sch = (
         isSchema(fieldsOrSchema) ? fieldsOrSchema : makeSchema(fieldsOrSchema as F)
       ) as Schema<F>;
-      type State = Prettify<SchemaValues<F>>;
+
       return {
-        events<E extends Event<string, Any>>(eventStoreInstance: EventStore<E>) {
-          return {
-            methods<M extends MethodsBuilder<F, E>>(builder: M) {
-              type Methods = ReturnType<M>;
-              type Errors = Prettify<SchemaErrors<F>>;
-
-              const aggregate = (
-                input: State,
-              ): Result<AggregateInstance<F, Methods, E>, Errors> => {
-                // Validate initial input.
-                const validationResult = sch(input as SchemaValues<F>);
-                if (isErr(validationResult)) {
-                  return validationResult as Result<AggregateInstance<F, Methods, E>, Errors>;
-                }
-
-                const validatedState = unwrap(validationResult) as SchemaValues<F>;
-                const stateManager = createStateManager<F, E>(
-                  sch,
-                  validatedState,
-                  eventStoreInstance,
-                );
-                const methods = builder(stateManager);
-
-                // Create the aggregate instance with public interface and readonly state properties.
-                const instance = {
-                  ...stateManager.getState(),
-                  getEvents: () => stateManager.getEvents(),
-                  pullEvents: () => stateManager.pullEvents(),
-                  ...methods,
-                };
-
-                // Freeze the instance of the aggregate.
-                return ok(Object.freeze(instance) as AggregateInstance<F, Methods, E>);
-              };
-
-              return aggregate;
-            },
-          };
-        },
-        methods<M extends MethodsBuilder<F>>(builder: M) {
-          type Methods = ReturnType<M>;
-          type Errors = Prettify<SchemaErrors<F>>;
-
-          const aggregate = (input: State): Result<AggregateInstance<F, Methods>, Errors> => {
-            // Validate initial input.
-            const validationResult = sch(input as SchemaValues<F>);
-            if (isErr(validationResult)) {
-              return validationResult as Result<AggregateInstance<F, Methods>, Errors>;
-            }
-
-            const validatedState = unwrap(validationResult) as SchemaValues<F>;
-            const stateManager = createStateManager<F>(sch, validatedState);
-            const methods = builder(stateManager);
-
-            // Create the aggregate instance with public interface and readonly state properties.
-            const instance = {
-              ...stateManager.getState(),
-              ...methods,
-            };
-
-            // Freeze the instance of the aggregate.
-            return ok(Object.freeze(instance) as AggregateInstance<F, Methods>);
-          };
-
-          return aggregate;
-        },
+        /**
+         * Sets specifications for business rule validation.
+         *
+         * @param specifications - Object containing specification definitions.
+         * @returns A builder with specification validation capabilities.
+         *
+         * @example
+         * ```ts
+         * // aggregate-005: Specifications for business rules.
+         * const UserMustBeActive = spec<UserSchema>('User must be active')
+         *   .when(() => true)
+         *   .rule('User must be active', (user) =>
+         *     user.isActive ? ok(user) : err('USER_NOT_ACTIVE')
+         *   )
+         *   .build();
+         *
+         * const User = aggregate()
+         *   .schema(userSchema)
+         *   .specs({ UserMustBeActive })
+         *   .methods((state, fn, specs) => ({
+         *     activate: fn(
+         *       'Activates user',
+         *       () => state.set('isActive', true),
+         *       {
+         *         after: specs.UserMustBeActive,
+         *       },
+         *     ),
+         *   }));
+         * ```
+         */
+        specs: <SP extends AggregateSpecs<F, Any>>(specifications: SP) => ({
+          /**
+           * Sets the event store for event handling.
+           *
+           * @param eventStoreInstance - The event store instance.
+           * @returns A builder with event handling capabilities.
+           *
+           * @example
+           * ```ts
+           * // aggregate-006: Events with specifications.
+           * const userEvents = eventStore({
+           *   'User.Created': event<UserCreated>('User created', 'User.Created'),
+           *   'User.Updated': event<UserUpdated>('User updated', 'User.Updated'),
+           * });
+           *
+           * const User = aggregate()
+           *   .schema(userSchema)
+           *   .specs({ UserMustBeActive })
+           *   .events(userEvents)
+           *   .methods((state, fn, specs) => ({
+           *     update: fn(
+           *       'Updates user',
+           *       (data: Partial<UserSchema>) =>
+           *         flow<Partial<UserSchema>>()
+           *           .map((d) => state.set('name', d.name))
+           *           .tap((newState) => state.emit('User.Updated', { id: state.get('id') }))
+           *           .build()(data),
+           *       {
+           *         before: specs.UserMustBeActive,
+           *       },
+           *     ),
+           *   }));
+           * ```
+           */
+          events: <E extends Event<string, Any>>(eventStoreInstance: EventStore<E>) => ({
+            /**
+             * Sets the methods for the aggregate.
+             *
+             * @param builder - Function that builds the aggregate methods.
+             * @returns A function that creates aggregate instances.
+             *
+             * @example
+             * ```ts
+             * // aggregate-007: Complete aggregate with all features.
+             * const User = aggregate()
+             *   .schema(userSchema)
+             *   .specs({ UserMustBeActive })
+             *   .events(userEvents)
+             *   .methods((state, fn, specs) => ({
+             *     rename: fn(
+             *       'Renames user',
+             *       (newName: string) =>
+             *         flow<string>()
+             *           .map((name) => state.set('name', name))
+             *           .tap((newState) => state.emit('User.Renamed', { name: newState.name }))
+             *           .build()(newName),
+             *       {
+             *         before: specs.UserMustBeActive,
+             *       },
+             *     ),
+             *     activate: fn(
+             *       'Activates user',
+             *       () => state.set('isActive', true),
+             *       {
+             *         after: specs.UserMustBeActive,
+             *       },
+             *     ),
+             *   }));
+             *
+             * const user = User({ name: 'John', email: 'john@example.com', isActive: false });
+             * if (isOk(user)) {
+             *   const activated = user.value.activate();
+             *   if (isOk(activated)) {
+             *     // unwrap(activated): { name: 'John', email: 'john@example.com', isActive: true }.
+             *   } else {
+             *     // unwrap(activated): error message.
+             *   }
+             * }
+             * ```
+             */
+            methods: createAggregateMethod<F, E, Any, SP>(sch, eventStoreInstance, specifications),
+          }),
+          /**
+           * Sets the methods for the aggregate without events.
+           *
+           * @param builder - Function that builds the aggregate methods.
+           * @returns A function that creates aggregate instances.
+           *
+           * @example
+           * ```ts
+           * // aggregate-008: Aggregate with specifications but no events.
+           * const User = aggregate()
+           *   .schema(userSchema)
+           *   .specs({ UserMustBeActive })
+           *   .methods((state, fn, specs) => ({
+           *     activate: fn(
+           *       'Activates user',
+           *       () => state.set('isActive', true),
+           *       {
+           *         after: specs.UserMustBeActive,
+           *       },
+           *     ),
+           *   }));
+           * ```
+           */
+          methods: <M extends MethodsBuilder<F, never, Any, SP>>(builder: M) =>
+            createAggregateMethod<F, never, Any, SP>(sch, undefined, specifications)(builder),
+        }),
+        /**
+         * Sets the event store for event handling without specifications.
+         *
+         * @param eventStoreInstance - The event store instance.
+         * @returns A builder with event handling capabilities.
+         *
+         * @example
+         * ```ts
+         * // aggregate-009: Events without specifications.
+         * const userEvents = eventStore({
+         *   'User.Created': event<UserCreated>('User created', 'User.Created')
+         * });
+         *
+         * const User = aggregate()
+         *   .schema(userSchema)
+         *   .events(userEvents)
+         *   .methods((state, fn) => ({
+         *     create: fn('Creates user', (data: UserSchema) =>
+         *       flow<UserSchema>()
+         *         .map((d) => state.set('name', d.name))
+         *         .tap((newState) => state.emit('User.Created', { name: newState.name }))
+         *         .build()(data)
+         *   }));
+         * ```
+         */
+        events: <E extends Event<string, Any>>(eventStoreInstance: EventStore<E>) => ({
+          /**
+           * Sets the methods for the aggregate with events.
+           *
+           * @param builder - Function that builds the aggregate methods.
+           * @returns A function that creates aggregate instances.
+           *
+           * @example
+           * ```ts
+           * // aggregate-010: Simple aggregate with events.
+           * const User = aggregate()
+           *   .schema(userSchema)
+           *   .events(userEvents)
+           *   .methods((state, fn) => ({
+           *     rename: fn('Renames user', (newName: string) =>
+           *       flow<string>()
+           *         .map((name) => state.set('name', name))
+           *         .tap((newState) => state.emit('User.Renamed', { name: newState.name }))
+           *         .build()(newName)
+           *   }));
+           * ```
+           */
+          methods: createAggregateMethod<F, E>(sch, eventStoreInstance),
+        }),
+        /**
+         * Sets the methods for the aggregate without events or specifications.
+         *
+         * @param builder - Function that builds the aggregate methods.
+         * @returns A function that creates aggregate instances.
+         *
+         * @example
+         * ```ts
+         * // aggregate-011: Simple aggregate without events or specifications.
+         * const User = aggregate()
+         *   .schema(userSchema)
+         *   .methods((state, fn) => ({
+         *     rename: fn('Renames user', (newName: string) =>
+         *       state.set('name', newName)
+         *   }));
+         *
+         * const user = User({ name: 'John', email: 'john@example.com' });
+         * if (isOk(user)) {
+         *   const result = user.value.rename('Jane');
+         *   if (isOk(result)) {
+         *     // unwrap(result): { name: 'Jane', email: 'john@example.com' }.
+         *   } else {
+         *     // unwrap(result): error message.
+         *   }
+         * }
+         * ```
+         */
+        methods: <M extends MethodsBuilder<F>>(builder: M) =>
+          createAggregateMethod<F>(sch)(builder),
       };
     },
   };
 }
 
-export { aggregateRoot };
+export { aggregate };
