@@ -418,6 +418,70 @@ interface SpecificationBuilderWithRules<T, E> {
 }
 
 /**
+ * Internal function to create a specification with common logic.
+ * This eliminates code duplication between spec() and specWithRules().
+ *
+ * @typeParam T - The type of the entity being validated.
+ * @param doc - The documentation of the specification.
+ * @param condition - The condition that must be true for the specification to be evaluated.
+ * @param rules - The rules that must be satisfied for the specification to be satisfied.
+ * @returns A specification with satisfy, and, or, and not methods.
+ *
+ * @internal
+ */
+function createSpecification<T>(
+  doc?: string,
+  condition?: Condition<T>,
+  rules: Rule<T, Any>[] = [],
+): Specification<T, Any> {
+  const satisfy = (entity: T) => {
+    if (condition && !condition(entity)) return ok(entity);
+    if (rules.length === 0) return ok(entity);
+    for (const rule of rules) {
+      const result = rule(entity);
+      if (isErr(result)) {
+        return result;
+      }
+    }
+    return ok(entity);
+  };
+
+  const and = (other: Any) =>
+    makeSpec((entity: T) => {
+      const r1 = satisfy(entity);
+      if (isErr(r1)) return r1;
+      return other.satisfy(entity);
+    });
+
+  const or = (other: Any) =>
+    makeSpec((entity: T) => {
+      const r1 = satisfy(entity);
+      if (isOk(r1)) return r1;
+      return other.satisfy(entity);
+    });
+
+  const not = () =>
+    makeSpec((entity: T) => {
+      const r = satisfy(entity);
+      return isOk(r) ? err('Specification should not be satisfied') : ok(entity);
+    });
+
+  const makeSpec = (satisfy: Any) => {
+    return Object.assign(satisfy, {
+      _tag: 'Specification' as const,
+      _hash: hash(rules),
+      _doc: doc ?? (rules.length > 0 ? rules[0]._doc : undefined),
+      satisfy,
+      and,
+      or,
+      not,
+    });
+  };
+
+  return makeSpec(satisfy);
+}
+
+/**
  * Creates a rule for entity validation.
  * This function supports both documented and non-documented rules through function overloads.
  *
@@ -566,68 +630,19 @@ function specWithRules<T, E>(
 }
 
 /**
- * Internal function to create a specification with common logic.
- * This eliminates code duplication between spec() and specWithRules().
+ * Type guard to check if a value is a specification.
  *
- * @typeParam T - The type of the entity being validated.
- * @param doc - The documentation of the specification.
- * @param condition - The condition that must be true for the specification to be evaluated.
- * @param rules - The rules that must be satisfied for the specification to be satisfied.
- * @returns A specification with satisfy, and, or, and not methods.
+ * @param maybeSpec - The value to check.
+ * @returns True if the value is a specification, false otherwise.
  *
- * @internal
+ * @public
  */
-function createSpecification<T>(
-  doc?: string,
-  condition?: Condition<T>,
-  rules: Rule<T, Any>[] = [],
-): Specification<T, Any> {
-  const satisfy = (entity: T) => {
-    if (condition && !condition(entity)) return ok(entity);
-    if (rules.length === 0) return ok(entity);
-    for (const rule of rules) {
-      const result = rule(entity);
-      if (isErr(result)) {
-        return result;
-      }
-    }
-    return ok(entity);
-  };
-
-  const and = (other: Any) =>
-    makeSpec((entity: T) => {
-      const r1 = satisfy(entity);
-      if (isErr(r1)) return r1;
-      return other.satisfy(entity);
-    });
-
-  const or = (other: Any) =>
-    makeSpec((entity: T) => {
-      const r1 = satisfy(entity);
-      if (isOk(r1)) return r1;
-      return other.satisfy(entity);
-    });
-
-  const not = () =>
-    makeSpec((entity: T) => {
-      const r = satisfy(entity);
-      return isOk(r) ? err('Specification should not be satisfied') : ok(entity);
-    });
-
-  const makeSpec = (satisfy: Any) => {
-    return Object.assign(satisfy, {
-      _tag: 'Specification' as const,
-      _hash: hash(rules),
-      _doc: doc ?? (rules.length > 0 ? rules[0]._doc : undefined),
-      satisfy,
-      and,
-      or,
-      not,
-    });
-  };
-
-  return makeSpec(satisfy);
-}
+const isSpec = (maybeSpec: unknown): maybeSpec is Specification<Any, Any> =>
+  !!maybeSpec &&
+  typeof maybeSpec === 'function' &&
+  '_tag' in maybeSpec &&
+  '_hash' in maybeSpec &&
+  maybeSpec._tag === 'Specification';
 
 export type { Specification };
-export { spec, rule };
+export { spec, rule, isSpec };
