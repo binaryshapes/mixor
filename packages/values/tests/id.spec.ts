@@ -1,4 +1,4 @@
-import { type Result, unwrap } from '@mixor/core';
+import { Any, type Result, unwrap } from '@mixor/core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import * as Id from '../src/id';
@@ -24,8 +24,63 @@ const validUUIDv6 = '1f060fb7-9274-6580-8021-a4046fa53921';
 const invalidUUIDv6 = 'invalid-uuidv6';
 const validUUIDv7 = '01980af5-d96e-7e94-bc27-fe883cef550e';
 const invalidUUIDv7 = 'invalid-uuidv7';
+const validUUID = 'd89f8c77-90f3-4ab0-90dd-3c1bd3293870';
+const invalidUUID = 'invalid-uuid';
 
 describe('id', () => {
+  describe('factory function', () => {
+    it('should run example id-021: Create a validator for UUID v4 and use it', () => {
+      const uuidValidator = Id.id('uuidv4');
+      const result = uuidValidator('d89f8c77-90f3-4ab0-90dd-3c1bd3293870');
+      expect(unwrap(result)).toBe('d89f8c77-90f3-4ab0-90dd-3c1bd3293870');
+
+      // Typechecking.
+      expectTypeOf(Id.id).toBeFunction();
+      expectTypeOf(uuidValidator).toEqualTypeOf<
+        (value: string) => Result<string, 'INVALID_UUIDV4'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUIDV4'>>();
+    });
+
+    it('should run example id-022: Create a validator for GUID and use it', () => {
+      const guidValidator = Id.id('guid');
+      const result = guidValidator('550e8400-e29b-41d4-a716-446655440000');
+      expect(unwrap(result)).toBe('550e8400-e29b-41d4-a716-446655440000');
+
+      // Typechecking.
+      expectTypeOf(Id.id).toBeFunction();
+      expectTypeOf(guidValidator).toEqualTypeOf<
+        (value: string) => Result<string, 'INVALID_GUID'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_GUID'>>();
+    });
+
+    it('should run example id-023: Validate an invalid value with a UUID v4 validator', () => {
+      const customValidator = Id.id('uuidv4');
+      const result = customValidator('invalid-uuid');
+      expect(unwrap(result)).toBe('INVALID_UUIDV4');
+
+      // Typechecking.
+      expectTypeOf(Id.id).toBeFunction();
+      expectTypeOf(customValidator).toEqualTypeOf<
+        (value: string) => Result<string, 'INVALID_UUIDV4'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUIDV4'>>();
+    });
+
+    it('should run example id-024: Throw error if the type is not supported', () => {
+      try {
+        // @ts-expect-error - Invalid ID type.
+        Id.id('notype')('test');
+        throw new Error('Should have thrown');
+      } catch (e: Any) {
+        expect(e).toBeInstanceOf(Id.IdError);
+        expect(e.key).toBe('ID_ERROR:INVALID_ID_TYPE');
+        expect(e.message).toContain("ID type 'notype' is not supported");
+      }
+    });
+  });
+
   describe('guid', () => {
     it('should run example id-001: Basic GUID validation', () => {
       const result = Id.guid(validGUID);
@@ -223,6 +278,44 @@ describe('id', () => {
       // Typechecking.
       expectTypeOf(Id.uuidv7).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUIDV7'>>();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUIDV7'>>();
+    });
+  });
+
+  describe('uuid', () => {
+    it('should run example id-025: Basic UUID validation with any version', () => {
+      const result = Id.uuid(validUUID);
+      expect(unwrap(result)).toBe(validUUID);
+
+      // Typechecking.
+      expectTypeOf(Id.uuid).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUID'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUID'>>();
+    });
+
+    it('should run example id-026: UUID v6 validation', () => {
+      const result = Id.uuid(validUUIDv6);
+      expect(unwrap(result)).toBe(validUUIDv6);
+
+      // Typechecking.
+      expectTypeOf(Id.uuid).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUID'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUID'>>();
+    });
+
+    it('should run example id-027: UUID v7 validation', () => {
+      const result = Id.uuid(validUUIDv7);
+      expect(unwrap(result)).toBe(validUUIDv7);
+
+      // Typechecking.
+      expectTypeOf(Id.uuid).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUID'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUID'>>();
+    });
+
+    it('should run example id-028: Invalid UUID validation', () => {
+      const result = Id.uuid(invalidUUID);
+      expect(unwrap(result)).toBe('INVALID_UUID');
+
+      // Typechecking.
+      expectTypeOf(Id.uuid).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUID'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUID'>>();
     });
   });
 });
