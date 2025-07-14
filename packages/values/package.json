@@ -1,0 +1,32 @@
+{
+  "name": "@mixor/values",
+  "version": "1.0.0",
+  "description": "A collection of values for Mixor",
+  "author": "Carlos Cosming",
+  "license": "MIT",
+  "keywords": [
+    "mixor",
+    "values",
+    "data-types",
+    "value-objects"
+  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "moonx -u -s test",
+    "test:project": "pnpm vitest --typecheck --hideSkippedTests --bail 1 --coverage --project",
+    "start": "node --watch --import tsx --conditions development"
+  },
+  "dependencies": {
+    "@mixor/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@unokit/vitest": "^1.0.0",
+    "@vitest/coverage-v8": "^3.1.4",
+    "@vitest/ui": "^3.1.4",
+    "tslib": "^2.8.1",
+    "tsx": "^4.19.4",
+    "vitest": "^3.1.4"
+  }
+}
