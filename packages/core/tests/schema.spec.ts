@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import type { Any } from '../src/generics';
 import { err, isOk, ok, unwrap } from '../src/result';
-import { type InferSchema, type Schema, SchemaError, schema } from '../src/schema';
+import { type InferSchema, type Schema, SchemaError, isSchema, schema } from '../src/schema';
 import { type Value, value } from '../src/value';
 
 // Common functions.
@@ -117,6 +117,51 @@ describe('schema', () => {
     });
   });
 
+  describe('Guard function isSchema', () => {
+    it('should return true for a valid schema', () => {
+      const user = schema({
+        name: value((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_NAME'))),
+        age: value((value: number) => (value >= 0 ? ok(value) : err('INVALID_AGE'))),
+      });
+
+      expect(isSchema(user)).toBe(true);
+
+      // Typechecking.
+      expectTypeOf(isSchema).toBeFunction();
+      expectTypeOf(isSchema).parameter(0).toBeUnknown();
+      expectTypeOf(isSchema).returns.toEqualTypeOf<boolean>();
+    });
+
+    it('should return false for a plain object', () => {
+      const plainObject = { name: 'John', age: 30 };
+
+      expect(isSchema(plainObject)).toBe(false);
+
+      // Typechecking.
+      expectTypeOf(isSchema).toBeFunction();
+      expectTypeOf(isSchema).parameter(0).toBeUnknown();
+      expectTypeOf(isSchema).returns.toEqualTypeOf<boolean>();
+    });
+
+    it('should return false for a hacked object with wrong hash', () => {
+      // Create a hacked object that looks like a schema but has wrong hash.
+      const hackedSchema = (() => null) as Any;
+      hackedSchema._tag = 'Schema';
+      hackedSchema._doc = 'Test documentation';
+      hackedSchema._hash = 'wrong-hash-value';
+      hackedSchema.email = value((value: string) =>
+        value.includes('@') ? ok(value) : err('INVALID_EMAIL'),
+      );
+
+      expect(isSchema(hackedSchema)).toBe(false);
+
+      // Typechecking.
+      expectTypeOf(isSchema).toBeFunction();
+      expectTypeOf(isSchema).parameter(0).toBeUnknown();
+      expectTypeOf(isSchema).returns.toEqualTypeOf<boolean>();
+    });
+  });
+
   describe('Complex validation', () => {
     it('should handle complex validation functions', () => {
       const passwordSchema = schema({
@@ -213,7 +258,7 @@ describe('schema', () => {
         age: value((value: number) => (value >= 0 ? ok(value) : err('INVALID_AGE'))),
       });
 
-      expect(user.doc).toBe('User validation schema with name and age fields');
+      expect(user._doc).toBe('User validation schema with name and age fields');
 
       // Typechecking.
       expectTypeOf(user).toBeObject();

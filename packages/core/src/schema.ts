@@ -110,7 +110,7 @@ type Schema<S extends SchemaFields = SchemaFields> = ((
 ) => Result<SchemaValues<S>, SchemaErrors<S>>) & {
   readonly _tag: 'Schema';
   readonly _hash: string;
-  readonly doc?: string;
+  readonly _doc?: string;
 } & {
   [K in keyof S]: S[K] extends Value<infer T, infer E> ? (value: T) => Result<T, E> : never;
 };
@@ -373,7 +373,7 @@ const schema: SchemaConstructor = <F extends SchemaFields>(...args: Any): Schema
   Object.defineProperties(schemaWrapper, {
     _tag: { value: 'Schema', writable: false, enumerable: true },
     _hash: { value: hash('schema', fields), writable: false, enumerable: true },
-    doc: { value: doc, writable: false, enumerable: true },
+    _doc: { value: doc, writable: false, enumerable: true },
   });
 
   // Add field functions as properties.
@@ -431,17 +431,30 @@ type InferSchema<S> = S extends Schema<infer F> ? Prettify<SchemaValues<F>> : ne
 
 /**
  * Guard check to determine if a value is a schema.
- * @param value - The value to check.
+ * @param maybeSchema - The value to check.
  * @returns True if the value is a schema, false otherwise.
  *
  * @public
  */
-const isSchema = (value: Any): value is Schema<SchemaFields> =>
-  !!value &&
-  typeof value === 'function' &&
-  '_tag' in value &&
-  '_hash' in value &&
-  value._tag === 'Schema';
+const isSchema = (maybeSchema: unknown): maybeSchema is Schema<SchemaFields> => {
+  return (
+    !!maybeSchema &&
+    typeof maybeSchema === 'function' &&
+    '_tag' in maybeSchema &&
+    maybeSchema._tag === 'Schema' &&
+    '_hash' in maybeSchema &&
+    maybeSchema._hash ===
+      hash(
+        'schema',
+        Object.fromEntries(
+          Object.entries(maybeSchema as Any).filter(
+            ([key]) => key !== '_tag' && key !== '_hash' && key !== '_doc',
+          ),
+        ),
+      ) &&
+    '_doc' in maybeSchema
+  );
+};
 
 export type { InferSchema, Schema, SchemaFields, SchemaValues, SchemaErrors, SchemaOptions };
 export { schema, isSchema, SchemaError };
