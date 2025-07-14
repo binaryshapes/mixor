@@ -293,8 +293,16 @@ const isNumeric = (value: string) => (numeric.test(value) ? ok(value) : err('NOT
  *
  * @example
  * ```ts
- * const result = isHexadecimal('FFAA00'); // ok('FFAA00').
- * const result = isHexadecimal('FFAA00GG'); // err('NOT_HEXADECIMAL').
+ * // string-024: Validate hexadecimal string.
+ * const result = isHexadecimal('FFAA00');
+ * // result: ok('FFAA00').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-025: Reject invalid hexadecimal string.
+ * const result = isHexadecimal('FFAA00GG');
+ * // result: err('NOT_HEXADECIMAL').
  * ```
  *
  * @public
@@ -310,8 +318,16 @@ const isHexadecimal = (value: string) =>
  *
  * @example
  * ```ts
- * const result = isBase64('SGVsbG8gV29ybGQ='); // ok('SGVsbG8gV29ybGQ=').
- * const result = isBase64('invalid-base64'); // err('NOT_BASE64').
+ * // string-026: Validate base64 string.
+ * const result = isBase64('SGVsbG8gV29ybGQ=');
+ * // result: ok('SGVsbG8gV29ybGQ=').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-027: Reject invalid base64 string.
+ * const result = isBase64('invalid-base64');
+ * // result: err('NOT_BASE64').
  * ```
  *
  * @public
@@ -326,8 +342,16 @@ const isBase64 = (value: string) => (base64.test(value) ? ok(value) : err('NOT_B
  *
  * @example
  * ```ts
- * const result = isDate('2021-01-01'); // ok('2021-01-01').
- * const result = isDate('invalid-date'); // err('INVALID_DATE').
+ * // string-028: Validate date string.
+ * const result = isDate('2021-01-01');
+ * // result: ok('2021-01-01').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-029: Reject invalid date string.
+ * const result = isDate('invalid-date');
+ * // result: err('INVALID_DATE').
  * ```
  *
  * @public

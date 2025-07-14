@@ -29,6 +29,12 @@ const validNumeric = '1234567890';
 const invalidNumeric = '123abc';
 const validRegexMatch = 'hello-world';
 const invalidRegexMatch = 'Hello World';
+const validHexadecimal = 'FFAA00';
+const invalidHexadecimal = 'FFAA00GG';
+const validBase64 = 'SGVsbG8gV29ybGQ=';
+const invalidBase64 = 'invalid-base64';
+const validDate = '2021-01-01';
+const invalidDate = 'invalid-date';
 
 describe('String validation functions', () => {
   describe('coerce', () => {
@@ -323,6 +329,70 @@ describe('String validation functions', () => {
       // Typechecking.
       expectTypeOf(Str.isNumeric).toEqualTypeOf<(value: string) => Result<string, 'NOT_NUMERIC'>>();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_NUMERIC'>>();
+    });
+  });
+
+  describe('isHexadecimal', () => {
+    it('should run example string-024: Validate hexadecimal string', () => {
+      const result = Str.isHexadecimal(validHexadecimal);
+      expect(unwrap(result)).toBe(validHexadecimal);
+
+      // Typechecking.
+      expectTypeOf(Str.isHexadecimal).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_HEXADECIMAL'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_HEXADECIMAL'>>();
+    });
+
+    it('should run example string-025: Reject invalid hexadecimal string', () => {
+      const result = Str.isHexadecimal(invalidHexadecimal);
+      expect(unwrap(result)).toBe('NOT_HEXADECIMAL');
+
+      // Typechecking.
+      expectTypeOf(Str.isHexadecimal).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_HEXADECIMAL'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_HEXADECIMAL'>>();
+    });
+  });
+
+  describe('isBase64', () => {
+    it('should run example string-026: Validate base64 string', () => {
+      const result = Str.isBase64(validBase64);
+      expect(unwrap(result)).toBe(validBase64);
+
+      // Typechecking.
+      expectTypeOf(Str.isBase64).toEqualTypeOf<(value: string) => Result<string, 'NOT_BASE64'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_BASE64'>>();
+    });
+
+    it('should run example string-027: Reject invalid base64 string', () => {
+      const result = Str.isBase64(invalidBase64);
+      expect(unwrap(result)).toBe('NOT_BASE64');
+
+      // Typechecking.
+      expectTypeOf(Str.isBase64).toEqualTypeOf<(value: string) => Result<string, 'NOT_BASE64'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_BASE64'>>();
+    });
+  });
+
+  describe('isDate', () => {
+    it('should run example string-028: Validate date string', () => {
+      const result = Str.isDate(validDate);
+      expect(unwrap(result)).toBe(validDate);
+
+      // Typechecking.
+      expectTypeOf(Str.isDate).toEqualTypeOf<(value: string) => Result<string, 'INVALID_DATE'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_DATE'>>();
+    });
+
+    it('should run example string-029: Reject invalid date string', () => {
+      const result = Str.isDate(invalidDate);
+      expect(unwrap(result)).toBe('INVALID_DATE');
+
+      // Typechecking.
+      expectTypeOf(Str.isDate).toEqualTypeOf<(value: string) => Result<string, 'INVALID_DATE'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_DATE'>>();
     });
   });
 });
