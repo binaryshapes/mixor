@@ -4,15 +4,13 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as Id from '../src/id';
 
 // Test data for different ID types.
-const validUUIDv4 = 'd89f8c77-90f3-4ab0-90dd-3c1bd3293870';
-const invalidUUIDv4 = '123e4567-e89b-12d3-a456';
 const validGUID = '550e8400-e29b-41d4-a716-446655440000';
 const invalidGUID = 'invalid-guid';
 const validCUID = 'ch72gsb320000udocl363eofy';
 const invalidCUID = 'invalid-cuid';
 const validCUID2 = 'tfp0qj8q8q8q8q8q8q8q8q';
 const invalidCUID2 = 'invalid-cuid2';
-const validULID = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+const validULID = '01arz3ndektsv4rrffq69g5fav';
 const invalidULID = 'invalid-ulid';
 const validXID = '9m4e2mr0ui3e8a215n4g';
 const invalidXID = 'invalid-xid';
@@ -20,6 +18,10 @@ const validKSUID = '2zsoKss5fh8cxz6RqvW5JnAsRrL';
 const invalidKSUID = 'invalid-ksuid';
 const validNanoID = 'lEzamK162oGwBP5UOFwsB';
 const invalidNanoID = 'invalid-nanoid';
+const validUUIDv4 = 'd89f8c77-90f3-4ab0-90dd-3c1bd3293870';
+const invalidUUIDv4 = '123e4567-e89b-12d3-a456';
+const validUUIDv6 = '1f060fb7-9274-6580-8021-a4046fa53921';
+const invalidUUIDv6 = 'invalid-uuidv6';
 
 describe('id', () => {
   describe('guid', () => {
@@ -163,7 +165,7 @@ describe('id', () => {
   });
 
   describe('uuidv4', () => {
-    it('should return ok for valid UUID v4', () => {
+    it('should run example id-015: Basic UUID v4 validation', () => {
       const result = Id.uuidv4(validUUIDv4);
       expect(unwrap(result)).toBe(validUUIDv4);
 
@@ -172,13 +174,33 @@ describe('id', () => {
       expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUIDV4'>>();
     });
 
-    it('should return err for invalid UUID v4', () => {
+    it('should run example id-016: Invalid UUID v4 validation', () => {
       const result = Id.uuidv4(invalidUUIDv4);
       expect(unwrap(result)).toBe('INVALID_UUIDV4');
 
       // Typechecking.
       expectTypeOf(Id.uuidv4).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUIDV4'>>();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUIDV4'>>();
+    });
+  });
+
+  describe('uuidv6', () => {
+    it('should run example id-017: Basic UUID v6 validation', () => {
+      const result = Id.uuidv6(validUUIDv6);
+      expect(unwrap(result)).toBe(validUUIDv6);
+
+      // Typechecking.
+      expectTypeOf(Id.uuidv6).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUIDV6'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUIDV6'>>();
+    });
+
+    it('should run example id-018: Invalid UUID v6 validation', () => {
+      const result = Id.uuidv6(invalidUUIDv6);
+      expect(unwrap(result)).toBe('INVALID_UUIDV6');
+
+      // Typechecking.
+      expectTypeOf(Id.uuidv6).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUIDV6'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUIDV6'>>();
     });
   });
 });
