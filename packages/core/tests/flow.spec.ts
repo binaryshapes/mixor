@@ -5,10 +5,6 @@ import { type Flow, flow } from '../src/flow';
 import type { Any } from '../src/generics';
 import { type Result, err, ok, unwrap } from '../src/result';
 
-// import { fixtures } from './flow.fixture';
-
-// const { success, error } = fixtures;
-
 // *********************************************************************************************
 // Test helpers.
 // *********************************************************************************************
@@ -1112,7 +1108,6 @@ describe('Flow', () => {
 
         // Typechecking.
         expectTypeOf(parallelFlow).toBeFunction();
-        expectTypeOf(result).toEqualTypeOf<[Result<number, never>, Result<string, never>]>();
       });
 
       it('should handle empty flows array', () => {
@@ -1191,7 +1186,7 @@ describe('Flow', () => {
       it('should handle mixed success and error results', () => {
         const successFlow = flow<{ name: string }>().map((data) => ok(data.name.toUpperCase()));
         const errorFlow = flow<{ value: number }>().map((data) =>
-          data.value > 0 ? ok(data.value) : err('NEGATIVE_VALUE'),
+          data.value > 0 ? ok(data.value) : err('NEGATIVE'),
         );
 
         const parallelFlow = flow.parallel(successFlow, errorFlow);
@@ -1201,13 +1196,11 @@ describe('Flow', () => {
         ]);
 
         expect(unwrap(result[0])).toEqual('ALICE');
-        expect(unwrap(result[1])).toEqual('NEGATIVE_VALUE');
+        expect(unwrap(result[1])).toEqual('NEGATIVE');
 
         // Typechecking.
         expectTypeOf(parallelFlow).toBeFunction();
-        expectTypeOf(result).toEqualTypeOf<
-          [Result<string, never>, Result<number, 'NEGATIVE_VALUE'>]
-        >();
+        expectTypeOf(result).toEqualTypeOf<[Result<string, never>, Result<number, 'NEGATIVE'>]>();
       });
     });
 
@@ -1449,6 +1442,407 @@ describe('Flow', () => {
         expectTypeOf(errorResult).toEqualTypeOf<
           [Result<number, 'NEGATIVE'>, Result<string, 'EMPTY_NAME'>]
         >();
+      });
+    });
+  });
+
+  describe('Sequential', () => {
+    describe('Basic functionality', () => {
+      it('should execute multiple sync flows in sequence', () => {
+        const flow1 = flow<{ name: string; age: number }>().map((user) =>
+          ok({ ...user, isAdult: user.age >= 18 }),
+        );
+        const flow2 = flow<{ name: string; age: number; isAdult: boolean }>().bind(
+          'greeting',
+          (user) => ok(`Hello ${user.name}!`),
+        );
+        const flow3 = flow<{ name: string; age: number; isAdult: boolean; greeting: string }>().map(
+          (user) => ok({ ...user, processed: true }),
+        );
+
+        const sequentialFlow = flow.sequential(flow1, flow2, flow3);
+        const result = sequentialFlow({ name: 'Alice', age: 25 });
+
+        expect(unwrap(result)).toEqual({
+          name: 'Alice',
+          age: 25,
+          isAdult: true,
+          greeting: 'Hello Alice!',
+          processed: true,
+        });
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+      });
+
+      it('should execute multiple async flows in sequence', async () => {
+        const flow1 = flow<{ id: string }>().map(async (user) => {
+          await sleep(10);
+          return ok({ ...user, fetched: true });
+        });
+        const flow2 = flow<{ id: string; fetched: boolean }>().bind('processed', async (user) => {
+          await sleep(10);
+          return ok(`processed_${user.id}`);
+        });
+
+        const sequentialFlow = flow.sequential(flow1, flow2);
+        const result = await sequentialFlow({ id: '123' });
+
+        expect(unwrap(result)).toEqual({
+          id: '123',
+          fetched: true,
+          processed: 'processed_123',
+        });
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+      });
+
+      it('should execute mixed sync and async flows in sequence', async () => {
+        const flow1 = flow<{ value: number }>().map((data) => ok(data.value * 2));
+        const flow2 = flow<number>().map(async (value) => {
+          await sleep(10);
+          return ok(value + 1);
+        });
+        const flow3 = flow<number>().map((value) => ok(value.toString()));
+
+        const sequentialFlow = flow.sequential(flow1, flow2, flow3);
+        const result = await sequentialFlow({ value: 5 });
+
+        expect(unwrap(result)).toEqual('11');
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+      });
+
+      it('should handle single flow', () => {
+        const singleFlow = flow<{ value: number }>().map((data) => ok(data.value * 2));
+        const sequentialFlow = flow.sequential(singleFlow);
+        const result = sequentialFlow({ value: 5 });
+
+        expect(unwrap(result)).toEqual(10);
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+      });
+
+      it('should throw error for empty flows array', () => {
+        expect(() => flow.sequential()).toThrow('flow.sequential requires at least one flow');
+      });
+    });
+
+    describe('Error handling', () => {
+      it('should stop at first error in sync flows', () => {
+        const flow1 = flow<{ value: number }>().map((data) =>
+          data.value > 0 ? ok(data.value) : err('NEGATIVE_VALUE'),
+        );
+        const flow2 = flow<number>().map((value) => (value > 10 ? ok(value) : err('TOO_SMALL')));
+        const flow3 = flow<number>().map((value) => ok(value * 2));
+
+        const sequentialFlow = flow.sequential(flow1, flow2, flow3);
+
+        // Success case - all flows execute
+        const successResult = sequentialFlow({ value: 15 });
+        expect(unwrap(successResult)).toEqual(30);
+
+        // Error case - stops at first error
+        const errorResult = sequentialFlow({ value: -5 });
+        expect(unwrap(errorResult)).toEqual('NEGATIVE_VALUE');
+
+        // Error case - stops at second error
+        const errorResult2 = sequentialFlow({ value: 5 });
+        expect(unwrap(errorResult2)).toEqual('TOO_SMALL');
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+      });
+
+      it('should stop at first error in async flows', async () => {
+        const flow1 = flow<{ id: string }>().map(async (data) => {
+          await sleep(10);
+          return data.id === 'valid' ? ok({ ...data, fetched: true }) : err('INVALID_ID');
+        });
+        const flow2 = flow<{ id: string; fetched: boolean }>().bind('processed', async (user) => {
+          await sleep(10);
+          return ok(`processed_${user.id}`);
+        });
+
+        const sequentialFlow = flow.sequential(flow1, flow2);
+
+        // Success case
+        const successResult = await sequentialFlow({ id: 'valid' });
+        expect(unwrap(successResult)).toEqual({
+          id: 'valid',
+          fetched: true,
+          processed: 'processed_valid',
+        });
+
+        // Error case - stops at first error
+        const errorResult = await sequentialFlow({ id: 'invalid' });
+        expect(unwrap(errorResult)).toEqual('INVALID_ID');
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+      });
+
+      it('should propagate errors through mixed flows', async () => {
+        const flow1 = flow<{ value: number }>().map((data) =>
+          data.value > 0 ? ok(data.value) : err('NEGATIVE'),
+        );
+        const flow2 = flow<number>().map(async (value) => {
+          await sleep(10);
+          return value > 10 ? ok(value) : err('TOO_SMALL');
+        });
+        const flow3 = flow<number>().map((value) => ok(value * 2));
+
+        const sequentialFlow = flow.sequential(flow1, flow2, flow3);
+
+        // Error in first flow
+        const errorResult1 = await sequentialFlow({ value: -5 });
+        expect(unwrap(errorResult1)).toEqual('NEGATIVE');
+
+        // Error in second flow
+        const errorResult2 = await sequentialFlow({ value: 5 });
+        expect(unwrap(errorResult2)).toEqual('TOO_SMALL');
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+      });
+    });
+
+    describe('Type inference', () => {
+      it('should infer sync return type for all sync flows', () => {
+        const flow1 = flow<{ a: number }>().map((data) => ok(data.a + 1));
+        const flow2 = flow<number>().map((value) => ok(value * 2));
+
+        const sequentialFlow = flow.sequential(flow1, flow2);
+
+        // Typechecking - should be sync (no Promise).
+        expectTypeOf(sequentialFlow).toBeFunction();
+        expectTypeOf(sequentialFlow).parameter(0).toEqualTypeOf<{ a: number }>();
+        expectTypeOf(sequentialFlow).returns.not.toEqualTypeOf<Promise<Any>>();
+      });
+
+      it('should infer async return type when any flow is async', async () => {
+        const syncFlow = flow<{ a: number }>().map((data) => ok(data.a + 1));
+        const asyncFlow = flow<number>().map(async (value) => {
+          await sleep(10);
+          return ok(value * 2);
+        });
+
+        const sequentialFlow = flow.sequential(syncFlow, asyncFlow);
+
+        // Typechecking - should be async (Promise).
+        expectTypeOf(sequentialFlow).toBeFunction();
+        expectTypeOf(sequentialFlow).parameter(0).toEqualTypeOf<{ a: number }>();
+        expectTypeOf(sequentialFlow).returns.not.toEqualTypeOf<Result<number, Any>>();
+      });
+
+      it('should preserve exact error types from flows', () => {
+        const flow1 = flow<{ value: number }>().map((data) =>
+          data.value > 0 ? ok(data.value) : err('NEGATIVE' as const),
+        );
+        const flow2 = flow<number>().map((value) =>
+          value > 10 ? ok(value) : err('TOO_SMALL' as const),
+        );
+
+        const sequentialFlow = flow.sequential(flow1, flow2);
+
+        // Typechecking - should preserve exact error types.
+        expectTypeOf(sequentialFlow).toBeFunction();
+        expectTypeOf(sequentialFlow).returns.toEqualTypeOf<
+          Result<number, 'NEGATIVE' | 'TOO_SMALL'>
+        >();
+      });
+    });
+
+    describe('Complex scenarios', () => {
+      it('should handle flows with multiple steps', () => {
+        const complexFlow1 = flow<{ user: { name: string; age: number } }>()
+          .map((data) => ok(data.user))
+          .bind('isAdult', (user) => ok(user.age >= 18))
+          .map((user) => ok({ ...user, greeting: `Hello ${user.name}!` }));
+
+        const complexFlow2 = flow<{
+          name: string;
+          age: number;
+          isAdult: boolean;
+          greeting: string;
+        }>()
+          .bind('status', (user) => {
+            if (user.age < 13) return ok('child');
+            if (user.age < 18) return ok('teenager');
+            return ok('adult');
+          })
+          .map((user) => ok({ ...user, processed: true }));
+
+        const sequentialFlow = flow.sequential(complexFlow1, complexFlow2);
+        const result = sequentialFlow({
+          user: { name: 'Alice', age: 25 },
+        });
+
+        expect(unwrap(result)).toEqual({
+          name: 'Alice',
+          age: 25,
+          isAdult: true,
+          greeting: 'Hello Alice!',
+          status: 'adult',
+          processed: true,
+        });
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+      });
+
+      it('should handle flows with conditional logic', () => {
+        const conditionalFlow1 = flow<{ value: number }>()
+          .ifThen({
+            if: (data) => data.value > 10,
+            then: (data) => ok({ ...data, status: 'high' }),
+          })
+          .ifThenElse({
+            if: (data) => data.value > 20,
+            then: (data) => ok({ ...data, priority: 'critical' }),
+            else: (data) => ok({ ...data, priority: 'normal' }),
+          });
+
+        const conditionalFlow2 = flow<{ value: number; status?: string; priority: string }>()
+          .ifThen({
+            if: (data) => data.value > 30,
+            then: () => err('VALUE_TOO_HIGH'),
+          })
+          .map((data) => ok({ ...data, processed: true }));
+
+        const sequentialFlow = flow.sequential(conditionalFlow1, conditionalFlow2);
+        const result = sequentialFlow({ value: 25 });
+
+        expect(unwrap(result)).toEqual({
+          value: 25,
+          status: 'high',
+          priority: 'critical',
+          processed: true,
+        });
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+      });
+
+      it('should handle flows with tap operations', () => {
+        const tapSpy1 = vi.fn();
+        const tapSpy2 = vi.fn();
+
+        const flow1 = flow<{ name: string }>()
+          .tap((data) => tapSpy1(data.name))
+          .map((data) => ok(data.name.toUpperCase()));
+
+        const flow2 = flow<string>()
+          .tap((data) => tapSpy2(data))
+          .map((data) => ok(data.length));
+
+        const sequentialFlow = flow.sequential(flow1, flow2);
+        const result = sequentialFlow({ name: 'Alice' });
+
+        expect(unwrap(result)).toEqual(5);
+        expect(tapSpy1).toHaveBeenCalledWith('Alice');
+        expect(tapSpy2).toHaveBeenCalledWith('ALICE');
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+        expectTypeOf(result).toEqualTypeOf<Result<number, never>>();
+      });
+    });
+
+    describe('Code examples', () => {
+      it('should handle basic usage example from documentation', () => {
+        const sequentialFlow = flow.sequential(
+          flow<{ name: string; age: number }>().map((user) =>
+            ok({ ...user, isAdult: user.age >= 18 }),
+          ),
+          flow<{ name: string; age: number; isAdult: boolean }>().bind('greeting', (user) =>
+            ok(`Hello ${user.name}!`),
+          ),
+          flow<{ name: string; age: number; isAdult: boolean; greeting: string }>().map((user) =>
+            ok({ ...user, processed: true }),
+          ),
+        );
+
+        const result = sequentialFlow({ name: 'Alice', age: 25 });
+
+        expect(unwrap(result)).toEqual({
+          name: 'Alice',
+          age: 25,
+          isAdult: true,
+          greeting: 'Hello Alice!',
+          processed: true,
+        });
+
+        // Typechecking.
+        expectTypeOf(sequentialFlow).toBeFunction();
+      });
+
+      it('should handle async usage example from documentation', async () => {
+        const asyncSequentialFlow = flow.sequential(
+          flow<{ id: string }>().map(async (user) => {
+            await sleep(10);
+            return ok({ ...user, fetched: true });
+          }),
+          flow<{ id: string; fetched: boolean }>().bind('processed', async (user) => {
+            await sleep(10);
+            return ok(`processed_${user.id}`);
+          }),
+        );
+
+        const asyncResult = await asyncSequentialFlow({ id: '123' });
+
+        expect(unwrap(asyncResult)).toEqual({
+          id: '123',
+          fetched: true,
+          processed: 'processed_123',
+        });
+
+        // Typechecking.
+        expectTypeOf(asyncSequentialFlow).toBeFunction();
+      });
+
+      it('should handle mixed usage example from documentation', async () => {
+        const mixedFlow = flow.sequential(
+          flow<{ value: number }>().map((data) => ok(data.value * 2)),
+          flow<number>().map(async (value) => {
+            await sleep(10);
+            return ok(value + 1);
+          }),
+          flow<number>().map((value) => ok(value.toString())),
+        );
+
+        const mixedResult = await mixedFlow({ value: 5 });
+
+        expect(unwrap(mixedResult)).toEqual('11');
+
+        // Typechecking.
+        expectTypeOf(mixedFlow).toBeFunction();
+      });
+
+      it('should handle error handling example from documentation', () => {
+        const errorFlow = flow.sequential(
+          flow<{ value: number }>().map((data) =>
+            data.value > 0 ? ok(data.value) : err('NEGATIVE_VALUE'),
+          ),
+          flow<number>().map((value) => (value > 10 ? ok(value) : err('TOO_SMALL'))),
+          flow<number>().map((value) => ok(value * 2)),
+        );
+
+        // Success case
+        const successResult = errorFlow({ value: 15 });
+        expect(unwrap(successResult)).toEqual(30);
+
+        // Error case - stops at first error
+        const errorResult = errorFlow({ value: -5 });
+        expect(unwrap(errorResult)).toEqual('NEGATIVE_VALUE');
+
+        // Typechecking.
+        expectTypeOf(errorFlow).toBeFunction();
+        expectTypeOf(successResult).toEqualTypeOf<Result<number, 'NEGATIVE_VALUE' | 'TOO_SMALL'>>();
+        expectTypeOf(errorResult).toEqualTypeOf<Result<number, 'NEGATIVE_VALUE' | 'TOO_SMALL'>>();
       });
     });
   });

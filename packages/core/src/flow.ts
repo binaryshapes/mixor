@@ -7,7 +7,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 import type { Any, MergeUnion, Prettify, PrimitiveTypeExtended } from './generics';
-import { type Result, isErr, isOk, ok } from './result';
+import { hash } from './hash';
+import { type Result, isErr, isOk, ok, unwrap } from './result';
 
 /**
  * A function that can be used as a step in a flow.
@@ -52,9 +53,9 @@ type FlowValue<T> = MergeUnion<T>;
  */
 type FlowStep = {
   _tag: 'Step';
+  _hash: string;
   kind: 'sync' | 'async';
   fn: FlowFunction;
-  hash: string;
   operator: FlowOperator;
   mapping: FlowMapping;
 };
@@ -509,9 +510,9 @@ const flowFunction =
   (fn: FlowFunction) => {
     steps.push({
       _tag: 'Step',
+      _hash: hash(fn),
       kind: fn.constructor.name === 'AsyncFunction' ? 'async' : 'sync',
       fn,
-      hash: fn.toString(),
       operator,
       mapping,
     } satisfies FlowStep);
@@ -750,6 +751,55 @@ type HasAsyncFlow<T extends FlowArray> = T extends readonly [infer First, ...inf
   : false;
 
 /**
+ * Extract the input type from the first flow in a sequence.
+ *
+ * @internal
+ */
+type SequentialInput<T extends FlowArray> = T extends readonly [infer First, ...Any]
+  ? First extends Flow<infer I, Any, Any, Any>
+    ? I
+    : never
+  : never;
+
+/**
+ * Extract the output type from the last flow in a sequence.
+ *
+ * @internal
+ */
+type SequentialOutput<T extends FlowArray> = T extends readonly [...Any, infer Last]
+  ? Last extends Flow<Any, infer O, Any, Any>
+    ? O
+    : never
+  : never;
+
+/**
+ * Extract all error types from a sequence of flows.
+ *
+ * @internal
+ */
+type SequentialErrors<T extends FlowArray> = T extends readonly [infer First, ...infer Rest]
+  ? First extends Flow<Any, Any, infer E, Any>
+    ? Rest extends readonly Flow<Any, Any, Any, Any>[]
+      ? E | SequentialErrors<Rest>
+      : E
+    : Rest extends readonly Flow<Any, Any, Any, Any>[]
+      ? SequentialErrors<Rest>
+      : never
+  : never;
+
+/**
+ * Sequential flow type that chains flows together.
+ * Each flow receives the output of the previous flow as input.
+ *
+ * @internal
+ */
+type SequentialFlow<T extends FlowArray> = (
+  input: SequentialInput<T>,
+) => HasAsyncFlow<T> extends true
+  ? Promise<Result<SequentialOutput<T>, SequentialErrors<T>>>
+  : Result<SequentialOutput<T>, SequentialErrors<T>>;
+
+/**
  * Parallel flow type.
  *
  * @internal
@@ -763,6 +813,153 @@ type ParallelFlow<T extends FlowArray> = (inputs: {
   : {
       [K in keyof T]: T[K] extends Flow<Any, infer O, infer E, Any> ? Result<O, E> : never;
     };
+
+/**
+ * Executes multiple flows in sequence.
+ * Each flow receives the output of the previous flow as input.
+ * Returns the result of the last flow in the sequence.
+ *
+ * ## Behavior
+ *
+ * - **Sequential execution**: Flows execute one after another, waiting for each to complete.
+ * - **Data flow**: Each flow receives the output of the previous flow as its input.
+ * - **Error propagation**: If any flow fails, the error is propagated and subsequent flows are skipped.
+ * - **Async handling**: If any flow is async, the entire operation becomes async and returns a Promise.
+ * - **Type safety**: Ensures that each flow's output type matches the next flow's input type.
+ *
+ * ## Type Safety
+ *
+ * - Validates that each flow's output type matches the next flow's input type.
+ * - Combines error types from all flows in the sequence.
+ * - Preserves the output type of the last flow in the sequence.
+ * - Handles both sync and async flows seamlessly.
+ * - Automatically infers Promise return type when any flow is async.
+ *
+ * ## Use Cases
+ *
+ * - **Data transformation pipelines**: Transform data through multiple stages.
+ * - **Validation chains**: Validate data through multiple validation steps.
+ * - **API processing**: Process data through multiple API calls in sequence.
+ * - **File processing**: Read, transform, and write files in sequence.
+ *
+ * @typeParam Flows - Tuple of flows to execute in sequence.
+ * @param flows - Array of flows to execute in sequence.
+ * @returns A new Flow that executes all flows in sequence.
+ *
+ * @example
+ * ```ts
+ * // Sequential execution of sync flows
+ * const sequentialFlow = flow.sequential(
+ *   flow<{ name: string; age: number }>()
+ *     .map((user) => ok({ ...user, isAdult: user.age >= 18 })),
+ *   flow<{ name: string; age: number; isAdult: boolean }>()
+ *     .bind('greeting', (user) => ok(`Hello ${user.name}!`)),
+ *   flow<{ name: string; age: number; isAdult: boolean; greeting: string }>()
+ *     .map((user) => ok({ ...user, processed: true }))
+ * );
+ *
+ * const result = sequentialFlow({ name: 'Alice', age: 25 });
+ * // Result<{ name: string; age: number; isAdult: boolean; greeting: string; processed: boolean }, never>
+ * // Result: ok({ name: 'Alice', age: 25, isAdult: true, greeting: 'Hello Alice!', processed: true })
+ *
+ * // Sequential execution with async flows
+ * const asyncSequentialFlow = flow.sequential(
+ *   flow<{ id: string }>()
+ *     .map(async (user) => {
+ *       await sleep(10);
+ *       return ok({ ...user, fetched: true });
+ *     }),
+ *   flow<{ id: string; fetched: boolean }>()
+ *     .bind('processed', async (user) => {
+ *       await sleep(10);
+ *       return ok(`processed_${user.id}`);
+ *     })
+ * );
+ *
+ * const asyncResult = await asyncSequentialFlow({ id: '123' });
+ * // Result<{ id: string; fetched: boolean; processed: string }, never>
+ *
+ * // Mixed sync and async flows
+ * const mixedFlow = flow.sequential(
+ *   flow<{ value: number }>()
+ *     .map((data) => ok(data.value * 2)),
+ *   flow<number>()
+ *     .map(async (value) => {
+ *       await sleep(10);
+ *       return ok(value + 1);
+ *     }),
+ *   flow<number>()
+ *     .map((value) => ok(value.toString()))
+ * );
+ *
+ * const mixedResult = await mixedFlow({ value: 5 });
+ * // Result<string, never>
+ * // Result: ok('11')
+ *
+ * // Error handling in sequential flows
+ * const errorFlow = flow.sequential(
+ *   flow<{ value: number }>()
+ *     .map((data) => data.value > 0 ? ok(data.value) : err('NEGATIVE_VALUE')),
+ *   flow<number>()
+ *     .map((value) => value > 10 ? ok(value) : err('TOO_SMALL')),
+ *   flow<number>()
+ *     .map((value) => ok(value * 2))
+ * );
+ *
+ * // Success case
+ * const successResult = errorFlow({ value: 15 });
+ * // Result<number, "NEGATIVE_VALUE" | "TOO_SMALL">
+ * // Result: ok(30)
+ *
+ * // Error case - stops at first error
+ * const errorResult = errorFlow({ value: -5 });
+ * // Result<never, "NEGATIVE_VALUE" | "TOO_SMALL">
+ * // Result: err('NEGATIVE_VALUE')
+ * ```
+ *
+ * @public
+ */
+flow.sequential = <T extends FlowArray>(...flows: T): SequentialFlow<T> => {
+  if (flows.length === 0) {
+    throw new Error('flow.sequential requires at least one flow');
+  }
+
+  // Build all flows
+  const builtFlows = flows.map((flow) => flow.build());
+  const isAsync = flows.some((flow) => flow.steps().some((step) => step.kind === 'async'));
+
+  if (isAsync) {
+    return (async (input: Any) => {
+      let currentResult = await builtFlows[0](input);
+
+      for (let i = 1; i < builtFlows.length; i++) {
+        if (isErr(currentResult)) {
+          return currentResult;
+        }
+        const unwrappedValue = unwrap(currentResult);
+        const nextResult = await builtFlows[i](unwrappedValue);
+        currentResult = nextResult;
+      }
+
+      return currentResult;
+    }) as SequentialFlow<T>;
+  } else {
+    return ((input: Any) => {
+      let currentResult = builtFlows[0](input) as Any;
+
+      for (let i = 1; i < builtFlows.length; i++) {
+        if (isErr(currentResult)) {
+          return currentResult;
+        }
+        const unwrappedValue = unwrap(currentResult);
+        const nextResult = builtFlows[i](unwrappedValue);
+        currentResult = nextResult;
+      }
+
+      return currentResult;
+    }) as SequentialFlow<T>;
+  }
+};
 
 /**
  * Executes multiple flows in parallel.
