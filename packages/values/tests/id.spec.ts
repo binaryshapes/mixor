@@ -1,4 +1,4 @@
-import { Any, type Result, unwrap } from '@mixor/core';
+import { type Result, unwrap } from '@mixor/core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import * as Id from '../src/id';
@@ -72,8 +72,8 @@ describe('id', () => {
       try {
         // @ts-expect-error - Invalid ID type.
         Id.id('notype')('test');
-        throw new Error('Should have thrown');
-      } catch (e: Any) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (e: any) {
         expect(e).toBeInstanceOf(Id.IdError);
         expect(e.key).toBe('ID_ERROR:INVALID_ID_TYPE');
         expect(e.message).toContain("ID type 'notype' is not supported");
