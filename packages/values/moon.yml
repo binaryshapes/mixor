@@ -1,0 +1,18 @@
+id: '@mixor/values'
+language: typescript
+type: library
+tags:
+  - vitest
+
+project:
+  name: Values library
+  description: A collection of values for Mixor
+  maintainers:
+    - Carlos Cosming
+  metadata:
+    license: MIT
+    public: true
+    repository:
+      type: git
+      url: https://github.com/binaryshapes/mixor
+      directory: packages/values
