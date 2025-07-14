@@ -6,10 +6,23 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Result, err, ok } from '@mixor/core';
+import { Panic, type Result, err, ok } from '@mixor/core';
+
+/**
+ * Panic error for ID module.
+ *
+ * @public
+ */
+class IdError extends Panic<
+  'ID_ERROR',
+  // A type of ID is not supported.
+  'INVALID_ID_TYPE'
+>('ID_ERROR') {}
 
 /**
  * A regex for any UUID-like identifier: 8-4-4-4-12 hex pattern
+ * If version is not provided, all versions are supported.
+ *
  * @param version - The version of the UUID to generate.
  * @returns A regex for the UUID.
  *
@@ -20,7 +33,7 @@ import { type Result, err, ok } from '@mixor/core';
  *
  * @internal
  */
-const uuid = (version?: number | undefined): RegExp =>
+const uuidRegex = (version?: number | undefined): RegExp =>
   !version
     ? /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$/
     : new RegExp(
@@ -36,9 +49,10 @@ const ids = {
   xid: /^[0-9a-vA-V]{20}$/,
   ksuid: /^[A-Za-z0-9]{27}$/,
   nanoid: /^[a-zA-Z0-9_-]{21}$/,
-  uuidv4: uuid(4),
-  uuidv6: uuid(6),
-  uuidv7: uuid(7),
+  uuidv4: uuidRegex(4),
+  uuidv6: uuidRegex(6),
+  uuidv7: uuidRegex(7),
+  uuid: uuidRegex(),
 };
 
 /**
@@ -49,22 +63,57 @@ const ids = {
 type IdType = keyof typeof ids;
 
 /**
- * Validates if the given string is a valid ID.
+ * Creates a validator function for a specific ID type.
+ * Throws an IdError if the type is not supported.
  *
- * @param type - The type of the ID to validate.
- * @returns A result indicating if the value is a valid ID.
+ * @param type - The type of ID to validate (e.g., 'uuidv4', 'guid', etc).
+ * @returns A function that validates the value and returns a Result.
+ * @throws {@link IdError} If the type is not supported.
  *
  * @example
  * ```ts
- * const nanoId = id('uuidv4')('123e4567-e89b-12d3-a456-426614174000');
+ * // id-021: Create a validator for UUID v4 and use it.
+ * const uuidValidator = id('uuidv4');
+ * const result = uuidValidator('d89f8c77-90f3-4ab0-90dd-3c1bd3293870');
+ * // result: ok('d89f8c77-90f3-4ab0-90dd-3c1bd3293870')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-022: Create a validator for GUID and use it.
+ * const guidValidator = id('guid');
+ * const result = guidValidator('550e8400-e29b-41d4-a716-446655440000');
+ * // result: ok('550e8400-e29b-41d4-a716-446655440000')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-023: Validate an invalid value with a UUID v4 validator.
+ * const uuidValidator = id('uuidv4');
+ * const result = uuidValidator('invalid-uuid');
+ * // result: err('INVALID_UUIDV4')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-024: Throw error if the type is not supported.
+ * try {
+ *   id('notype')('test');
+ * } catch (e) {
+ *   // e instanceof IdError
+ *   // e.key === 'ID_ERROR:INVALID_ID_TYPE'
+ * }
  * ```
  *
  * @public
  */
-const id =
-  <T extends IdType, E extends string = Uppercase<T>>(type: T) =>
-  (value: string): Result<string, `INVALID_${E}`> =>
+const id = <T extends IdType, E extends string = Uppercase<T>>(type: T) => {
+  if (!(type in ids)) {
+    throw new IdError('INVALID_ID_TYPE', `ID type '${type}' is not supported`);
+  }
+  return (value: string): Result<string, `INVALID_${E}`> =>
     ids[type].test(value) ? ok(value) : err(`INVALID_${type.toUpperCase()}` as `INVALID_${E}`);
+};
 
 /**
  * Validates if the given string is a valid GUID.
@@ -316,4 +365,43 @@ const uuidv6 = id('uuidv6');
  */
 const uuidv7 = id('uuidv7');
 
-export { id, guid, cuid, cuid2, ulid, xid, ksuid, nanoid, uuidv4, uuidv6, uuidv7 };
+/**
+ * Validates if the given string is a valid UUID, no matter the version.
+ * Use this function for tree-shaking purposes.
+ *
+ * @param value - The value to validate.
+ * @returns A result indicating if the value is a valid UUID.
+ *
+ * @example
+ * ```ts
+ * // id-025: Basic UUID validation with any version.
+ * const result = uuid('d89f8c77-90f3-4ab0-90dd-3c1bd3293870');
+ * // result: ok('d89f8c77-90f3-4ab0-90dd-3c1bd3293870')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-026: UUID v6 validation.
+ * const result = uuid('1f060fb7-9274-6580-8021-a4046fa53921');
+ * // result: ok('1f060fb7-9274-6580-8021-a4046fa53921')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-027: UUID v7 validation.
+ * const result = uuid('01980af5-d96e-7e94-bc27-fe883cef550e');
+ * // result: ok('01980af5-d96e-7e94-bc27-fe883cef550e')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-028: Invalid UUID validation.
+ * const result = uuid('invalid-uuid');
+ * // result: err('INVALID_UUID')
+ * ```
+ *
+ * @public
+ */
+const uuid = id('uuid');
+
+export { id, guid, cuid, cuid2, ulid, xid, ksuid, nanoid, uuidv4, uuidv6, uuidv7, uuid, IdError };
