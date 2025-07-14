@@ -165,6 +165,30 @@ const cuid2 = id('cuid2');
  * @public
  */
 const ulid = id('ulid');
+
+/**
+ * Validates if the given string is a valid XID.
+ * Use this function for tree-shaking purposes.
+ *
+ * @param value - The value to validate.
+ * @returns A result indicating if the value is a valid XID.
+ *
+ * @example
+ * ```ts
+ * // id-009: Basic XID validation.
+ * const result = xid('9m4e2mr0ui3e8a215n4g');
+ * // result: ok('9m4e2mr0ui3e8a215n4g')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-010: Invalid XID validation.
+ * const result = xid('invalid-xid');
+ * // result: err('INVALID_XID')
+ * ```
+ *
+ * @public
+ */
 const xid = id('xid');
 const ksuid = id('ksuid');
 const nanoid = id('nanoid');
