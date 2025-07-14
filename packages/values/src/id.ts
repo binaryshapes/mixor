@@ -215,6 +215,30 @@ const xid = id('xid');
  * @public
  */
 const ksuid = id('ksuid');
+
+/**
+ * Validates if the given string is a valid Nano ID.
+ * Use this function for tree-shaking purposes.
+ *
+ * @param value - The value to validate.
+ * @returns A result indicating if the value is a valid Nano ID.
+ *
+ * @example
+ * ```ts
+ * // id-013: Basic Nano ID validation.
+ * const result = nanoid('lEzamK162oGwBP5UOFwsB');
+ * // result: ok('lEzamK162oGwBP5UOFwsB')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-014: Invalid Nano ID validation.
+ * const result = nanoid('invalid-nanoid');
+ * // result: err('INVALID_NANOID')
+ * ```
+ *
+ * @public
+ */
 const nanoid = id('nanoid');
 
 /**

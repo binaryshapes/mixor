@@ -18,6 +18,8 @@ const validXID = '9m4e2mr0ui3e8a215n4g';
 const invalidXID = 'invalid-xid';
 const validKSUID = '2zsoKss5fh8cxz6RqvW5JnAsRrL';
 const invalidKSUID = 'invalid-ksuid';
+const validNanoID = 'lEzamK162oGwBP5UOFwsB';
+const invalidNanoID = 'invalid-nanoid';
 
 describe('id', () => {
   describe('guid', () => {
@@ -137,6 +139,26 @@ describe('id', () => {
       // Typechecking.
       expectTypeOf(Id.ksuid).toEqualTypeOf<(value: string) => Result<string, 'INVALID_KSUID'>>();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_KSUID'>>();
+    });
+  });
+
+  describe('nanoid', () => {
+    it('should run example id-013: Basic Nano ID validation', () => {
+      const result = Id.nanoid(validNanoID);
+      expect(unwrap(result)).toBe(validNanoID);
+
+      // Typechecking.
+      expectTypeOf(Id.nanoid).toEqualTypeOf<(value: string) => Result<string, 'INVALID_NANOID'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_NANOID'>>();
+    });
+
+    it('should run example id-014: Invalid Nano ID validation', () => {
+      const result = Id.nanoid(invalidNanoID);
+      expect(unwrap(result)).toBe('INVALID_NANOID');
+
+      // Typechecking.
+      expectTypeOf(Id.nanoid).toEqualTypeOf<(value: string) => Result<string, 'INVALID_NANOID'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_NANOID'>>();
     });
   });
 
