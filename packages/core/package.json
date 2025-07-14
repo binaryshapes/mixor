@@ -1,7 +1,7 @@
 {
-  "name": "@daikit/core",
+  "name": "@mixor/core",
   "version": "1.0.0",
-  "description": "Core library for Daikit with abstractions, design patterns and utilities",
+  "description": "Mixor core library with abstractions, design patterns and utilities",
   "author": "Carlos Cosming",
   "license": "MIT",
   "keywords": [
@@ -25,6 +25,7 @@
     "test:types": "moonx test-types -s -u",
     "test:runtime": "moonx test-runtime -s -u",
     "test:watch": "moonx test-watch -s -u",
+    "test:project": "pnpm vitest --typecheck --hideSkippedTests --bail 1 --coverage --project",
     "build": "moonx build -s -u"
   },
   "devDependencies": {

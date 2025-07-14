@@ -1,18 +1,10 @@
-/*
- * This file is part of the Daikit project.
- *
- * Copyright (c) 2025, Binary Shapes.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { err, ok, unwrap } from '../src/result';
 import type { Result } from '../src/result';
 import { type Specification, rule, spec } from '../src/specification';
 
-// Test data types
+// Test data types.
 type User = {
   id: string;
   name: string;
