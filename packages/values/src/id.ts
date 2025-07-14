@@ -290,6 +290,30 @@ const uuidv4 = id('uuidv4');
  * @public
  */
 const uuidv6 = id('uuidv6');
+
+/**
+ * Validates if the given string is a valid UUID v7.
+ * Use this function for tree-shaking purposes.
+ *
+ * @param value - The value to validate.
+ * @returns A result indicating if the value is a valid UUID v7.
+ *
+ * @example
+ * ```ts
+ * // id-019: Basic UUID v7 validation.
+ * const result = uuidv7('01980af5-d96e-7e94-bc27-fe883cef550e');
+ * // result: ok('01980af5-d96e-7e94-bc27-fe883cef550e')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-020: Invalid UUID v7 validation.
+ * const result = uuidv7('invalid-uuidv7');
+ * // result: err('INVALID_UUIDV7')
+ * ```
+ *
+ * @public
+ */
 const uuidv7 = id('uuidv7');
 
 export { id, guid, cuid, cuid2, ulid, xid, ksuid, nanoid, uuidv4, uuidv6, uuidv7 };

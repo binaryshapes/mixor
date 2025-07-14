@@ -22,6 +22,8 @@ const validUUIDv4 = 'd89f8c77-90f3-4ab0-90dd-3c1bd3293870';
 const invalidUUIDv4 = '123e4567-e89b-12d3-a456';
 const validUUIDv6 = '1f060fb7-9274-6580-8021-a4046fa53921';
 const invalidUUIDv6 = 'invalid-uuidv6';
+const validUUIDv7 = '01980af5-d96e-7e94-bc27-fe883cef550e';
+const invalidUUIDv7 = 'invalid-uuidv7';
 
 describe('id', () => {
   describe('guid', () => {
@@ -201,6 +203,26 @@ describe('id', () => {
       // Typechecking.
       expectTypeOf(Id.uuidv6).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUIDV6'>>();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUIDV6'>>();
+    });
+  });
+
+  describe('uuidv7', () => {
+    it('should run example id-019: Basic UUID v7 validation', () => {
+      const result = Id.uuidv7(validUUIDv7);
+      expect(unwrap(result)).toBe(validUUIDv7);
+
+      // Typechecking.
+      expectTypeOf(Id.uuidv7).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUIDV7'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUIDV7'>>();
+    });
+
+    it('should run example id-020: Invalid UUID v7 validation', () => {
+      const result = Id.uuidv7(invalidUUIDv7);
+      expect(unwrap(result)).toBe('INVALID_UUIDV7');
+
+      // Typechecking.
+      expectTypeOf(Id.uuidv7).toEqualTypeOf<(value: string) => Result<string, 'INVALID_UUIDV7'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_UUIDV7'>>();
     });
   });
 });
