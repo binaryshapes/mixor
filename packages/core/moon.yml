@@ -1,4 +1,4 @@
-id: '@daikit/core'
+id: '@mixor/core'
 language: typescript
 type: library
 tags:
@@ -6,7 +6,7 @@ tags:
 
 project:
   name: Core library
-  description: Core library for Daikit with abstractions, design patterns and utilities
+  description: Mixor core library with abstractions, design patterns and utilities
   maintainers:
     - Carlos Cosming
   metadata:
@@ -14,5 +14,5 @@ project:
     public: true
     repository:
       type: git
-      url: https://github.com/binaryshapes/daikit
+      url: https://github.com/binaryshapes/mixor
       directory: packages/core

@@ -1,5 +1,5 @@
 /*
- * This file is part of the Daikit project.
+ * This file is part of the Mixor project.
  *
  * Copyright (c) 2025, Binary Shapes.
  *
