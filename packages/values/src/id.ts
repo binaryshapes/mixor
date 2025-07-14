@@ -140,6 +140,30 @@ const cuid = id('cuid');
  * @public
  */
 const cuid2 = id('cuid2');
+
+/**
+ * Validates if the given string is a valid ULID.
+ * Use this function for tree-shaking purposes.
+ *
+ * @param value - The value to validate.
+ * @returns A result indicating if the value is a valid ULID.
+ *
+ * @example
+ * ```ts
+ * // id-007: Basic ULID validation.
+ * const result = ulid('01ARZ3NDEKTSV4RRFFQ69G5FAV');
+ * // result: ok('01ARZ3NDEKTSV4RRFFQ69G5FAV')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-008: Invalid ULID validation.
+ * const result = ulid('invalid-ulid');
+ * // result: err('INVALID_ULID')
+ * ```
+ *
+ * @public
+ */
 const ulid = id('ulid');
 const xid = id('xid');
 const ksuid = id('ksuid');
