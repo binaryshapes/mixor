@@ -250,16 +250,45 @@ const nanoid = id('nanoid');
  *
  * @example
  * ```ts
- * const uuidv4 = uuidv4('d89f8c77-90f3-4ab0-90dd-3c1bd3293870');
- * // ok('d89f8c77-90f3-4ab0-90dd-3c1bd3293870')
+ * // id-015: Basic UUID v4 validation.
+ * const result = uuidv4('d89f8c77-90f3-4ab0-90dd-3c1bd3293870');
+ * // result: ok('d89f8c77-90f3-4ab0-90dd-3c1bd3293870')
+ * ```
  *
- * const uuidv4 = uuidv4('123e4567-e89b-12d3-a456');
- * // err('INVALID_UUIDV4')
+ * @example
+ * ```ts
+ * // id-016: Invalid UUID v4 validation.
+ * const result = uuidv4('123e4567-e89b-12d3-a456');
+ * // result: err('INVALID_UUIDV4')
  * ```
  *
  * @public
  */
 const uuidv4 = id('uuidv4');
+
+/**
+ * Validates if the given string is a valid UUID v6.
+ * Use this function for tree-shaking purposes.
+ *
+ * @param value - The value to validate.
+ * @returns A result indicating if the value is a valid UUID v6.
+ *
+ * @example
+ * ```ts
+ * // id-017: Basic UUID v6 validation.
+ * const result = uuidv6('1f060fb7-9274-6580-8021-a4046fa53921');
+ * // result: ok('1f060fb7-9274-6580-8021-a4046fa53921')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-018: Invalid UUID v6 validation.
+ * const result = uuidv6('invalid-uuidv6');
+ * // result: err('INVALID_UUIDV6')
+ * ```
+ *
+ * @public
+ */
 const uuidv6 = id('uuidv6');
 const uuidv7 = id('uuidv7');
 
