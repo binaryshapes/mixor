@@ -23,6 +23,12 @@ const tooLongString = 'too long string';
 const validList = ['hello', 'world'];
 const validValue = 'hello';
 const invalidValue = 'other';
+const validSlug = 'my-awesome-blog-post-2024-with-special-characters';
+const invalidSlug = 'my--invalid-slug-with-double-dash$$$';
+const validNumeric = '1234567890';
+const invalidNumeric = '123abc';
+const validRegexMatch = 'hello-world';
+const invalidRegexMatch = 'Hello World';
 
 describe('String validation functions', () => {
   describe('coerce', () => {
@@ -253,6 +259,70 @@ describe('String validation functions', () => {
         (list: string[]) => (value: string) => Result<string, 'NOT_CONTAIN'>
       >();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_CONTAIN'>>();
+    });
+  });
+
+  describe('matches', () => {
+    it('should run example string-018: Validate string matching regex pattern', () => {
+      const result = Str.matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)(validRegexMatch);
+      expect(unwrap(result)).toBe(validRegexMatch);
+
+      // Typechecking.
+      expectTypeOf(Str.matches).toEqualTypeOf<
+        (pattern: RegExp) => (value: string) => Result<string, 'NOT_MATCH'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_MATCH'>>();
+    });
+
+    it('should run example string-019: Reject string not matching regex pattern', () => {
+      const result = Str.matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)(invalidRegexMatch);
+      expect(unwrap(result)).toBe('NOT_MATCH');
+
+      // Typechecking.
+      expectTypeOf(Str.matches).toEqualTypeOf<
+        (pattern: RegExp) => (value: string) => Result<string, 'NOT_MATCH'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_MATCH'>>();
+    });
+  });
+
+  describe('isSlug', () => {
+    it('should run example string-020: Validate valid slug', () => {
+      const result = Str.isSlug(validSlug);
+      expect(unwrap(result)).toBe(validSlug);
+
+      // Typechecking.
+      expectTypeOf(Str.isSlug).toEqualTypeOf<(value: string) => Result<string, 'INVALID_SLUG'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_SLUG'>>();
+    });
+
+    it('should run example string-021: Reject invalid slug', () => {
+      const result = Str.isSlug(invalidSlug);
+      expect(unwrap(result)).toBe('INVALID_SLUG');
+
+      // Typechecking.
+      expectTypeOf(Str.isSlug).toEqualTypeOf<(value: string) => Result<string, 'INVALID_SLUG'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_SLUG'>>();
+    });
+  });
+
+  describe('isNumeric', () => {
+    it('should run example string-022: Validate numeric string', () => {
+      const result = Str.isNumeric(validNumeric);
+      expect(unwrap(result)).toBe(validNumeric);
+
+      // Typechecking.
+      expectTypeOf(Str.isNumeric).toEqualTypeOf<(value: string) => Result<string, 'NOT_NUMERIC'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_NUMERIC'>>();
+    });
+
+    it('should run example string-023: Reject non-numeric string', () => {
+      const result = Str.isNumeric(invalidNumeric);
+      expect(unwrap(result)).toBe('NOT_NUMERIC');
+
+      // Typechecking.
+      expectTypeOf(Str.isNumeric).toEqualTypeOf<(value: string) => Result<string, 'NOT_NUMERIC'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_NUMERIC'>>();
     });
   });
 });

@@ -220,8 +220,16 @@ const contains = (list: string[]) => (value: string) =>
  *
  * @example
  * ```ts
- * const result = matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)('hello-world'); // ok('hello-world').
- * const result = matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)('Hello World'); // err('NOT_MATCH').
+ * // string-018: Validate string matching regex pattern.
+ * const result = matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)('hello-world');
+ * // result: ok('hello-world').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-019: Reject string not matching regex pattern.
+ * const result = matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)('Hello World');
+ * // result: err('NOT_MATCH').
  * ```
  *
  * @public
@@ -237,8 +245,16 @@ const matches = (pattern: RegExp) => (value: string) =>
  *
  * @example
  * ```ts
- * const result = isSlug('hello-world'); // ok('hello-world').
- * const result = isSlug('Hello World'); // err('INVALID_SLUG').
+ * // string-020: Validate valid slug.
+ * const result = isSlug('my-awesome-blog-post-2024-with-special-characters');
+ * // result: ok('my-awesome-blog-post-2024-with-special-characters').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-021: Reject invalid slug.
+ * const result = isSlug('my--invalid-slug-with-double-dash$$$');
+ * // result: err('INVALID_SLUG').
  * ```
  *
  * @public
@@ -253,8 +269,16 @@ const isSlug = (value: string) => (slug.test(value) ? ok(value) : err('INVALID_S
  *
  * @example
  * ```ts
- * const result = isNumeric('1234567890'); // ok('1234567890').
- * const result = isNumeric('123abc'); // err('NOT_NUMERIC').
+ * // string-022: Validate numeric string.
+ * const result = isNumeric('1234567890');
+ * // result: ok('1234567890').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-023: Reject non-numeric string.
+ * const result = isNumeric('123abc');
+ * // result: err('NOT_NUMERIC').
  * ```
  *
  * @public
