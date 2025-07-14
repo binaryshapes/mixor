@@ -18,10 +18,6 @@ Thumbs.db
 .moon/cache
 .moon/docker
 
-# moon
-.moon/cache
-.moon/docker
-
 # Node Modules.
 node_modules
 
@@ -33,7 +29,3 @@ dist
 
 # Eslint.
 packages/**/eslint
-
-# Examples.
-/packages/**/src/examples.ts
-/packages/**/src/examples/*.ts
