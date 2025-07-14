@@ -1,0 +1,126 @@
+/*
+ * This file is part of the Daikit project.
+ *
+ * Copyright (c) 2025, Binary Shapes.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+import type { Any, Prettify } from './generics';
+import { Panic } from './panic';
+import { type Result } from './result';
+import type { Schema, SchemaErrors, SchemaFields, SchemaValues } from './schema';
+
+/**
+ * Panic error for the schema module.
+ *
+ * @public
+ */
+const EnvError = Panic<
+  'ENV',
+  // Unsupported runtime (if not Deno, Bun, Node.js).
+  | 'UNSUPPORTED_RUNTIME'
+  // When a schema field is not a value.
+  | 'MISSING_ENV_VARIABLES'
+>('ENV');
+
+/**
+ * Returns a copy of environment variables from the detected runtime (Node.js, Deno, or Bun).
+ *
+ * @returns A copy of the environment variables from the detected runtime.
+ *
+ * @internal
+ */
+function getEnvSource(): Record<string, string | undefined> {
+  const g = globalThis as Any;
+
+  if (typeof g.Deno !== 'undefined' && typeof g.Deno.env?.toObject === 'function') {
+    return g.Deno.env.toObject();
+  }
+
+  if (typeof g.Bun !== 'undefined' && typeof g.Bun.env === 'object') {
+    return g.Bun.env;
+  }
+
+  if (typeof process !== 'undefined' && typeof process.env === 'object') {
+    return process.env;
+  }
+
+  throw new EnvError(
+    'UNSUPPORTED_RUNTIME',
+    'Unsupported runtime: environment variables are not accessible. Please use Deno, Bun, or Node.',
+  );
+}
+
+/**
+ * Loads and validates environment variables based on a schema.
+ * Compatible with Node.js 20+, Bun, and Deno.
+ *
+ * @typeParam F - The schema fields type.
+ * @param schema - The schema to validate the environment variables against.
+ * @returns The validated environment variables.
+ *
+ * @example
+ * ```ts
+ * // env-001: Basic environment variable validation with schema.
+ * const redisConfig = env(schema({
+ *   REDIS_HOST: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_HOST')),
+ *   REDIS_PORT: value((value: number) => {
+ *     return Number.isInteger(value) && value > 0 ? ok(value) : err('INVALID_PORT');
+ *   }),
+ * }));
+ *
+ * // Suppose process.env = { REDIS_HOST: 'localhost', REDIS_PORT: '6379' }
+ * // You must coerce REDIS_PORT to number before calling redisConfig.
+ *
+ * const result = redisConfig();
+ * // ok({ REDIS_HOST: 'localhost', REDIS_PORT: 6379 }).
+ * ```
+ *
+ * @example
+ * ```ts
+ * // env-002: Error handling for missing environment variables.
+ * const config = env(schema({
+ *   DATABASE_URL: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_URL')),
+ *   API_KEY: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_KEY')),
+ * }));
+ *
+ * // Suppose process.env = {}
+ *
+ * const result = config();
+ * // Should throw an error with the message:
+ * // "Missing environment variables: DATABASE_URL, API_KEY. Please check your .env file."
+ * ```
+ *
+ * @public
+ */
+function env<F extends SchemaFields>(schema: Schema<F>) {
+  return () => {
+    const rawEnv = getEnvSource();
+
+    // This filter is to avoid including the schema metadata fields.
+    const fields = Object.keys(schema).filter(
+      (key) => key !== '_tag' && key !== '_hash' && key !== '_doc',
+    );
+
+    // Filtering only the schema fields.
+    const input = Object.fromEntries(
+      Object.entries(rawEnv)
+        .filter(([key]) => fields.includes(key))
+        .map(([key, value]) => [key, value as string]),
+    ) as SchemaValues<F>;
+
+    // All all fields present in the schema.
+    const missingFields = fields.filter((field) => !Object.keys(input).includes(field));
+    if (missingFields.length > 0) {
+      throw new EnvError(
+        'MISSING_ENV_VARIABLES',
+        `Missing environment variables: ${missingFields.join(', ')}. Please check your .env file.`,
+      );
+    }
+
+    return schema(input) as Result<Prettify<SchemaValues<F>>, Prettify<SchemaErrors<F>>>;
+  };
+}
+
+export { env, EnvError };
