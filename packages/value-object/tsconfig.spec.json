@@ -1,6 +1,0 @@
-{
-  "extends": "@unokit/typescript/node.spec.json",
-  "include": [
-    "jest.config.ts"
-  ]
-}
