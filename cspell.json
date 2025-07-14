@@ -10,13 +10,18 @@
   "dictionaryDefinitions": [],
   "dictionaries": [],
   "words": [
-    "Daikit",
-    "nodemon",
     "tasker",
-    "Taskers",
-    "vitest"
+    "Taskers"
   ],
   "ignoreWords": [
+    "DEUTDEFF",
+    "IBAN",
+    "Luhn",
+    "mixor",
+    "Mixor",
+    "nodemon",
+    "NWBK",
+    "vitest",
     "unokit",
     "Moonrepo",
     "prototools",
@@ -31,7 +36,9 @@
     "refact",
     "prefs",
     "FFAA",
-    "daixo"
+    "verylongstring",
+    "securepass",
+    "invalidpass"
   ],
   "import": []
 }

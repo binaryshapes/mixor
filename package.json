@@ -1,17 +1,20 @@
 {
-  "name": "daikit",
+  "name": "mixor",
   "version": "1.0.0",
-  "description": "A library for building modern backend applications using clean architecture and advanced design patterns",
+  "description": "A lightweight and fast library for building composable, type-safe, event-driven, and functional applications in TypeScript.",
   "author": "Carlos Cosming",
   "license": "MIT",
   "private": true,
   "keywords": [
-    "clean architecture",
-    "design patterns",
-    "backend",
     "typescript",
     "nodejs",
-    "deno"
+    "deno",
+    "bun",
+    "clean-architecture",
+    "design-patterns",
+    "functional-programming",
+    "hexagonal-architecture",
+    "backend"
   ],
   "scripts": {
     "clean": "pnpx rimraf node_modules packages/*/node_modules pnpm-lock.yaml",
