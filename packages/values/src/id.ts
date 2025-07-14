@@ -190,6 +190,30 @@ const ulid = id('ulid');
  * @public
  */
 const xid = id('xid');
+
+/**
+ * Validates if the given string is a valid KSUID.
+ * Use this function for tree-shaking purposes.
+ *
+ * @param value - The value to validate.
+ * @returns A result indicating if the value is a valid KSUID.
+ *
+ * @example
+ * ```ts
+ * // id-011: Basic KSUID validation.
+ * const result = ksuid('2zsoKss5fh8cxz6RqvW5JnAsRrL');
+ * // result: ok('2zsoKss5fh8cxz6RqvW5JnAsRrL')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-012: Invalid KSUID validation.
+ * const result = ksuid('invalid-ksuid');
+ * // result: err('INVALID_KSUID')
+ * ```
+ *
+ * @public
+ */
 const ksuid = id('ksuid');
 const nanoid = id('nanoid');
 

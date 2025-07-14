@@ -16,6 +16,8 @@ const validULID = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
 const invalidULID = 'invalid-ulid';
 const validXID = '9m4e2mr0ui3e8a215n4g';
 const invalidXID = 'invalid-xid';
+const validKSUID = '2zsoKss5fh8cxz6RqvW5JnAsRrL';
+const invalidKSUID = 'invalid-ksuid';
 
 describe('id', () => {
   describe('guid', () => {
@@ -115,6 +117,26 @@ describe('id', () => {
       // Typechecking.
       expectTypeOf(Id.xid).toEqualTypeOf<(value: string) => Result<string, 'INVALID_XID'>>();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_XID'>>();
+    });
+  });
+
+  describe('ksuid', () => {
+    it('should run example id-011: Basic KSUID validation', () => {
+      const result = Id.ksuid(validKSUID);
+      expect(unwrap(result)).toBe(validKSUID);
+
+      // Typechecking.
+      expectTypeOf(Id.ksuid).toEqualTypeOf<(value: string) => Result<string, 'INVALID_KSUID'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_KSUID'>>();
+    });
+
+    it('should run example id-012: Invalid KSUID validation', () => {
+      const result = Id.ksuid(invalidKSUID);
+      expect(unwrap(result)).toBe('INVALID_KSUID');
+
+      // Typechecking.
+      expectTypeOf(Id.ksuid).toEqualTypeOf<(value: string) => Result<string, 'INVALID_KSUID'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_KSUID'>>();
     });
   });
 
