@@ -115,6 +115,30 @@ const guid = id('guid');
  * @public
  */
 const cuid = id('cuid');
+
+/**
+ * Validates if the given string is a valid CUID2.
+ * Use this function for tree-shaking purposes.
+ *
+ * @param value - The value to validate.
+ * @returns A result indicating if the value is a valid CUID2.
+ *
+ * @example
+ * ```ts
+ * // id-005: Basic CUID2 validation.
+ * const result = cuid2('tfp0qj8q8q8q8q8q8q8q8q');
+ * // result: ok('tfp0qj8q8q8q8q8q8q8q8q')
+ * ```
+ *
+ * @example
+ * ```ts
+ * // id-006: Invalid CUID2 validation.
+ * const result = cuid2('invalid-cuid2');
+ * // result: err('INVALID_CUID2')
+ * ```
+ *
+ * @public
+ */
 const cuid2 = id('cuid2');
 const ulid = id('ulid');
 const xid = id('xid');
