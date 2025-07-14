@@ -17,6 +17,12 @@ const validObject = {};
 const validArray: unknown[] = [];
 const emptyString = '';
 const whitespaceString = '   ';
+const longString = 'hello world';
+const shortString = 'short';
+const tooLongString = 'too long string';
+const validList = ['hello', 'world'];
+const validValue = 'hello';
+const invalidValue = 'other';
 
 describe('String validation functions', () => {
   describe('coerce', () => {
@@ -175,6 +181,78 @@ describe('String validation functions', () => {
       // Typechecking.
       expectTypeOf(Str.isNotEmpty).toEqualTypeOf<(value: string) => Result<string, 'IS_EMPTY'>>();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'IS_EMPTY'>>();
+    });
+  });
+
+  describe('hasMinLength', () => {
+    it('should run example string-012: Validate string with minimum length', () => {
+      const result = Str.hasMinLength(10)(longString);
+      expect(unwrap(result)).toBe(longString);
+
+      // Typechecking.
+      expectTypeOf(Str.hasMinLength).toEqualTypeOf<
+        (minLength: number) => (value: string) => Result<string, 'TOO_SHORT'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'TOO_SHORT'>>();
+    });
+
+    it('should run example string-013: Reject string with insufficient length', () => {
+      const result = Str.hasMinLength(10)(shortString);
+      expect(unwrap(result)).toBe('TOO_SHORT');
+
+      // Typechecking.
+      expectTypeOf(Str.hasMinLength).toEqualTypeOf<
+        (minLength: number) => (value: string) => Result<string, 'TOO_SHORT'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'TOO_SHORT'>>();
+    });
+  });
+
+  describe('hasMaxLength', () => {
+    it('should run example string-014: Validate string with maximum length', () => {
+      const result = Str.hasMaxLength(10)(shortString);
+      expect(unwrap(result)).toBe(shortString);
+
+      // Typechecking.
+      expectTypeOf(Str.hasMaxLength).toEqualTypeOf<
+        (maxLength: number) => (value: string) => Result<string, 'TOO_LONG'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'TOO_LONG'>>();
+    });
+
+    it('should run example string-015: Reject string exceeding maximum length', () => {
+      const result = Str.hasMaxLength(10)(tooLongString);
+      expect(unwrap(result)).toBe('TOO_LONG');
+
+      // Typechecking.
+      expectTypeOf(Str.hasMaxLength).toEqualTypeOf<
+        (maxLength: number) => (value: string) => Result<string, 'TOO_LONG'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'TOO_LONG'>>();
+    });
+  });
+
+  describe('contains', () => {
+    it('should run example string-016: Validate string contained in list', () => {
+      const result = Str.contains(validList)(validValue);
+      expect(unwrap(result)).toBe(validValue);
+
+      // Typechecking.
+      expectTypeOf(Str.contains).toEqualTypeOf<
+        (list: string[]) => (value: string) => Result<string, 'NOT_CONTAIN'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_CONTAIN'>>();
+    });
+
+    it('should run example string-017: Reject string not contained in list', () => {
+      const result = Str.contains(validList)(invalidValue);
+      expect(unwrap(result)).toBe('NOT_CONTAIN');
+
+      // Typechecking.
+      expectTypeOf(Str.contains).toEqualTypeOf<
+        (list: string[]) => (value: string) => Result<string, 'NOT_CONTAIN'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_CONTAIN'>>();
     });
   });
 });

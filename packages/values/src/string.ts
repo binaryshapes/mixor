@@ -145,8 +145,16 @@ const isNotEmpty = (value: string) => (value.trim().length !== 0 ? ok(value) : e
  *
  * @example
  * ```ts
- * const result = hasMinLength(10)('hello world'); // ok('hello world').
- * const result = hasMinLength(10)('short'); // err('TOO_SHORT').
+ * // string-012: Validate string with minimum length.
+ * const result = hasMinLength(10)('hello world');
+ * // result: ok('hello world').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-013: Reject string with insufficient length.
+ * const result = hasMinLength(10)('short');
+ * // result: err('TOO_SHORT').
  * ```
  *
  * @public
@@ -162,8 +170,16 @@ const hasMinLength = (minLength: number) => (value: string) =>
  *
  * @example
  * ```ts
- * const result = hasMaxLength(10)('short'); // ok('short').
- * const result = hasMaxLength(10)('too long string'); // err('TOO_LONG').
+ * // string-014: Validate string with maximum length.
+ * const result = hasMaxLength(10)('short');
+ * // result: ok('short').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-015: Reject string exceeding maximum length.
+ * const result = hasMaxLength(10)('too long string');
+ * // result: err('TOO_LONG').
  * ```
  *
  * @public
@@ -179,8 +195,16 @@ const hasMaxLength = (maxLength: number) => (value: string) =>
  *
  * @example
  * ```ts
- * const result = contains(['hello', 'world'])('hello'); // ok('hello').
- * const result = contains(['hello', 'world'])('other'); // err('NOT_CONTAIN').
+ * // string-016: Validate string contained in list.
+ * const result = contains(['hello', 'world'])('hello');
+ * // result: ok('hello').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-017: Reject string not contained in list.
+ * const result = contains(['hello', 'world'])('other');
+ * // result: err('NOT_CONTAIN').
  * ```
  *
  * @public
