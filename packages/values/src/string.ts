@@ -366,11 +366,16 @@ const isDate = (value: string) => (date.test(value) ? ok(value) : err('INVALID_D
  *
  * @example
  * ```ts
- * const result = isDateTime('2021-01-01T12:34:56'); // ok('2021-01-01T12:34:56').
- * const result = isDateTime('2021-01-01 12:34:56'); // ok('2021-01-01 12:34:56').
- * const result = isDateTime('2020-01-01T00:00:00+02:00'); // ok('2020-01-01T00:00:00+02:00').
- * const result = isDateTime('2020-01-01T00:00:00Z'); // ok('2020-01-01T00:00:00Z').
- * const result = isDateTime('invalid-datetime'); // err('INVALID_DATE_TIME').
+ * // string-030: Validate date time string.
+ * const result = isDateTime('2021-01-01T12:34:56');
+ * // result: ok('2021-01-01T12:34:56').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-031: Reject invalid date time string.
+ * const result = isDateTime('invalid-datetime');
+ * // result: err('INVALID_DATE_TIME').
  * ```
  *
  * @public
@@ -385,8 +390,16 @@ const isDateTime = (value: string) => (dateTime.test(value) ? ok(value) : err('I
  *
  * @example
  * ```ts
- * const result = isTime('12:34:56'); // ok('12:34:56').
- * const result = isTime('invalid-time'); // err('INVALID_TIME').
+ * // string-032: Validate time string.
+ * const result = isTime('12:34:56');
+ * // result: ok('12:34:56').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-033: Reject invalid time string.
+ * const result = isTime('invalid-time');
+ * // result: err('INVALID_TIME').
  * ```
  *
  * @public
@@ -401,8 +414,16 @@ const isTime = (value: string) => (time.test(value) ? ok(value) : err('INVALID_T
  *
  * @example
  * ```ts
- * const result = isPhoneNumber('+1234567890'); // ok('+1234567890').
- * const result = isPhoneNumber('invalid-phone'); // err('INVALID_PHONE_NUMBER').
+ * // string-034: Validate phone number.
+ * const result = isPhoneNumber('+1234567890');
+ * // result: ok('+1234567890').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-035: Reject invalid phone number.
+ * const result = isPhoneNumber('invalid-phone');
+ * // result: err('INVALID_PHONE_NUMBER').
  * ```
  *
  * @public
@@ -423,8 +444,16 @@ const isPhoneNumber = (value: string) =>
  *
  * @example
  * ```ts
- * const result = isEmoji('👍'); // ok('👍').
- * const result = isEmoji('not-emoji'); // err('INVALID_EMOJI').
+ * // string-036: Validate emoji.
+ * const result = isEmoji('👍');
+ * // result: ok('👍').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-037: Reject invalid emoji.
+ * const result = isEmoji('not-emoji');
+ * // result: err('INVALID_EMOJI').
  * ```
  *
  * @public
@@ -439,8 +468,16 @@ const isEmoji = (value: string) => (emoji.test(value) ? ok(value) : err('INVALID
  *
  * @example
  * ```ts
- * const result = isRGBA('rgba(255, 170, 0, 0.1)'); // ok('rgba(255, 170, 0, 0.1)').
- * const result = isRGBA('invalid-rgba'); // err('INVALID_RGBA').
+ * // string-038: Validate RGBA color.
+ * const result = isRGBA('rgba(255, 170, 0, 0.1)');
+ * // result: ok('rgba(255, 170, 0, 0.1)').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-039: Reject invalid RGBA color.
+ * const result = isRGBA('invalid-rgba');
+ * // result: err('INVALID_RGBA').
  * ```
  *
  * @public

@@ -35,6 +35,16 @@ const validBase64 = 'SGVsbG8gV29ybGQ=';
 const invalidBase64 = 'invalid-base64';
 const validDate = '2021-01-01';
 const invalidDate = 'invalid-date';
+const validDateTime = '2021-01-01T12:34:56';
+const invalidDateTime = 'invalid-datetime';
+const validTime = '12:34:56';
+const invalidTime = 'invalid-time';
+const validPhoneNumber = '+1234567890';
+const invalidPhoneNumber = 'invalid-phone';
+const validEmoji = '👍';
+const invalidEmoji = 'not-emoji';
+const validRGBA = 'rgba(255, 170, 0, 0.1)';
+const invalidRGBA = 'invalid-rgba';
 
 describe('String validation functions', () => {
   describe('coerce', () => {
@@ -393,6 +403,114 @@ describe('String validation functions', () => {
       // Typechecking.
       expectTypeOf(Str.isDate).toEqualTypeOf<(value: string) => Result<string, 'INVALID_DATE'>>();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_DATE'>>();
+    });
+  });
+
+  describe('isDateTime', () => {
+    it('should run example string-030: Validate date time string', () => {
+      const result = Str.isDateTime(validDateTime);
+      expect(unwrap(result)).toBe(validDateTime);
+
+      // Typechecking.
+      expectTypeOf(Str.isDateTime).toEqualTypeOf<
+        (value: string) => Result<string, 'INVALID_DATE_TIME'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_DATE_TIME'>>();
+    });
+
+    it('should run example string-031: Reject invalid date time string', () => {
+      const result = Str.isDateTime(invalidDateTime);
+      expect(unwrap(result)).toBe('INVALID_DATE_TIME');
+
+      // Typechecking.
+      expectTypeOf(Str.isDateTime).toEqualTypeOf<
+        (value: string) => Result<string, 'INVALID_DATE_TIME'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_DATE_TIME'>>();
+    });
+  });
+
+  describe('isTime', () => {
+    it('should run example string-032: Validate time string', () => {
+      const result = Str.isTime(validTime);
+      expect(unwrap(result)).toBe(validTime);
+
+      // Typechecking.
+      expectTypeOf(Str.isTime).toEqualTypeOf<(value: string) => Result<string, 'INVALID_TIME'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_TIME'>>();
+    });
+
+    it('should run example string-033: Reject invalid time string', () => {
+      const result = Str.isTime(invalidTime);
+      expect(unwrap(result)).toBe('INVALID_TIME');
+
+      // Typechecking.
+      expectTypeOf(Str.isTime).toEqualTypeOf<(value: string) => Result<string, 'INVALID_TIME'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_TIME'>>();
+    });
+  });
+
+  describe('isPhoneNumber', () => {
+    it('should run example string-034: Validate phone number', () => {
+      const result = Str.isPhoneNumber(validPhoneNumber);
+      expect(unwrap(result)).toBe(validPhoneNumber);
+
+      // Typechecking.
+      expectTypeOf(Str.isPhoneNumber).toEqualTypeOf<
+        (value: string) => Result<string, 'INVALID_PHONE_NUMBER'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_PHONE_NUMBER'>>();
+    });
+
+    it('should run example string-035: Reject invalid phone number', () => {
+      const result = Str.isPhoneNumber(invalidPhoneNumber);
+      expect(unwrap(result)).toBe('INVALID_PHONE_NUMBER');
+
+      // Typechecking.
+      expectTypeOf(Str.isPhoneNumber).toEqualTypeOf<
+        (value: string) => Result<string, 'INVALID_PHONE_NUMBER'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_PHONE_NUMBER'>>();
+    });
+  });
+
+  describe('isEmoji', () => {
+    it('should run example string-036: Validate emoji', () => {
+      const result = Str.isEmoji(validEmoji);
+      expect(unwrap(result)).toBe(validEmoji);
+
+      // Typechecking.
+      expectTypeOf(Str.isEmoji).toEqualTypeOf<(value: string) => Result<string, 'INVALID_EMOJI'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_EMOJI'>>();
+    });
+
+    it('should run example string-037: Reject invalid emoji', () => {
+      const result = Str.isEmoji(invalidEmoji);
+      expect(unwrap(result)).toBe('INVALID_EMOJI');
+
+      // Typechecking.
+      expectTypeOf(Str.isEmoji).toEqualTypeOf<(value: string) => Result<string, 'INVALID_EMOJI'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_EMOJI'>>();
+    });
+  });
+
+  describe('isRGBA', () => {
+    it('should run example string-038: Validate RGBA color', () => {
+      const result = Str.isRGBA(validRGBA);
+      expect(unwrap(result)).toBe(validRGBA);
+
+      // Typechecking.
+      expectTypeOf(Str.isRGBA).toEqualTypeOf<(value: string) => Result<string, 'INVALID_RGBA'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_RGBA'>>();
+    });
+
+    it('should run example string-039: Reject invalid RGBA color', () => {
+      const result = Str.isRGBA(invalidRGBA);
+      expect(unwrap(result)).toBe('INVALID_RGBA');
+
+      // Typechecking.
+      expectTypeOf(Str.isRGBA).toEqualTypeOf<(value: string) => Result<string, 'INVALID_RGBA'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_RGBA'>>();
     });
   });
 });
