@@ -722,14 +722,102 @@ const isStartsWith = (prefix: string) => (value: string) =>
 const isEndsWith = (suffix: string) => (value: string) =>
   value.endsWith(suffix) ? ok(value) : err('NOT_ENDS_WITH');
 
+/**
+ * Validates that the value is a valid BigInt string.
+ *
+ * @param value - The string value to validate.
+ * @returns A result indicating whether the value is a valid BigInt string.
+ *
+ * @example
+ * ```ts
+ * // string-062: Validate BigInt string.
+ * const result = isBigInt('1234567890123456789012345678901234567890');
+ * // result: ok(BigInt('1234567890123456789012345678901234567890')).
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-063: Reject invalid BigInt string.
+ * const result = isBigInt('123.45');
+ * // result: err('NOT_BIGINT').
+ * ```
+ *
+ * @public
+ */
 const isBigInt = (value: string) => (bigint.test(value) ? ok(BigInt(value)) : err('NOT_BIGINT'));
 
+/**
+ * Validates that the value is a valid integer string.
+ *
+ * @param value - The string value to validate.
+ * @returns A result indicating whether the value is a valid integer string.
+ *
+ * @example
+ * ```ts
+ * // string-064: Validate integer string.
+ * const result = isInteger('123456');
+ * // result: ok(123456).
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-065: Reject invalid integer string.
+ * const result = isInteger('123.45');
+ * // result: err('NOT_INTEGER').
+ * ```
+ *
+ * @public
+ */
 const isInteger = (value: string) =>
   integer.test(value) ? ok(Number.parseInt(value)) : err('NOT_INTEGER');
 
+/**
+ * Validates that the value is a valid boolean string.
+ *
+ * @param value - The string value to validate.
+ * @returns A result indicating whether the value is a valid boolean string.
+ *
+ * @example
+ * ```ts
+ * // string-066: Validate boolean string.
+ * const result = isBoolean('true');
+ * // result: ok(true).
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-067: Reject invalid boolean string.
+ * const result = isBoolean('maybe');
+ * // result: err('NOT_BOOLEAN').
+ * ```
+ *
+ * @public
+ */
 const isBoolean = (value: string) =>
   boolean.test(value) ? ok(value === 'true') : err('NOT_BOOLEAN');
 
+/**
+ * Validates that the value is a valid number string.
+ *
+ * @param value - The string value to validate.
+ * @returns A result indicating whether the value is a valid number string.
+ *
+ * @example
+ * ```ts
+ * // string-068: Validate number string.
+ * const result = isNumber('123.45');
+ * // result: ok(123.45).
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-069: Reject invalid number string.
+ * const result = isNumber('not-a-number');
+ * // result: err('NOT_NUMBER').
+ * ```
+ *
+ * @public
+ */
 const isNumber = (value: string) =>
   number.test(value) ? ok(Number.parseFloat(value)) : err('NOT_NUMBER');
 
@@ -743,20 +831,19 @@ const isNumber = (value: string) =>
  *
  * @example
  * ```ts
- * // Basic string validation.
- * const emailValidator = str
+ * // string-070: Basic string validation with type checking.
+ * const stringValidator = str
  *   .isString()
  *   .isNotEmpty()
- *   .isEmail()
  *   .build();
  *
- * const result = emailValidator('me@example.com'); // ok('me@example.com').
- * const error = emailValidator('invalid'); // err('INVALID_EMAIL').
+ * const result = stringValidator('hello');
+ * // result: ok('hello').
  * ```
  *
  * @example
  * ```ts
- * // String validation with length constraints.
+ * // string-071: Password validation with multiple constraints.
  * const passwordValidator = str
  *   .isString()
  *   .hasMinLength(8)
@@ -766,20 +853,84 @@ const isNumber = (value: string) =>
  *   .matches(/\d/) // Must contain digit
  *   .build();
  *
- * const result = passwordValidator('SecurePass123'); // ok('SecurePass123').
- * const error = passwordValidator('weak'); // err('TOO_SHORT').
+ * const result = passwordValidator('SecurePass123');
+ * // result: ok('SecurePass123').
  * ```
  *
  * @example
  * ```ts
- * // String validation with different error modes.
+ * // string-072: Username validation with specific requirements.
+ * const usernameValidator = str
+ *   .isString()
+ *   .hasMinLength(3)
+ *   .hasMaxLength(20)
+ *   .isAlphaNumeric()
+ *   .build();
+ *
+ * const result = usernameValidator('john123');
+ * // result: ok('john123').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-073: Color validation for CSS.
+ * const colorValidator = str
+ *   .isString()
+ *   .matches(/^#[0-9A-Fa-f]{6}$/) // Hex color
+ *   .build();
+ *
+ * const result = colorValidator('#FF5733');
+ * // result: ok('#FF5733').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-074: Slug validation for URLs.
+ * const slugValidator = str
+ *   .isString()
+ *   .isSlug()
+ *   .hasMaxLength(100)
+ *   .build();
+ *
+ * const result = slugValidator('my-awesome-blog-post');
+ * // result: ok('my-awesome-blog-post').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-075: Phone number validation with format checking.
+ * const phoneValidator = str
+ *   .isString()
+ *   .isPhoneNumber()
+ *   .build();
+ *
+ * const result = phoneValidator('+1234567890');
+ * // result: ok('+1234567890').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-076: Date validation for forms.
+ * const dateValidator = str
+ *   .isString()
+ *   .isDate()
+ *   .build();
+ *
+ * const result = dateValidator('2024-01-15');
+ * // result: ok('2024-01-15').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-077: Multiple validation with error collection.
  * const userValidator = str
  *   .isString()
  *   .isNotEmpty()
- *   .isEmail()
+ *   .hasMinLength(3)
  *   .build('all'); // Collect all errors
  *
- * const result = userValidator(''); // err(['IS_EMPTY', 'INVALID_EMAIL']).
+ * const result = userValidator('');
+ * // result: err(['IS_EMPTY', 'TOO_SHORT']).
  * ```
  *
  * @public
