@@ -45,6 +45,28 @@ const validEmoji = '👍';
 const invalidEmoji = 'not-emoji';
 const validRGBA = 'rgba(255, 170, 0, 0.1)';
 const invalidRGBA = 'invalid-rgba';
+const validRGB = 'rgb(0, 0, 0)';
+const invalidRGB = 'invalid-rgb';
+const validAlpha = 'Hello';
+const invalidAlphaNumbers = 'Hello123';
+const invalidAlphaSpaces = 'Hello World';
+const validAlphaNumeric = 'Hello123';
+const invalidAlphaNumericSpaces = 'Hello 123';
+const invalidAlphaNumericSymbols = 'Hello@123';
+const validLowerCase = 'hello';
+const invalidLowerCaseUpper = 'Hello';
+const invalidLowerCaseNumbers = 'hello123';
+const validUpperCase = 'HELLO';
+const invalidUpperCaseLower = 'Hello';
+const invalidUpperCaseNumbers = 'HELLO123';
+const validCapitalized = 'Hello';
+const invalidCapitalizedLower = 'hello';
+const invalidCapitalizedUpper = 'HELLO';
+const invalidCapitalizedMulti = 'Hello World';
+const validStartsWith = 'Hello World';
+const invalidStartsWith = 'World Hello';
+const validEndsWith = 'Hello World';
+const invalidEndsWith = 'World Hello';
 
 describe('String validation functions', () => {
   describe('coerce', () => {
@@ -511,6 +533,196 @@ describe('String validation functions', () => {
       // Typechecking.
       expectTypeOf(Str.isRGBA).toEqualTypeOf<(value: string) => Result<string, 'INVALID_RGBA'>>();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_RGBA'>>();
+    });
+  });
+
+  describe('isRGB', () => {
+    it('should run example string-040: Validate RGB color', () => {
+      const result = Str.isRGB(validRGB);
+      expect(unwrap(result)).toBe(validRGB);
+      expectTypeOf(Str.isRGB).toEqualTypeOf<(value: string) => Result<string, 'INVALID_RGB'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_RGB'>>();
+    });
+    it('should run example string-041: Reject invalid RGB color', () => {
+      const result = Str.isRGB(invalidRGB);
+      expect(unwrap(result)).toBe('INVALID_RGB');
+      expectTypeOf(Str.isRGB).toEqualTypeOf<(value: string) => Result<string, 'INVALID_RGB'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'INVALID_RGB'>>();
+    });
+  });
+
+  describe('isAlpha', () => {
+    it('should run example string-042: Validate alphabetic string', () => {
+      const result = Str.isAlpha(validAlpha);
+      expect(unwrap(result)).toBe(validAlpha);
+      expectTypeOf(Str.isAlpha).toEqualTypeOf<(value: string) => Result<string, 'NOT_ALPHA'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_ALPHA'>>();
+    });
+    it('should run example string-043: Reject string with numbers', () => {
+      const result = Str.isAlpha(invalidAlphaNumbers);
+      expect(unwrap(result)).toBe('NOT_ALPHA');
+      expectTypeOf(Str.isAlpha).toEqualTypeOf<(value: string) => Result<string, 'NOT_ALPHA'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_ALPHA'>>();
+    });
+    it('should run example string-044: Reject string with spaces', () => {
+      const result = Str.isAlpha(invalidAlphaSpaces);
+      expect(unwrap(result)).toBe('NOT_ALPHA');
+      expectTypeOf(Str.isAlpha).toEqualTypeOf<(value: string) => Result<string, 'NOT_ALPHA'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_ALPHA'>>();
+    });
+  });
+
+  describe('isAlphaNumeric', () => {
+    it('should run example string-045: Validate alphanumeric string', () => {
+      const result = Str.isAlphaNumeric(validAlphaNumeric);
+      expect(unwrap(result)).toBe(validAlphaNumeric);
+      expectTypeOf(Str.isAlphaNumeric).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_ALPHANUMERIC'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_ALPHANUMERIC'>>();
+    });
+    it('should run example string-046: Reject string with spaces', () => {
+      const result = Str.isAlphaNumeric(invalidAlphaNumericSpaces);
+      expect(unwrap(result)).toBe('NOT_ALPHANUMERIC');
+      expectTypeOf(Str.isAlphaNumeric).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_ALPHANUMERIC'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_ALPHANUMERIC'>>();
+    });
+    it('should run example string-047: Reject string with symbols', () => {
+      const result = Str.isAlphaNumeric(invalidAlphaNumericSymbols);
+      expect(unwrap(result)).toBe('NOT_ALPHANUMERIC');
+      expectTypeOf(Str.isAlphaNumeric).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_ALPHANUMERIC'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_ALPHANUMERIC'>>();
+    });
+  });
+
+  describe('isLowerCase', () => {
+    it('should run example string-048: Validate lowercase string', () => {
+      const result = Str.isLowerCase(validLowerCase);
+      expect(unwrap(result)).toBe(validLowerCase);
+      expectTypeOf(Str.isLowerCase).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_LOWERCASE'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_LOWERCASE'>>();
+    });
+    it('should run example string-049: Reject string with uppercase', () => {
+      const result = Str.isLowerCase(invalidLowerCaseUpper);
+      expect(unwrap(result)).toBe('NOT_LOWERCASE');
+      expectTypeOf(Str.isLowerCase).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_LOWERCASE'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_LOWERCASE'>>();
+    });
+    it('should run example string-050: Reject string with numbers', () => {
+      const result = Str.isLowerCase(invalidLowerCaseNumbers);
+      expect(unwrap(result)).toBe('NOT_LOWERCASE');
+      expectTypeOf(Str.isLowerCase).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_LOWERCASE'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_LOWERCASE'>>();
+    });
+  });
+
+  describe('isUpperCase', () => {
+    it('should run example string-051: Validate uppercase string', () => {
+      const result = Str.isUpperCase(validUpperCase);
+      expect(unwrap(result)).toBe(validUpperCase);
+      expectTypeOf(Str.isUpperCase).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_UPPERCASE'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_UPPERCASE'>>();
+    });
+    it('should run example string-052: Reject string with lowercase', () => {
+      const result = Str.isUpperCase(invalidUpperCaseLower);
+      expect(unwrap(result)).toBe('NOT_UPPERCASE');
+      expectTypeOf(Str.isUpperCase).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_UPPERCASE'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_UPPERCASE'>>();
+    });
+    it('should run example string-053: Reject string with numbers', () => {
+      const result = Str.isUpperCase(invalidUpperCaseNumbers);
+      expect(unwrap(result)).toBe('NOT_UPPERCASE');
+      expectTypeOf(Str.isUpperCase).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_UPPERCASE'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_UPPERCASE'>>();
+    });
+  });
+
+  describe('isCapitalized', () => {
+    it('should run example string-054: Validate capitalized string', () => {
+      const result = Str.isCapitalized(validCapitalized);
+      expect(unwrap(result)).toBe(validCapitalized);
+      expectTypeOf(Str.isCapitalized).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_CAPITALIZED'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_CAPITALIZED'>>();
+    });
+    it('should run example string-055: Reject all lowercase string', () => {
+      const result = Str.isCapitalized(invalidCapitalizedLower);
+      expect(unwrap(result)).toBe('NOT_CAPITALIZED');
+      expectTypeOf(Str.isCapitalized).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_CAPITALIZED'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_CAPITALIZED'>>();
+    });
+    it('should run example string-056: Reject all uppercase string', () => {
+      const result = Str.isCapitalized(invalidCapitalizedUpper);
+      expect(unwrap(result)).toBe('NOT_CAPITALIZED');
+      expectTypeOf(Str.isCapitalized).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_CAPITALIZED'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_CAPITALIZED'>>();
+    });
+    it('should run example string-057: Reject multi-word string', () => {
+      const result = Str.isCapitalized(invalidCapitalizedMulti);
+      expect(unwrap(result)).toBe('NOT_CAPITALIZED');
+      expectTypeOf(Str.isCapitalized).toEqualTypeOf<
+        (value: string) => Result<string, 'NOT_CAPITALIZED'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_CAPITALIZED'>>();
+    });
+  });
+
+  describe('isStartsWith', () => {
+    it('should run example string-058: Validate string starts with prefix', () => {
+      const result = Str.isStartsWith('Hello')(validStartsWith);
+      expect(unwrap(result)).toBe(validStartsWith);
+      expectTypeOf(Str.isStartsWith).toEqualTypeOf<
+        (prefix: string) => (value: string) => Result<string, 'NOT_STARTS_WITH'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_STARTS_WITH'>>();
+    });
+    it('should run example string-059: Reject string not starting with prefix', () => {
+      const result = Str.isStartsWith('Hello')(invalidStartsWith);
+      expect(unwrap(result)).toBe('NOT_STARTS_WITH');
+      expectTypeOf(Str.isStartsWith).toEqualTypeOf<
+        (prefix: string) => (value: string) => Result<string, 'NOT_STARTS_WITH'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_STARTS_WITH'>>();
+    });
+  });
+
+  describe('isEndsWith', () => {
+    it('should run example string-060: Validate string ends with suffix', () => {
+      const result = Str.isEndsWith('World')(validEndsWith);
+      expect(unwrap(result)).toBe(validEndsWith);
+      expectTypeOf(Str.isEndsWith).toEqualTypeOf<
+        (suffix: string) => (value: string) => Result<string, 'NOT_ENDS_WITH'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_ENDS_WITH'>>();
+    });
+    it('should run example string-061: Reject string not ending with suffix', () => {
+      const result = Str.isEndsWith('World')(invalidEndsWith);
+      expect(unwrap(result)).toBe('NOT_ENDS_WITH');
+      expectTypeOf(Str.isEndsWith).toEqualTypeOf<
+        (suffix: string) => (value: string) => Result<string, 'NOT_ENDS_WITH'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_ENDS_WITH'>>();
     });
   });
 });

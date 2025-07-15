@@ -492,8 +492,16 @@ const isRGBA = (value: string) => (rgba.test(value) ? ok(value) : err('INVALID_R
  *
  * @example
  * ```ts
- * const result = isRGB('rgb(0, 0, 0)'); // ok('rgb(0, 0, 0)').
- * const result = isRGB('invalid-rgb'); // err('INVALID_RGB').
+ * // string-040: Validate RGB color.
+ * const result = isRGB('rgb(0, 0, 0)');
+ * // result: ok('rgb(0, 0, 0)').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-041: Reject invalid RGB color.
+ * const result = isRGB('invalid-rgb');
+ * // result: err('INVALID_RGB').
  * ```
  *
  * @public
@@ -508,9 +516,23 @@ const isRGB = (value: string) => (rgb.test(value) ? ok(value) : err('INVALID_RGB
  *
  * @example
  * ```ts
- * const result = isAlpha('Hello'); // ok('Hello').
- * const result = isAlpha('Hello123'); // err('NOT_ALPHA').
- * const result = isAlpha('Hello World'); // err('NOT_ALPHA').
+ * // string-042: Validate alphabetic string.
+ * const result = isAlpha('Hello');
+ * // result: ok('Hello').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-043: Reject string with numbers.
+ * const result = isAlpha('Hello123');
+ * // result: err('NOT_ALPHA').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-044: Reject string with spaces.
+ * const result = isAlpha('Hello World');
+ * // result: err('NOT_ALPHA').
  * ```
  *
  * @public
@@ -525,9 +547,23 @@ const isAlpha = (value: string) => (alpha.test(value) ? ok(value) : err('NOT_ALP
  *
  * @example
  * ```ts
- * const result = isAlphaNumeric('Hello123'); // ok('Hello123').
- * const result = isAlphaNumeric('Hello 123'); // err('NOT_ALPHANUMERIC').
- * const result = isAlphaNumeric('Hello@123'); // err('NOT_ALPHANUMERIC').
+ * // string-045: Validate alphanumeric string.
+ * const result = isAlphaNumeric('Hello123');
+ * // result: ok('Hello123').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-046: Reject string with spaces.
+ * const result = isAlphaNumeric('Hello 123');
+ * // result: err('NOT_ALPHANUMERIC').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-047: Reject string with symbols.
+ * const result = isAlphaNumeric('Hello@123');
+ * // result: err('NOT_ALPHANUMERIC').
  * ```
  *
  * @public
@@ -543,9 +579,23 @@ const isAlphaNumeric = (value: string) =>
  *
  * @example
  * ```ts
- * const result = isLowerCase('hello'); // ok('hello').
- * const result = isLowerCase('Hello'); // err('NOT_LOWERCASE').
- * const result = isLowerCase('hello123'); // err('NOT_LOWERCASE').
+ * // string-048: Validate lowercase string.
+ * const result = isLowerCase('hello');
+ * // result: ok('hello').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-049: Reject string with uppercase.
+ * const result = isLowerCase('Hello');
+ * // result: err('NOT_LOWERCASE').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-050: Reject string with numbers.
+ * const result = isLowerCase('hello123');
+ * // result: err('NOT_LOWERCASE').
  * ```
  *
  * @public
@@ -560,9 +610,23 @@ const isLowerCase = (value: string) => (lowerCase.test(value) ? ok(value) : err(
  *
  * @example
  * ```ts
- * const result = isUpperCase('HELLO'); // ok('HELLO').
- * const result = isUpperCase('Hello'); // err('NOT_UPPERCASE').
- * const result = isUpperCase('HELLO123'); // err('NOT_UPPERCASE').
+ * // string-051: Validate uppercase string.
+ * const result = isUpperCase('HELLO');
+ * // result: ok('HELLO').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-052: Reject string with lowercase.
+ * const result = isUpperCase('Hello');
+ * // result: err('NOT_UPPERCASE').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-053: Reject string with numbers.
+ * const result = isUpperCase('HELLO123');
+ * // result: err('NOT_UPPERCASE').
  * ```
  *
  * @public
@@ -577,10 +641,30 @@ const isUpperCase = (value: string) => (upperCase.test(value) ? ok(value) : err(
  *
  * @example
  * ```ts
- * const result = isCapitalized('Hello'); // ok('Hello').
- * const result = isCapitalized('hello'); // err('NOT_CAPITALIZED').
- * const result = isCapitalized('HELLO'); // err('NOT_CAPITALIZED').
- * const result = isCapitalized('Hello World'); // err('NOT_CAPITALIZED').
+ * // string-054: Validate capitalized string.
+ * const result = isCapitalized('Hello');
+ * // result: ok('Hello').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-055: Reject all lowercase string.
+ * const result = isCapitalized('hello');
+ * // result: err('NOT_CAPITALIZED').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-056: Reject all uppercase string.
+ * const result = isCapitalized('HELLO');
+ * // result: err('NOT_CAPITALIZED').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-057: Reject multi-word string.
+ * const result = isCapitalized('Hello World');
+ * // result: err('NOT_CAPITALIZED').
  * ```
  *
  * @public
@@ -596,8 +680,16 @@ const isCapitalized = (value: string) =>
  *
  * @example
  * ```ts
- * const result = isStartsWith('Hello')('Hello World'); // ok('Hello World').
- * const result = isStartsWith('Hello')('World Hello'); // err('NOT_STARTS_WITH').
+ * // string-058: Validate string starts with prefix.
+ * const result = isStartsWith('Hello')('Hello World');
+ * // result: ok('Hello World').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-059: Reject string not starting with prefix.
+ * const result = isStartsWith('Hello')('World Hello');
+ * // result: err('NOT_STARTS_WITH').
  * ```
  *
  * @public
@@ -613,8 +705,16 @@ const isStartsWith = (prefix: string) => (value: string) =>
  *
  * @example
  * ```ts
- * const result = isEndsWith('World')('Hello World'); // ok('Hello World').
- * const result = isEndsWith('World')('World Hello'); // err('NOT_ENDS_WITH').
+ * // string-060: Validate string ends with suffix.
+ * const result = isEndsWith('World')('Hello World');
+ * // result: ok('Hello World').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // string-061: Reject string not ending with suffix.
+ * const result = isEndsWith('World')('World Hello');
+ * // result: err('NOT_ENDS_WITH').
  * ```
  *
  * @public
