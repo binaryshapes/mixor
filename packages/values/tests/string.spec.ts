@@ -67,6 +67,14 @@ const validStartsWith = 'Hello World';
 const invalidStartsWith = 'World Hello';
 const validEndsWith = 'Hello World';
 const invalidEndsWith = 'World Hello';
+const validBigIntString = '1234567890123456789012345678901234567890';
+const invalidBigIntString = '123.45';
+const validIntegerString = '123456';
+const invalidIntegerString = '123.45';
+const validBooleanString = 'true';
+const invalidBooleanString = 'maybe';
+const validNumberString = '123.45';
+const invalidNumberString = 'not-a-number';
 
 describe('String validation functions', () => {
   describe('coerce', () => {
@@ -723,6 +731,204 @@ describe('String validation functions', () => {
         (suffix: string) => (value: string) => Result<string, 'NOT_ENDS_WITH'>
       >();
       expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_ENDS_WITH'>>();
+    });
+  });
+
+  describe('isBigInt', () => {
+    it('should run example string-062: Validate BigInt string', () => {
+      const result = Str.isBigInt(validBigIntString);
+      expect(unwrap(result)).toBe(BigInt(validBigIntString));
+
+      // Typechecking.
+      expectTypeOf(Str.isBigInt).toEqualTypeOf<(value: string) => Result<bigint, 'NOT_BIGINT'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<bigint, 'NOT_BIGINT'>>();
+    });
+
+    it('should run example string-063: Reject invalid BigInt string', () => {
+      const result = Str.isBigInt(invalidBigIntString);
+      expect(unwrap(result)).toBe('NOT_BIGINT');
+
+      // Typechecking.
+      expectTypeOf(Str.isBigInt).toEqualTypeOf<(value: string) => Result<bigint, 'NOT_BIGINT'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<bigint, 'NOT_BIGINT'>>();
+    });
+  });
+
+  describe('isInteger', () => {
+    it('should run example string-064: Validate integer string', () => {
+      const result = Str.isInteger(validIntegerString);
+      expect(unwrap(result)).toBe(123456);
+
+      // Typechecking.
+      expectTypeOf(Str.isInteger).toEqualTypeOf<(value: string) => Result<number, 'NOT_INTEGER'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<number, 'NOT_INTEGER'>>();
+    });
+
+    it('should run example string-065: Reject invalid integer string', () => {
+      const result = Str.isInteger(invalidIntegerString);
+      expect(unwrap(result)).toBe('NOT_INTEGER');
+
+      // Typechecking.
+      expectTypeOf(Str.isInteger).toEqualTypeOf<(value: string) => Result<number, 'NOT_INTEGER'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<number, 'NOT_INTEGER'>>();
+    });
+  });
+
+  describe('isBoolean', () => {
+    it('should run example string-066: Validate boolean string', () => {
+      const result = Str.isBoolean(validBooleanString);
+      expect(unwrap(result)).toBe(true);
+
+      // Typechecking.
+      expectTypeOf(Str.isBoolean).toEqualTypeOf<
+        (value: string) => Result<boolean, 'NOT_BOOLEAN'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<boolean, 'NOT_BOOLEAN'>>();
+    });
+
+    it('should run example string-067: Reject invalid boolean string', () => {
+      const result = Str.isBoolean(invalidBooleanString);
+      expect(unwrap(result)).toBe('NOT_BOOLEAN');
+
+      // Typechecking.
+      expectTypeOf(Str.isBoolean).toEqualTypeOf<
+        (value: string) => Result<boolean, 'NOT_BOOLEAN'>
+      >();
+      expectTypeOf(result).toEqualTypeOf<Result<boolean, 'NOT_BOOLEAN'>>();
+    });
+  });
+
+  describe('isNumber', () => {
+    it('should run example string-068: Validate number string', () => {
+      const result = Str.isNumber(validNumberString);
+      expect(unwrap(result)).toBe(123.45);
+
+      // Typechecking.
+      expectTypeOf(Str.isNumber).toEqualTypeOf<(value: string) => Result<number, 'NOT_NUMBER'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<number, 'NOT_NUMBER'>>();
+    });
+
+    it('should run example string-069: Reject invalid number string', () => {
+      const result = Str.isNumber(invalidNumberString);
+      expect(unwrap(result)).toBe('NOT_NUMBER');
+
+      // Typechecking.
+      expectTypeOf(Str.isNumber).toEqualTypeOf<(value: string) => Result<number, 'NOT_NUMBER'>>();
+      expectTypeOf(result).toEqualTypeOf<Result<number, 'NOT_NUMBER'>>();
+    });
+  });
+
+  // *********************************************************************************************
+  // Builder tests.
+  // *********************************************************************************************
+
+  describe('str builder', () => {
+    it('should run example string-070: Basic string validation with type checking', () => {
+      const stringValidator = Str.str.isString().isNotEmpty().build();
+
+      const result = stringValidator('hello');
+      expect(unwrap(result)).toBe('hello');
+    });
+
+    it('should run example string-071: Password validation with multiple constraints', () => {
+      const passwordValidator = Str.str
+        .isString()
+        .hasMinLength(8)
+        .hasMaxLength(50)
+        .matches(/[A-Z]/) // Must contain uppercase
+        .matches(/[a-z]/) // Must contain lowercase
+        .matches(/\d/) // Must contain digit
+        .build();
+
+      const result = passwordValidator('SecurePass123');
+      expect(unwrap(result)).toBe('SecurePass123');
+    });
+
+    it('should run example string-072: Username validation with specific requirements', () => {
+      const usernameValidator = Str.str
+        .isString()
+        .hasMinLength(3)
+        .hasMaxLength(20)
+        .isAlphaNumeric()
+        .build();
+
+      const result = usernameValidator('john123');
+      expect(unwrap(result)).toBe('john123');
+    });
+
+    it('should run example string-073: Color validation for CSS', () => {
+      const colorValidator = Str.str
+        .isString()
+        .matches(/^#[0-9A-Fa-f]{6}$/) // Hex color
+        .build();
+
+      const result = colorValidator('#FF5733');
+      expect(unwrap(result)).toBe('#FF5733');
+    });
+
+    it('should run example string-074: Slug validation for URLs', () => {
+      const slugValidator = Str.str.isString().isSlug().hasMaxLength(100).build();
+
+      const result = slugValidator('my-awesome-blog-post');
+      expect(unwrap(result)).toBe('my-awesome-blog-post');
+    });
+
+    it('should run example string-075: Phone number validation with format checking', () => {
+      const phoneValidator = Str.str.isString().isPhoneNumber().build();
+
+      const result = phoneValidator('+1234567890');
+      expect(unwrap(result)).toBe('+1234567890');
+    });
+
+    it('should run example string-076: Date validation for forms', () => {
+      const dateValidator = Str.str.isString().isDate().build();
+
+      const result = dateValidator('2024-01-15');
+      expect(unwrap(result)).toBe('2024-01-15');
+    });
+
+    it('should run example string-077: Multiple validation with error collection', () => {
+      const userValidator = Str.str.isString().isNotEmpty().hasMinLength(3).build('all'); // Collect all errors
+
+      const result = userValidator('');
+      expect(unwrap(result)).toEqual(['IS_EMPTY', 'TOO_SHORT']);
+    });
+
+    it('should handle builder chain with error cases', () => {
+      const passwordValidator = Str.str
+        .isString()
+        .hasMinLength(8)
+        .hasMaxLength(50)
+        .matches(/[A-Z]/)
+        .build();
+
+      const weakPassword = passwordValidator('weak');
+      expect(unwrap(weakPassword)).toBe('TOO_SHORT');
+
+      const longPassword = passwordValidator('a'.repeat(60));
+      expect(unwrap(longPassword)).toBe('TOO_LONG');
+
+      const noUppercase = passwordValidator('password123');
+      expect(unwrap(noUppercase)).toBe('NOT_MATCH');
+    });
+
+    it('should handle repeatable validations', () => {
+      const multiValidator = Str.str
+        .isString()
+        .hasMinLength(5)
+        .hasMaxLength(20)
+        .hasMinLength(10) // This should override the previous minLength
+        .hasMaxLength(15) // This should override the previous maxLength
+        .build();
+
+      const validResult = multiValidator('validstring');
+      expect(unwrap(validResult)).toBe('validstring');
+
+      const tooShort = multiValidator('short');
+      expect(unwrap(tooShort)).toBe('TOO_SHORT');
+
+      const tooLong = multiValidator('verylongstringthatisoverthelimit');
+      expect(unwrap(tooLong)).toBe('TOO_LONG');
     });
   });
 });
