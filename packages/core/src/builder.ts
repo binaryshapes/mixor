@@ -257,6 +257,26 @@ type Builder<
 };
 
 /**
+ * Check if a function has default parameters.
+ *
+ * @param fn - The function to check.
+ * @returns True if the function has default parameters, false otherwise.
+ *
+ * @internal
+ */
+const hasDefaultParams = (fn: (...args: Any[]) => Any) =>
+  // FIXME: This is a hack and is not a good solution if the given function is too complex
+  // or is minified by third party libraries.
+  !!fn
+    .toString()
+    .match(/\(([^)]*)\)/)?.[1]
+    .split(',')
+    .map((arg) => arg.trim())
+    .filter(Boolean)
+    .filter((arg) => arg.includes('='))
+    .map((arg) => arg.split('=')[0].trim()).length;
+
+/**
  * Creates a new builder instance with automatic type inference.
  * Each chained function updates the output type and error union.
  *
@@ -386,9 +406,13 @@ function builder<
             if (!originalFn) {
               throw new BuilderError('CORRUPTED_FUNCTION', `Function '${String(key)}' not found.`);
             }
+
             return typeof originalFn === 'function' && args.length > 0
               ? (originalFn as Any)(...args)
-              : originalFn;
+              : // If is a function without arguments, call it (could apply default parameters).
+                typeof originalFn === 'function' && hasDefaultParams(originalFn)
+                ? (originalFn as Any)()
+                : originalFn;
           });
 
           // If no functions, return identity function

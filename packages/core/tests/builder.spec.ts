@@ -181,6 +181,40 @@ describe('Builder', () => {
       expectTypeOf(result1).toEqualTypeOf<Result<string, 'NOT_STRING' | 'TOO_SHORT'>>();
       expectTypeOf(result2).toEqualTypeOf<Result<string, 'NOT_STRING' | 'TOO_SHORT'>>();
     });
+
+    it('should handle functions with default parameters', () => {
+      const hasLength =
+        (length = 10) =>
+        (value: string) =>
+          value.length <= length ? ok(value) : err('TOO_SHORT');
+
+      const string = builder({
+        isString,
+        hasLength,
+      });
+
+      const withDefault = string.isString().hasLength().build();
+      const withoutDefault = string.isString().hasLength(1).build();
+
+      const resultWithDefault = withDefault('test');
+      const resultWithoutDefault = withoutDefault('test');
+
+      // Execution check.
+      expect(unwrap(resultWithDefault)).toEqual('test');
+      expect(unwrap(resultWithoutDefault)).toEqual('TOO_SHORT');
+
+      // Typechecking.
+      expectTypeOf(withDefault).toEqualTypeOf<
+        (input: string) => Result<string, 'NOT_STRING' | 'TOO_SHORT'>
+      >();
+      expectTypeOf(withoutDefault).toEqualTypeOf<
+        (input: string) => Result<string, 'NOT_STRING' | 'TOO_SHORT'>
+      >();
+      expectTypeOf(resultWithDefault).toEqualTypeOf<Result<string, 'NOT_STRING' | 'TOO_SHORT'>>();
+      expectTypeOf(resultWithoutDefault).toEqualTypeOf<
+        Result<string, 'NOT_STRING' | 'TOO_SHORT'>
+      >();
+    });
   });
 
   describe('Error handling', () => {
