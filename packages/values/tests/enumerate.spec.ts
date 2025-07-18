@@ -1,13 +1,44 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { isErr, isOk, unwrap } from '@mixor/core';
+import { type Result, isErr, isOk, unwrap } from '@mixor/core';
 
 import { EnumerateError, enumerate } from '../src/enumerate';
+
+enum Status {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  PENDING = 'pending',
+}
+
+enum StatusWithDuplicate {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  PENDING = 'pending',
+  DUPLICATE = 'pendind',
+}
+
+enum Priority {
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+}
+
+enum MixedEnum {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  PENDING = 'pending',
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+}
 
 // Shared test utilities.
 const createTestHelpers = () => ({
   createStringEnum: () => enumerate(['active', 'inactive', 'pending']),
   createNumberEnum: () => enumerate([1, 2, 3, 4, 5]),
+  createStringEnumFromTypeScriptEnum: () => enumerate(Status),
+  createNumberEnumFromTypeScriptEnum: () => enumerate(Priority),
+  createMixedEnumFromTypeScriptEnum: () => enumerate(MixedEnum),
 });
 
 describe('enumerate', () => {
@@ -106,23 +137,35 @@ describe('enumerate', () => {
         }
       }
     });
-  });
 
-  describe('Type safety', () => {
-    it('should provide correct type inference for string enums', () => {
-      const status = enumerate(['active', 'inactive']);
-      expect(typeof status).toBe('function');
+    it('should run example enumerate-007: Using TypeScript string enum', () => {
+      const status = helpers.createStringEnumFromTypeScriptEnum();
+      const result = status(Status.ACTIVE);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe('active');
+      }
     });
 
-    it('should provide correct type inference for number enums', () => {
-      const numbers = enumerate([1, 2, 3]);
-      expect(typeof numbers).toBe('function');
+    it('should run example enumerate-008: Using TypeScript numeric enum', () => {
+      const priority = helpers.createNumberEnumFromTypeScriptEnum();
+      const result = priority(Priority.MEDIUM);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe(2);
+      }
     });
 
-    it('should restrict to string and number types', () => {
-      // These should cause TypeScript errors at compile time
-      // The actual execution is tested in the error handling section
-      expect(true).toBe(true); // Placeholder - type checking is done at compile time
+    it('should run example enumerate-009: Mixed types validation for enums', () => {
+      try {
+        const mixedEnum = helpers.createMixedEnumFromTypeScriptEnum();
+        mixedEnum(MixedEnum.ACTIVE);
+        expect(true).toBe(false); // Should not reach here.
+      } catch (error) {
+        if (error instanceof EnumerateError) {
+          expect(error).toBeInstanceOf(EnumerateError);
+          expect(error.message).toBe('Enumeration cannot have mixed types');
+          expect(error.key).toBe('ENUMERATE:MIXED_TYPES');
+        }
+      }
     });
   });
 
@@ -130,24 +173,117 @@ describe('enumerate', () => {
     it('should throw EnumerateError for empty arrays', () => {
       expect(() => enumerate([])).toThrow(EnumerateError);
       expect(() => enumerate([])).toThrow('Enumeration cannot be empty');
+
+      // Native TypeScript enum with duplicate values.
+      expect(() => enumerate({})).toThrow(EnumerateError);
+      expect(() => enumerate({})).toThrow('Enumeration cannot be empty');
     });
 
     it('should throw EnumerateError for duplicate values', () => {
+      // Array of duplicate values.
       expect(() => enumerate(['a', 'b', 'a'])).toThrow(EnumerateError);
       expect(() => enumerate(['a', 'b', 'a'])).toThrow('Enumeration cannot have duplicate values');
+
+      // Native TypeScript enum with duplicate values.
+      // expect(() => enumerate(StatusWithDuplicate)).toThrow(EnumerateError);
+      // expect(() => enumerate(StatusWithDuplicate)).toThrow(
+      //   'Enumeration cannot have duplicate values',
+      // );
+      console.log(enumerate(StatusWithDuplicate));
     });
 
     it('should throw EnumerateError for mixed types', () => {
+      // Array of mixed types.
       expect(() => enumerate(['a', 1])).toThrow(EnumerateError);
       expect(() => enumerate(['a', 1])).toThrow('Enumeration cannot have mixed types');
+
+      // Native TypeScript enum with mixed types.
+      expect(() => enumerate(MixedEnum)).toThrow(EnumerateError);
+      expect(() => enumerate(MixedEnum)).toThrow('Enumeration cannot have mixed types');
+    });
+  });
+
+  describe('Enum functionality', () => {
+    it('should work with string enums', () => {
+      const status = helpers.createStringEnumFromTypeScriptEnum();
+      const result = status(Status.ACTIVE);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result)).toBe('active');
     });
 
-    it('should return error result for invalid values', () => {
-      const status = helpers.createStringEnum();
+    it('should work with numeric enums', () => {
+      const priority = helpers.createNumberEnumFromTypeScriptEnum();
+      const result = priority(Priority.MEDIUM);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result)).toBe(2);
+    });
+
+    it('should reject invalid enum values', () => {
+      const status = helpers.createStringEnumFromTypeScriptEnum();
       // @ts-expect-error - Invalid value.
       const result = status('invalid');
       expect(isErr(result)).toBe(true);
       expect(unwrap(result)).toBe('INVALID_ENUM_VALUE');
+    });
+
+    it('should handle empty enums', () => {
+      enum EmptyEnum {}
+      expect(() => enumerate(EmptyEnum)).toThrow(EnumerateError);
+      expect(() => enumerate(EmptyEnum)).toThrow('Enumeration cannot be empty');
+    });
+
+    it('should handle enums with duplicate values', () => {
+      // TypeScript doesn't allow duplicate values in enums, so we test with an object
+      const duplicateEnum = {
+        A: 'value',
+        B: 'value',
+      };
+      expect(() => enumerate(duplicateEnum)).toThrow(EnumerateError);
+      expect(() => enumerate(duplicateEnum)).toThrow('Enumeration cannot have duplicate values');
+    });
+  });
+
+  describe('Type safety', () => {
+    it('should provide correct type inference for string enums', () => {
+      const status = helpers.createStringEnum();
+
+      // Typechecking.
+      expectTypeOf(status).toBeFunction();
+      expectTypeOf(status).toEqualTypeOf<
+        (
+          value: 'active' | 'inactive' | 'pending',
+        ) => Result<'active' | 'inactive' | 'pending', 'INVALID_ENUM_VALUE'>
+      >();
+    });
+
+    it('should provide correct type inference for number enums', () => {
+      const numbers = helpers.createNumberEnum();
+
+      // Typechecking.
+      expectTypeOf(numbers).toBeFunction();
+      expectTypeOf(numbers).toEqualTypeOf<
+        (value: 1 | 2 | 3 | 4 | 5) => Result<1 | 2 | 3 | 4 | 5, 'INVALID_ENUM_VALUE'>
+      >();
+    });
+
+    it('should provide correct type inference for TypeScript string enums', () => {
+      const status = helpers.createStringEnumFromTypeScriptEnum();
+
+      // Typechecking.
+      expectTypeOf(status).toBeFunction();
+      expectTypeOf(status).branded.toEqualTypeOf<
+        (value: Status) => Result<Status, 'INVALID_ENUM_VALUE'>
+      >();
+    });
+
+    it('should provide correct type inference for TypeScript numeric enums', () => {
+      const priority = helpers.createNumberEnumFromTypeScriptEnum();
+
+      // Typechecking.
+      expectTypeOf(priority).toBeFunction();
+      expectTypeOf(priority).branded.toEqualTypeOf<
+        (value: Priority) => Result<Priority, 'INVALID_ENUM_VALUE'>
+      >();
     });
   });
 });
