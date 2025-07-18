@@ -5,6 +5,7 @@ export default defineVitestConfig({
     mode: 'replace',
     config: [
       project('email'),
+      project('enumerate'),
       project('id'),
       project('string'),
     ],
