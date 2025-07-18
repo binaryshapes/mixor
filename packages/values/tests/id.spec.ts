@@ -1,5 +1,6 @@
-import { type Result, unwrap } from '@mixor/core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
+
+import { type Result, unwrap } from '@mixor/core';
 
 import * as Id from '../src/id';
 

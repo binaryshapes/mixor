@@ -1,5 +1,6 @@
-import { type Result, unwrap } from '@mixor/core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
+
+import { type Result, unwrap } from '@mixor/core';
 
 import { email, hasDomain, isEmail } from '../src/email';
 
