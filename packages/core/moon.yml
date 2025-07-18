@@ -2,11 +2,13 @@ id: '@mixor/core'
 language: typescript
 type: library
 tags:
+  - tsup
   - vitest
 
 project:
-  name: Core library
+  name: Mixor core library
   description: Mixor core library with abstractions, design patterns and utilities
+  owner: binaryshapes
   maintainers:
     - Carlos Cosming
   metadata:
