@@ -2,11 +2,13 @@ id: '@mixor/values'
 language: typescript
 type: library
 tags:
+  - tsup
   - vitest
 
 project:
-  name: Values library
-  description: A collection of values for Mixor
+  name: Mixor values library
+  description: A collection of Mixor values
+  owner: binaryshapes
   maintainers:
     - Carlos Cosming
   metadata:
