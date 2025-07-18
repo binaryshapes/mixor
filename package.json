@@ -5,6 +5,7 @@
   "author": "Carlos Cosming",
   "license": "MIT",
   "private": true,
+  "type": "module",
   "keywords": [
     "typescript",
     "nodejs",
@@ -20,19 +21,26 @@
     "clean": "pnpx rimraf node_modules packages/*/node_modules pnpm-lock.yaml",
     "commitlint": "commitlint --edit",
     "commit": "commit",
-    "prepare": "husky"
+    "prepare": "husky",
+    "release:preview": "pnpm semantic-release --no-ci",
+    "release": "pnpm semantic-release"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.8.0",
     "@commitlint/config-conventional": "^19.8.0",
     "@commitlint/prompt-cli": "^19.8.0",
     "@commitlint/types": "^19.8.0",
+    "@nuxo/moon": "^1.0.0",
+    "@nuxo/typescript": "^1.0.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@types/node": "^22.15.2",
     "@unokit/eslint": "^1.0.0",
-    "@unokit/moon": "^1.0.0",
     "@unokit/prettier": "^1.0.0",
-    "@unokit/typescript": "^1.0.0",
+    "dayjs": "^1.11.13",
+    "dedent": "^1.6.0",
     "husky": "^9.1.7",
+    "semantic-release": "^24.2.7",
     "typescript": "^5.8.3"
   },
   "engines": {

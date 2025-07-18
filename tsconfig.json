@@ -1,6 +1,3 @@
 {
-  "extends": "./tsconfig.base.json",
-  "compileOnSave": false,
-  "files": [],
-  "include": ["eslint.config.ts", "prettier.config.mjs", "commitlint.config.ts"]
+  "extends": "@nuxo/typescript/workspace.json"
 }
