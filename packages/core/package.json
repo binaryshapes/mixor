@@ -1,16 +1,27 @@
 {
   "name": "@mixor/core",
   "version": "1.0.0",
-  "description": "Mixor core library with abstractions, design patterns and utilities",
+  "description": "Mixor core library",
   "author": "Carlos Cosming",
   "license": "MIT",
   "keywords": [
-    "design-patterns",
-    "utilities"
+    "result",
+    "flow",
+    "pipe",
+    "builder",
+    "dependency-injection",
+    "aggregate-root",
+    "value-objects",
+    "specification",
+    "events",
+    "schema"
   ],
   "files": [
     "dist"
   ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -21,21 +32,25 @@
   },
   "sideEffects": false,
   "scripts": {
+    "build": "moonx build -s -u",
+    "format": "moonx format",
+    "format-fix": "moonx format-fix",
+    "lint": "moonx lint",
+    "lint-fix": "moonx lint-fix",
     "test": "moonx test -s -u",
-    "test:types": "moonx test-types -s -u",
-    "test:runtime": "moonx test-runtime -s -u",
-    "test:watch": "moonx test-watch -s -u",
-    "test:project": "pnpm vitest --typecheck --hideSkippedTests --bail 1 --coverage --project",
-    "build": "moonx build -s -u"
+    "test-project": "moonx test-project",
+    "publish-local": "pnpm build && pnpm publish --registry=http://localhost:4873 --no-git-checks --force",
+    "unpublish-local": "npm unpublish --registry=http://localhost:4873/ --force",
+    "republish-local": "pnpm unpublish-local && pnpm publish-local"
   },
   "devDependencies": {
-    "@unokit/tsup": "^1.0.0",
-    "@unokit/vitest": "^1.0.0",
+    "@nuxo/tsup": "^1.0.0",
+    "@nuxo/vitest": "^1.0.0",
     "@vitest/coverage-v8": "^3.1.4",
     "@vitest/ui": "^3.1.4",
     "rimraf": "^6.0.1",
     "tslib": "^2.8.1",
-    "tsup": "^8.4.0",
+    "tsup": "^8.5.0",
     "vitest": "^3.1.4"
   }
 }
