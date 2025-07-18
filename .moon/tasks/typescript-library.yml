@@ -1,1 +1,1 @@
-extends: '../../node_modules/@unokit/moon/tasks/typescript/library.yml'
+extends: '../../node_modules/@nuxo/moon/tasks/typescript/library.yml'

@@ -1,1 +1,1 @@
-extends: '../../node_modules/@unokit/moon/tasks/typescript/tags/vitest.yml'
+extends: '../../node_modules/@nuxo/moon/tasks/typescript/tags/vitest.yml'
