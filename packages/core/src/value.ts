@@ -12,12 +12,15 @@ import { type Result } from './result';
 
 /**
  * A function to apply to a value to validate it.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
  * @param value - The value to validate.
  * @returns A result containing the validated value or an error.
  *
  * @internal
  */
-type ValueFunction<T = Any, E = Any> = (value: T) => Result<T, E>;
+type ValueFunction<T, E> = (value: T) => Result<T, E>;
 
 /**
  * A value wrapper that provides individual field validation.
@@ -57,7 +60,7 @@ interface Value<T, E> {
    *
    * @public
    */
-  readonly doc?: string;
+  readonly _doc?: string;
 
   /**
    * Validates a single value using the provided validation function.
@@ -202,10 +205,24 @@ interface ValueDefinition {
    * @public
    */
   <T, E>(doc: string, validator: ValueFunction<T, E>): Value<T, E>;
+
+  /**
+   * Creates a value wrapper from a function that returns a Result.
+   * This overload is specifically designed to preserve type inference
+   * when passing functions that return Result types.
+   *
+   * @param fn - A function that takes any input and returns a Result.
+   * @returns A value wrapper with preserved type inference.
+   *
+   * @public
+   */
+  <T, E>(fn: (input: T) => Result<T, E>): Value<T, E>;
 }
-const value: ValueDefinition = <T, E>(...args: Any): Value<T, E> => {
+const value: ValueDefinition = <T, E>(
+  ...args: [ValueFunction<T, E>] | [string, ValueFunction<T, E>] | [(input: T) => Result<T, E>]
+): Value<T, E> => {
   const doc = typeof args[0] === 'string' ? args[0] : undefined;
-  const validator = typeof args[0] === 'function' ? args[0] : args[1];
+  const validator = typeof args[0] === 'function' ? args[0] : (args[1] as ValueFunction<T, E>);
   const valueWrapper = (input: T): Result<T, E> => validator(input);
 
   // Attach the validator function to the wrapper for introspection.
@@ -213,7 +230,7 @@ const value: ValueDefinition = <T, E>(...args: Any): Value<T, E> => {
     validator,
     _tag: 'Value',
     _hash: hash(doc, validator),
-    doc,
+    _doc: doc,
   }) as Value<T, E>;
 };
 
