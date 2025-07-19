@@ -427,7 +427,9 @@ const schema: SchemaConstructor = <F extends SchemaFields>(...args: Any): Schema
  *
  * @public
  */
-type InferSchema<S> = S extends Schema<infer F> ? Prettify<SchemaValues<F>> : never;
+type InferSchema<S, F = S extends Schema<infer F> ? Prettify<SchemaValues<F>> : never> = {
+  [K in keyof F]: F[K] extends SchemaValues<infer V> ? InferSchema<Schema<V>> : F[K];
+};
 
 /**
  * Guard check to determine if a value is a schema.
