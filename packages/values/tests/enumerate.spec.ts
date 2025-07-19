@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { type Result, isErr, isOk, unwrap } from '@mixor/core';
+import { type Result, type Value, isErr, isOk, unwrap } from '@mixor/core';
+import { value } from '@mixor/core';
 
 import { EnumerateError, enumerate } from '../src/enumerate';
 
@@ -14,7 +15,8 @@ enum StatusWithDuplicate {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
   PENDING = 'pending',
-  DUPLICATE = 'pendind',
+  // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
+  DUPLICATE = 'pending',
 }
 
 enum Priority {
@@ -167,6 +169,17 @@ describe('enumerate', () => {
         }
       }
     });
+
+    it('should run example enumerate-010: Type inference preservation with value function', () => {
+      const status = enumerate(['active', 'inactive', 'unverified']);
+      const statusValue = value(status);
+
+      // Typechecking.
+      expectTypeOf(statusValue).toBeFunction();
+      expectTypeOf(statusValue).branded.toEqualTypeOf<
+        Value<'active' | 'inactive' | 'unverified', 'INVALID_ENUM_VALUE'>
+      >();
+    });
   });
 
   describe('Error handling', () => {
@@ -185,11 +198,10 @@ describe('enumerate', () => {
       expect(() => enumerate(['a', 'b', 'a'])).toThrow('Enumeration cannot have duplicate values');
 
       // Native TypeScript enum with duplicate values.
-      // expect(() => enumerate(StatusWithDuplicate)).toThrow(EnumerateError);
-      // expect(() => enumerate(StatusWithDuplicate)).toThrow(
-      //   'Enumeration cannot have duplicate values',
-      // );
-      console.log(enumerate(StatusWithDuplicate));
+      expect(() => enumerate(StatusWithDuplicate)).toThrow(EnumerateError);
+      expect(() => enumerate(StatusWithDuplicate)).toThrow(
+        'Enumeration cannot have duplicate values',
+      );
     });
 
     it('should throw EnumerateError for mixed types', () => {
@@ -283,6 +295,17 @@ describe('enumerate', () => {
       expectTypeOf(priority).toBeFunction();
       expectTypeOf(priority).branded.toEqualTypeOf<
         (value: Priority) => Result<Priority, 'INVALID_ENUM_VALUE'>
+      >();
+    });
+
+    it('should preserve type inference when used with value function', () => {
+      const status = enumerate(['active', 'inactive', 'unverified']);
+      const statusValue = value(status);
+
+      // Typechecking.
+      expectTypeOf(statusValue).toBeFunction();
+      expectTypeOf(statusValue).branded.toEqualTypeOf<
+        Value<'active' | 'inactive' | 'unverified', 'INVALID_ENUM_VALUE'>
       >();
     });
   });
