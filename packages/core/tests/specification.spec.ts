@@ -1059,26 +1059,26 @@ describe('specification', () => {
     });
 
     it('should cover the isErr(r1) branch in builder and()', () => {
-      // Crea un spec base con una regla que siempre falla
+      // Create a base spec with a rule that always fails.
       const alwaysFailSpec = spec<User>()
         .when(() => true)
         .rule('fail', () => err('ALWAYS_FAIL'))
         .build();
-      // Crea un spec que siempre pasa
+      // Create a spec that always passes.
       const alwaysPassSpec = spec<User>()
         .when(() => true)
         .rule('pass', () => ok(validUser))
         .build();
-      // Usa el builder base para combinar con and()
+      // Use the base builder to combine with and().
       const combined = alwaysFailSpec.and(alwaysPassSpec);
       const result = combined.satisfy(validUser);
-      expect(unwrap(result)).toEqual('ALWAYS_FAIL'); // Debe retornar el error del primer spec
+      expect(unwrap(result)).toEqual('ALWAYS_FAIL'); // Should return the error of the first spec.
     });
 
     it('should cover the isOk(r) branch in builder not()', () => {
-      // Crea un spec base vacío (siempre retorna ok)
+      // Create an empty base spec (always returns ok).
       const emptySpec = spec<User>().build();
-      // Aplica not() sobre el builder base
+      // Apply not() over the base builder.
       const notSpec = emptySpec.not();
       const result = notSpec.satisfy(validUser);
       expect(unwrap(result)).toEqual('Specification should not be satisfied');
