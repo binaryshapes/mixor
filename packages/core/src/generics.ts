@@ -144,6 +144,15 @@ type DeepAwaited<T, O extends Record<string, Any> = never> =
  */
 type IsPrimitive<T> = T extends object ? false : true;
 
+/**
+ * Literal is a type that represents a literal type.
+ *
+ * @typeParam T - The type to check.
+ * @returns The literal type.
+ *
+ * @public
+ */
+type Literal<T> = T extends string | number ? T : never;
 // *********************************************************************************************
 // Object manipulation types.
 // *********************************************************************************************
@@ -261,6 +270,7 @@ export type {
   IsPromise,
   DeepAwaited,
   IsPrimitive,
+  Literal,
   // Object manipulation types.
   UnionKeys,
   MergeUnion,
