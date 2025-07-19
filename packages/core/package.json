@@ -41,7 +41,8 @@
     "test-project": "moonx test-project",
     "publish-local": "pnpm build && pnpm publish --registry=http://localhost:4873 --no-git-checks --force",
     "unpublish-local": "npm unpublish --registry=http://localhost:4873/ --force",
-    "republish-local": "pnpm unpublish-local && pnpm publish-local"
+    "republish-local": "pnpm unpublish-local && pnpm publish-local",
+    "example": "node --watch --import tsx --conditions development --env-file .env"
   },
   "devDependencies": {
     "@nuxo/tsup": "^1.0.0",
