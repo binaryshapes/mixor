@@ -3,6 +3,8 @@
  * Example usage of the enum functionality
  * This demonstrates both styles: from string array and from native enum
  */
+import { value } from '@mixor/core';
+
 import { EnumerateError, enumerate } from '../src/enumerate';
 
 // *********************************************************************************************
@@ -156,5 +158,19 @@ function typescriptEnumExample() {
   }
 }
 
+function enumerateAsValueExample() {
+  console.log('\n3. Enumerate as value example:');
+
+  // Using a previous defined enumerate.
+  const status = enumerate(['active', 'inactive', 'unverified']);
+  const statusValue = value(status); // Value<"active" | "inactive" | "unverified", "INVALID_ENUM_VALUE">
+  console.log(statusValue);
+
+  // Using directly the enumerate function.
+  const statusValue2 = value(enumerate(['active', 'inactive', 'unverified'])); // Value<string, "INVALID_ENUM_VALUE">
+  console.log(statusValue2);
+}
+
 arrayEnumExample();
 typescriptEnumExample();
+enumerateAsValueExample();
