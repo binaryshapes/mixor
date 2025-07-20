@@ -205,18 +205,6 @@ interface ValueDefinition {
    * @public
    */
   <T, E>(doc: string, validator: ValueFunction<T, E>): Value<T, E>;
-
-  /**
-   * Creates a value wrapper from a function that returns a Result.
-   * This overload is specifically designed to preserve type inference
-   * when passing functions that return Result types.
-   *
-   * @param fn - A function that takes any input and returns a Result.
-   * @returns A value wrapper with preserved type inference.
-   *
-   * @public
-   */
-  <T, E>(fn: (input: T) => Result<T, E>): Value<T, E>;
 }
 const value: ValueDefinition = <T, E>(
   ...args: [ValueFunction<T, E>] | [string, ValueFunction<T, E>] | [(input: T) => Result<T, E>]
@@ -267,15 +255,16 @@ const value: ValueDefinition = <T, E>(
  *
  * @public
  */
-const isValue = (value: Any): value is Value<Any, Any> =>
+const isValue = (value: unknown): value is Value<Any, Any> =>
   !!value &&
   typeof value === 'function' &&
   '_tag' in value &&
   value._tag === 'Value' &&
   '_hash' in value &&
-  value._hash === hash(value.doc, value.validator) &&
+  '_doc' in value &&
   'validator' in value &&
-  typeof value.validator === 'function';
+  typeof value.validator === 'function' &&
+  value._hash === hash(value._doc, value.validator);
 
 export type { Value };
 export { value, isValue };

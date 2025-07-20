@@ -59,7 +59,7 @@ describe('value', () => {
         age >= 18 ? ok(age) : err('INVALID_AGE'),
       );
 
-      expect(ageValue.doc).toBe('User age must be at least 18 years old');
+      expect(ageValue._doc).toBe('User age must be at least 18 years old');
       expect(ageValue._tag).toBe('Value');
 
       const result = ageValue(21);
@@ -69,7 +69,7 @@ describe('value', () => {
     it('should work without description', () => {
       const ageValue = value((age: number) => (age >= 18 ? ok(age) : err('INVALID_AGE')));
 
-      expect(ageValue.doc).toBeUndefined();
+      expect(ageValue._doc).toBeUndefined();
       expect(ageValue._tag).toBe('Value');
 
       const result = ageValue(21);
@@ -165,7 +165,7 @@ describe('value', () => {
         expect(typeof ageValue).toBe('function');
         expect(ageValue.validator).toBeDefined();
         expect(ageValue._tag).toBe('Value');
-        expect(ageValue.doc).toBe('User age must be at least 18 years old');
+        expect(ageValue._doc).toBe('User age must be at least 18 years old');
       }
     });
 
@@ -244,7 +244,7 @@ describe('value', () => {
 
     it('should reject a hacky `value` function', () => {
       const value = (value: number) => (value >= 18 ? ok(value) : err('INVALID_AGE'));
-      value.doc = 'User age must be at least 18 years old';
+      value._doc = 'User age must be at least 18 years old';
       value._tag = 'Value';
       expect(isValue(value)).toBe(false);
     });
@@ -273,13 +273,13 @@ describe('value', () => {
 
       const result = ageValue(21);
       expect(unwrap(result)).toBe(21);
-      expect(ageValue.doc).toBe('User age must be at least 18 years old');
+      expect(ageValue._doc).toBe('User age must be at least 18 years old');
 
       // Typechecking.
       expectTypeOf(ageValue).toBeFunction();
       expectTypeOf(ageValue).parameter(0).toBeNumber();
       expectTypeOf(result).toEqualTypeOf<ReturnType<typeof ageValue>>();
-      expectTypeOf(ageValue.doc).toEqualTypeOf<string | undefined>();
+      expectTypeOf(ageValue._doc).toEqualTypeOf<string | undefined>();
     });
 
     it('should handle complex value validation example from documentation', () => {
