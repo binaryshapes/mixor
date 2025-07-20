@@ -6,10 +6,9 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import type { Any, Prettify } from './generics';
+import type { Any } from './generics';
 import { Panic } from './panic';
-import { type Result } from './result';
-import type { Schema, SchemaErrors, SchemaFields, SchemaValues } from './schema';
+import type { Schema } from './schema';
 
 /**
  * Panic error for the schema module.
@@ -94,7 +93,7 @@ function getEnvSource(): Record<string, string | undefined> {
  *
  * @public
  */
-function env<F extends SchemaFields>(schema: Schema<F>) {
+function env<F>(schema: Schema<F>) {
   return () => {
     const rawEnv = getEnvSource();
 
@@ -108,7 +107,7 @@ function env<F extends SchemaFields>(schema: Schema<F>) {
       Object.entries(rawEnv)
         .filter(([key]) => fields.includes(key))
         .map(([key, value]) => [key, value as string]),
-    ) as SchemaValues<F>;
+    );
 
     // All all fields present in the schema.
     const missingFields = fields.filter((field) => !Object.keys(input).includes(field));
@@ -119,7 +118,7 @@ function env<F extends SchemaFields>(schema: Schema<F>) {
       );
     }
 
-    return schema(input) as Result<Prettify<SchemaValues<F>>, Prettify<SchemaErrors<F>>>;
+    return schema(input as Any);
   };
 }
 
