@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import type { Any } from '../src/generics';
-import { err, isOk, ok, unwrap } from '../src/result';
+import { type Result, err, isOk, ok, unwrap } from '../src/result';
 import { type InferSchema, type Schema, SchemaError, isSchema, schema } from '../src/schema';
 import { type Value, value } from '../src/value';
 
@@ -81,7 +81,7 @@ describe('schema', () => {
       });
 
       // Strict mode - stops at first error.
-      const strictResult = user({ name: '', email: 'invalid', age: -5 }, { mode: 'strict' });
+      const strictResult = user({ name: '', email: 'invalid', age: -5 }, 'strict');
       expect(unwrap(strictResult)).toEqual({ name: 'EMPTY_NAME' });
     });
 
@@ -93,10 +93,7 @@ describe('schema', () => {
       });
 
       // Strict mode - all fields valid.
-      const strictResult = user(
-        { name: 'John', email: 'john@example.com', age: 30 },
-        { mode: 'strict' },
-      );
+      const strictResult = user({ name: 'John', email: 'john@example.com', age: 30 }, 'strict');
       expect(unwrap(strictResult)).toEqual({ name: 'John', email: 'john@example.com', age: 30 });
     });
 
@@ -108,7 +105,7 @@ describe('schema', () => {
       });
 
       // All mode - collects all errors.
-      const allResult = user({ name: '', email: 'invalid', age: -5 }, { mode: 'all' });
+      const allResult = user({ name: '', email: 'invalid', age: -5 }, 'all');
       expect(unwrap(allResult)).toEqual({
         name: 'EMPTY_NAME',
         email: 'INVALID_EMAIL',
@@ -176,7 +173,7 @@ describe('schema', () => {
           password: 'weak',
           confirmPassword: '',
         },
-        { mode: 'all' },
+        'all',
       );
 
       expect(unwrap(result)).toEqual({
@@ -282,14 +279,40 @@ describe('schema', () => {
       });
 
       // Strict mode - stops at first error.
-      const strictError = user({ name: '', email: 'invalid', age: -5 }, { mode: 'strict' });
+      const strictError = user({ name: '', email: 'invalid', age: -5 }, 'strict');
       expect(unwrap(strictError)).toEqual({ name: 'EMPTY_NAME' });
 
       // Typechecking.
       expectTypeOf(user).toBeObject();
       expectTypeOf(user).toBeFunction();
-      expectTypeOf(allErrors).toEqualTypeOf<ReturnType<typeof user>>();
-      expectTypeOf(strictError).toEqualTypeOf<ReturnType<typeof user>>();
+      expectTypeOf(allErrors).toEqualTypeOf<
+        Result<
+          {
+            name: string;
+            email: string;
+            age: number;
+          },
+          {
+            name: 'EMPTY_NAME'[];
+            email: 'INVALID_EMAIL'[];
+            age: 'INVALID_AGE'[];
+          }
+        >
+      >();
+      expectTypeOf(strictError).toEqualTypeOf<
+        Result<
+          {
+            name: string;
+            email: string;
+            age: number;
+          },
+          {
+            name: 'EMPTY_NAME';
+            email: 'INVALID_EMAIL';
+            age: 'INVALID_AGE';
+          }
+        >
+      >();
     });
 
     it('should handle schema with error handling example from documentation', () => {
