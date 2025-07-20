@@ -49,8 +49,8 @@ describe('env', () => {
             REDIS_PORT: number;
           },
           {
-            REDIS_HOST: 'EMPTY_HOST';
-            REDIS_PORT: 'INVALID_PORT';
+            REDIS_HOST: 'EMPTY_HOST'[];
+            REDIS_PORT: 'INVALID_PORT'[];
           }
         >
       >();
