@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
 
-import { aggregate } from '../src/aggregate';
+import { aggregate } from '../src/aggregate-legacy';
 import { type Event, event, eventStore } from '../src/event';
 import { flow } from '../src/flow';
 import type { Any } from '../src/generics';
