@@ -62,6 +62,8 @@ type AggregateInstance<C extends AggregateConfig<Any, Any, Any, Any>> = Prettify
       getEvents: AggregateState<C>['getEvents'];
       /** Retrieves and removes all events from the event store. */
       pullEvents: AggregateState<C>['pullEvents'];
+      /** Gets the current state as a readonly object. */
+      getState: AggregateState<C>['getState'];
     }
 >;
 
@@ -94,7 +96,7 @@ type AggregateState<
     key: K,
     value: SchemaValues<T>[K],
   ): Result<SchemaValues<T>, SchemaErrors<T>[K]>;
-  /** Gets the current state as a readonly object. */
+  /** Gets a readonly current state of the aggregate. */
   getState(): Readonly<SchemaValues<T>>;
 
   /** Validates the current state against all business rule specifications. */
@@ -158,7 +160,8 @@ const createAggregateState = <C extends AggregateConfig<Any, Any, Any, Any>>(
   initialState: InferSchema<C['schema']>,
 ): AggregateState<C> => {
   const { schema, events, specs } = config;
-  const state = { ...(initialState as object) };
+  // Use direct reference instead of copying.
+  let state = { ...(initialState as Any) };
 
   // Always we need to provide access to the aggregate value state.
   const valueStateManager = {
@@ -171,9 +174,11 @@ const createAggregateState = <C extends AggregateConfig<Any, Any, Any, Any>>(
           return validationResult;
         }
       }
-      // Update the internal state.
-      state[key] = value;
-      return ok({ ...state });
+      // Update the internal state directly.
+      state = { ...state, [key]: value };
+
+      // Return state reference instead of copying.
+      return ok(state);
     },
     getState: () => Object.freeze({ ...state }),
   };
@@ -338,7 +343,7 @@ interface AggregateConstructor {
  */
 const AggregateError = Panic<
   'AGGREGATE',
-  // When the configuration is invalid.
+  // Raised when the aggregate configuration is invalid.
   'INVALID_CONFIGURATION'
 >('AGGREGATE');
 
@@ -366,7 +371,7 @@ const aggregate: AggregateConstructor = <
     throw new AggregateError('INVALID_CONFIGURATION', 'Invalid aggregate configuration.');
   }
 
-  const aggregate = (
+  return (
     input: InferSchema<typeof actualConfig.schema>,
     options?: { checkSpecs?: boolean },
   ): Result<AggregateInstance<AggregateConfig<T, E, S, M>>, SchemaErrors<T> | SpecError<S>> => {
@@ -399,29 +404,43 @@ const aggregate: AggregateConstructor = <
         })
       : {};
 
-    return ok(
-      element(
-        {
-          ...state.getState(),
+    // Create instance with methods.
+    const instance = actualConfig.events
+      ? {
           ...methods,
-          getEvents: actualConfig.events ? state.getEvents : undefined,
-          pullEvents: actualConfig.events ? state.pullEvents : undefined,
+          getEvents: state.getEvents,
+          pullEvents: state.pullEvents,
+          getState: state.getState,
+        }
+      : {
+          ...methods,
+          getState: state.getState,
+        };
+
+    // Add dynamic getters for state properties.
+    Object.keys(state.getState()).forEach((key) => {
+      Object.defineProperty(instance, key, {
+        get() {
+          return state.getState()[key as keyof ReturnType<typeof state.getState>];
         },
-        {
-          tag: 'Aggregate',
-          hash: hash(
-            actualConfig.schema,
-            actualConfig.events,
-            actualConfig.specs,
-            actualConfig.methods,
-          ),
-          doc,
-        },
-      ),
+        enumerable: true,
+        configurable: true,
+      });
+    });
+
+    return ok(
+      element(instance, {
+        tag: 'Aggregate',
+        hash: hash(
+          actualConfig.schema,
+          actualConfig.events,
+          actualConfig.specs,
+          actualConfig.methods,
+        ),
+        doc,
+      }),
     ) as Any;
   };
-
-  return aggregate;
 };
 
 export { aggregate };
