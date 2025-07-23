@@ -1,0 +1,344 @@
+---
+alwaysApply: true
+---
+
+# Examples Standards
+
+## Overview
+
+This rule defines the standards for creating and organizing code examples in documentation, ensuring they are clear, maintainable, and effectively demonstrate functionality.
+
+## Core Example Principles
+
+### 1. Simple and Concise Examples
+
+- **Start with basic usage** - simple, straightforward examples.
+- **Include common scenarios** - cover 80% of use cases.
+- **Show error handling** - demonstrate how errors are handled.
+- **Include TypeScript examples** - show type safety and inference.
+- **Avoid overly complex examples** - focus on practical usage.
+
+### 2. Unique Example Codes (MANDATORY)
+
+- **Every example must have a unique code** in the format `module:sequential_number`.
+- **Example codes must be consistent** between documentation and tests.
+- **Descriptions must match exactly** between documentation and tests.
+
+### 3. Example Organization (Keep It Simple)
+
+1. **Basic Example** - Simple functionality demonstration.
+2. **Common Use Case** - Typical real-world scenario.
+3. **Error Handling** - How errors are managed.
+4. **TypeScript Example** - Type safety demonstration.
+
+### 4. Example File Organization
+
+- **Each example must be written to the corresponding example file** - located in `examples/module-example.ts`.
+- **Examples are executed with the command** - `pnpm dev examples/module-example.ts`.
+- **Example files should be organized by module** - one file per module for clarity.
+- **Examples in files must match documentation exactly** - maintain perfect synchronization.
+
+## Example Code Format
+
+- **Format**: `module:sequential_number`
+- **Module**: The module name (e.g., `event`, `flow`, `pipe`)
+- **Sequential Number**: Three-digit sequential number (e.g., `001`, `002`, `003`)
+- **Examples**: `event-001`, `flow-002`, `pipe-003`
+
+## Example File Structure
+
+### File Organization
+
+- **File location**: `examples/module-example.ts`
+- **File naming**: Use the module name (e.g., `event-example.ts`, `flow-example.ts`)
+- **Execution command**: `pnpm dev examples/module-example.ts`
+
+### Example File Content
+
+```typescript
+// examples/event-example.ts
+import { eventFunction } from '../src/event';
+
+/**
+ * event-001: Basic usage with union types for maximum type safety.
+ */
+function eventBasicUsage() {
+  console.log('\nevent-001: Basic usage with union types for maximum type safety.');
+  const result = eventFunction('input');
+
+  // Demonstrate the result
+  console.log('Result:', result);
+  console.log('Result type:', typeof result);
+}
+
+/**
+ * event-002: Error handling example.
+ */
+function eventErrorHandling() {
+  console.log('\nevent-002: Error handling example.');
+  const errorResult = eventFunction('invalid');
+
+  if (isErr(errorResult)) {
+    console.log('Error occurred:', unwrap(errorResult));
+  } else {
+    console.log('Success:', unwrap(errorResult));
+  }
+}
+
+// Execute all examples
+eventBasicUsage();
+eventErrorHandling();
+```
+
+### File Maintenance Rules
+
+- **Every documented example must exist in the example file** - maintain perfect sync.
+- **Each example must be in an independent function** - wrapped in a named function.
+- **Functions should NOT be exported** - they are for demonstration only.
+- **Function names should be descriptive** - based on the example purpose.
+- **Example codes in files must match documentation** - same unique codes.
+- **Descriptions in files must match documentation** - exact same text.
+- **File examples should be executable** - test that they run correctly.
+- **All functions must be called at the end of the file** - to execute examples.
+
+## Independent Function Structure
+
+### Function Organization
+
+- **Each example must be wrapped in an independent function** - separate function for each example.
+- **Function names should be descriptive** - based on the example purpose and functionality.
+- **Functions should NOT be exported** - they are demonstration functions only.
+- **Documentation should include the example code** - as a comment in the function.
+
+### Function Naming Convention
+
+- **Use descriptive names** - that explain what the example demonstrates.
+- **Include the example code in the name** - when appropriate for clarity.
+- **Use camelCase** - follow JavaScript/TypeScript naming conventions.
+- **Examples**: `eventBasicUsage`, `flowErrorHandling`, `pipeComposition`
+
+### Function Documentation
+
+```typescript
+/**
+ * event-001: Basic usage with union types for maximum type safety.
+ */
+function eventBasicUsage() {
+  console.log('\nevent-001: Basic usage with union types for maximum type safety.');
+  // Example code here
+  console.log('Result:', result);
+}
+```
+
+## Console.log Requirements
+
+### Console.log Structure
+
+- **Console.log at the beginning** - Show the example name and description.
+- **Console.log of results** - Demonstrate the output of functions.
+- **Console.log of properties** - Show specific properties when relevant.
+- **Console.log of metadata** - Show metadata structures when applicable.
+
+### Console.log Format
+
+```typescript
+function exampleFunction() {
+  console.log('\nexample-001: Description of what this example demonstrates.');
+
+  // Create the example
+  const result = someFunction('input');
+
+  // Demonstrate results
+  console.log('Result:', result);
+  console.log('Result type:', typeof result);
+  console.log('Specific property:', result.property);
+}
+```
+
+## File Execution Structure
+
+### End of File Calls
+
+- **All functions must be called at the end** - to execute examples when running the file.
+- **Call order should match documentation order** - maintain logical flow.
+- **No return statements** - functions should demonstrate, not return.
+
+```typescript
+// At the end of the file
+exampleFunction1();
+exampleFunction2();
+exampleFunction3();
+```
+
+## Specific Rules for Different Function Types
+
+### Classic Functions (No Error Handling)
+
+```typescript
+/**
+ * @example
+ * ```ts
+ * // pipe-001: Simple function composition.
+ * const pipeline = pipe(
+ *   (x: number) => x + 1,
+ *   (x: number) => x * 2
+ * );
+ * const result = pipeline(5); // 12.
+ * ```
+ */
+```
+
+### Result-Based Functions (With Error Handling)
+
+```typescript
+/**
+ * @example
+ * ```ts
+ * // flow-001: Result pipeline with error handling.
+ * const result = functionName('input');
+ * if (isOk(result)) {
+ *   // unwrap(result): success value.
+ * } else {
+ *   // unwrap(result): error value.
+ * }
+ * ```
+ */
+```
+
+## Example Structure Guidelines
+
+### Basic Function Example
+
+```typescript
+/**
+ * @example
+ * ```ts
+ * // event-001: Basic usage with union types for maximum type safety.
+ * const result = functionName('input');
+ * // result: expected output.
+ * ```
+ */
+```
+
+### Result Function Example
+
+```typescript
+/**
+ * @example
+ * ```ts
+ * // flow-001: Result pipeline with error handling.
+ * const result = functionName('input');
+ * if (isOk(result)) {
+ *   // unwrap(result): success value.
+ * } else {
+ *   // unwrap(result): error value.
+ * }
+ * ```
+ */
+```
+
+## Example Quality Standards
+
+### Content Requirements
+
+- **Clear purpose** - Each example should demonstrate a specific concept.
+- **Realistic scenarios** - Use practical, real-world use cases.
+- **Type safety** - Show TypeScript features and type inference.
+- **Error handling** - Demonstrate both success and error scenarios.
+- **Minimal complexity** - Focus on the core functionality being demonstrated.
+
+### Code Style Requirements
+
+- **Console.log for demonstration** - Use console.log to show expected output and results.
+- **Consistent formatting** - Follow project code style guidelines.
+- **Descriptive variable names** - Use names that explain the purpose.
+- **Appropriate line length** - Respect editor ruler limits.
+- **Clear comments** - Explain non-obvious parts of the example.
+
+## Example Organization
+
+### Module-Based Organization
+
+- **Group by module** - Examples should be organized by the module they demonstrate.
+- **Sequential numbering** - Use consistent numbering within each module.
+- **Logical progression** - Start with basic examples and progress to more complex ones.
+- **Cross-references** - When examples build on each other, reference the previous example.
+
+### Example Categories
+
+1. **Basic Usage** - Simple, straightforward examples.
+2. **Common Patterns** - Typical real-world scenarios.
+3. **Error Handling** - How to handle errors and edge cases.
+4. **Advanced Features** - Complex functionality demonstrations.
+5. **Integration Examples** - How to use with other modules (when appropriate).
+
+## Example Maintenance
+
+### When Adding New Examples
+
+1. **Assign unique code** (e.g., `event-003`, `flow-004`).
+2. **Add to TSDoc documentation** with clear description and code.
+3. **Write to example file** - Add to `examples/module-example.ts` as independent function.
+4. **Create corresponding test** with exact same code and description.
+5. **Verify example works** - Test with `pnpm dev examples/module-example.ts`.
+6. **Ensure module agnostic** - Don't assume other modules unless necessary.
+7. **Add console.log for demonstration** - Show the example name and results.
+8. **Call the function at the end** - Add to the execution list.
+
+### When Updating Examples
+
+1. **Update the TSDoc example** in function documentation.
+2. **Update example file** - Modify `examples/module-example.ts`.
+3. **Update corresponding test** to match exactly.
+4. **Verify example still works** - Test with `pnpm dev examples/module-example.ts`.
+5. **Maintain unique codes** - Do not reuse codes.
+6. **Check module independence** - Ensure no cross-module assumptions.
+7. **Update console.log if needed** - Ensure demonstration is clear.
+
+### When Removing Examples
+
+1. **Remove from TSDoc documentation** completely.
+2. **Remove from example file** - Delete from `examples/module-example.ts`.
+3. **Remove corresponding test** completely.
+4. **Remove from execution calls** - Remove from the end of the file.
+5. **Verify remaining examples** still work correctly.
+
+## Example Validation Checklist
+
+- [ ] Example has a unique code (module:sequential_number).
+- [ ] Example demonstrates the intended functionality clearly.
+- [ ] Example is simple and concise.
+- [ ] Example covers a common use case.
+- [ ] Example shows proper error handling (when applicable).
+- [ ] Example demonstrates TypeScript features.
+- [ ] Example uses descriptive variable names.
+- [ ] Example includes appropriate comments.
+- [ ] Example respects line length limits.
+- [ ] Example is module agnostic (when possible).
+- [ ] Example has corresponding test.
+- [ ] Example description matches test description exactly.
+- [ ] Example exists in example file (`examples/module-example.ts`).
+- [ ] Example in file matches documentation exactly.
+- [ ] Example is wrapped in independent function.
+- [ ] Function name is descriptive and follows naming convention.
+- [ ] Function is NOT exported (demonstration only).
+- [ ] Function has console.log at the beginning with example name.
+- [ ] Function has console.log to demonstrate results.
+- [ ] Function is called at the end of the file.
+- [ ] Example file is executable with `pnpm dev examples/module-example.ts`.
+
+## Key Example Principles
+
+- **Keep examples simple** - Focus on practical, common use cases.
+- **Use unique codes** - Every example must have a unique code (module:sequential_number).
+- **Document modules independently** - Avoid cross-module assumptions in examples.
+- **Use console.log for demonstration** - Show example names and results clearly.
+- **Respect line length limits** - Follow codebase standards for character limits.
+- **Always test examples** - Every documented example must have a corresponding test.
+- **Write examples to files** - Every example must be written to `examples/module-example.ts`.
+- **Wrap examples in independent functions** - Each example should be in its own named function.
+- **Execute examples regularly** - Use `pnpm dev examples/module-example.ts` to verify examples work.
+- **Call all functions at the end** - Ensure examples execute when running the file.
+
+- **Wrap examples in independent functions** - Each example should be in its own named function.
+- **Execute examples regularly** - Use `pnpm dev examples/module-example.ts` to verify examples work.

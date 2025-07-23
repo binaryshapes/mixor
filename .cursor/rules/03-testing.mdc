@@ -1,0 +1,388 @@
+---
+alwaysApply: true
+---
+
+# Testing Standards
+
+## Overview
+
+This rule defines the standards for creating and maintaining tests that are synchronized with documentation examples, ensuring code quality and reliability.
+
+## Core Testing Principles
+
+### 1. Intelligent Test Design
+
+- **Design tests for maintainability** - avoid code duplication and long files.
+- **Use shared test utilities** - create reusable test helpers.
+- **Group related tests** - organize tests logically.
+- **Keep test files focused** - one concept per test file when possible.
+- **Use descriptive test names** that match example descriptions.
+
+### 2. Test-Documentation-Example Synchronization
+
+- **Tests match documentation examples exactly** - every documented example must have a corresponding test.
+- **Tests match example files exactly** - every example in `examples/module-example.ts` must have a corresponding test.
+- **Test names match example descriptions** - use exact same descriptions from documentation.
+- **Code in tests matches code in documentation and example files** - maintain perfect synchronization across all three sources.
+- **Unique codes are consistent** - same codes between documentation, examples, and tests.
+
+### 3. Type Safety Testing Guidelines
+
+- **Type safety section is mandatory** - every test file must include comprehensive typechecking.
+- **Test all @public elements** - validate TypeScript support for all public functions, classes, and variables.
+- **Use expectTypeOf for typechecking** - always validate type inference and constraints.
+- **Separate typechecking from runtime tests** - keep Type safety section focused only on types.
+
+### 4. Result Validation Guidelines
+
+- **Use unwrap for Results** - Always use `unwrap(result)` to validate Result types.
+- **Test both success and error cases** - Don't just test success scenarios.
+- **Runtime tests focus on behavior only** - avoid typechecking in non-Type safety sections.
+
+## Type Safety Testing Guidelines
+
+### Comprehensive Type Safety Section
+
+Every test file must include a **Type safety** section that comprehensively tests all `@public` elements:
+
+```typescript
+describe('Type safety', () => {
+  it('should provide correct type inference for all public elements', () => {
+    // Test all @public functions
+    expectTypeOf(publicFunction).toBeFunction();
+    expectTypeOf(publicFunction('input')).toBeString();
+
+    // Test all @public classes
+    expectTypeOf(PublicClass).toBeConstructor();
+    expectTypeOf(new PublicClass()).toBeInstanceOf(PublicClass);
+
+    // Test all @public variables
+    expectTypeOf(publicVariable).toBeString();
+
+    // Test all @public types/interfaces
+    expectTypeOf<PublicType>().toMatchTypeOf<ExpectedType>();
+  });
+
+  it('should validate generic type constraints', () => {
+    // Test generic functions
+    expectTypeOf(genericFunction<string>).toBeFunction();
+    expectTypeOf(genericFunction<string>('test')).toBeString();
+
+    // Test generic classes
+    expectTypeOf(GenericClass<string>).toBeConstructor();
+    expectTypeOf(new GenericClass<string>()).toBeInstanceOf(GenericClass);
+  });
+
+  it('should validate union and intersection types', () => {
+    // Test union types
+    expectTypeOf(unionFunction).toBeFunction();
+    expectTypeOf(unionFunction('string')).toBeString();
+    expectTypeOf(unionFunction(123)).toBeNumber();
+
+    // Test intersection types
+    expectTypeOf(intersectionType).toMatchTypeOf<ExpectedIntersection>();
+  });
+});
+```
+
+### Type Safety Testing Requirements
+
+- **Test all @public elements** - Every public function, class, variable, type, and interface.
+- **Use expectTypeOf consistently** - Always use `expectTypeOf` for type validation.
+- **Test type inference** - Validate that functions return expected types.
+- **Test generic constraints** - Validate generic type parameters and constraints.
+- **Test union/intersection types** - Validate complex type compositions.
+- **No runtime assertions** - Type safety section should only contain typechecking.
+
+## Test Structure
+
+### Test File Organization
+
+```typescript
+// Shared test utilities
+const createTestHelpers = () => ({
+  // Reusable test functions
+});
+
+describe('FunctionName', () => {
+  const helpers = createTestHelpers();
+
+  describe('Basic functionality', () => {
+    it('should handle basic functionality', () => {
+      // Runtime tests for basic API functionality.
+      // NO typechecking here - only behavior testing.
+    });
+  });
+
+  describe('Type safety', () => {
+    it('should provide correct type inference for all public elements', () => {
+      // Comprehensive typechecking for all @public functions, classes, variables.
+      expectTypeOf(functionName).toBeFunction();
+      expectTypeOf(functionName('input')).toBeString();
+      expectTypeOf(publicClass).toBeConstructor();
+      expectTypeOf(publicVariable).toBeString();
+    });
+
+    it('should validate type constraints and generics', () => {
+      // Type constraint and generic testing.
+      expectTypeOf(genericFunction<string>).toBeFunction();
+      expectTypeOf(genericFunction<string>('test')).toBeString();
+    });
+  });
+
+  describe('Code examples', () => {
+    it('should run example event-001: Basic usage with union types for maximum type safety', () => {
+      // Exact copy of documentation example with runtime assertions.
+      // NO typechecking here - only behavior testing.
+    });
+
+    it('should run example event-002: Error handling example', () => {
+      // Exact copy of documentation example with runtime assertions.
+      // NO typechecking here - only behavior testing.
+    });
+  });
+});
+```
+
+### Code Examples Section Structure
+
+The **Code examples** section contains ALL examples from the module's documentation (tsdoc `@example` tags) and example files (`examples/module-example.ts`) in a flat structure, ordered by their unique codes. This eliminates artificial categorization and makes examples easier to find and maintain.
+
+**Synchronization Requirements:**
+
+- **Documentation examples** - Must match TSDoc `@example` tags exactly.
+- **Example file functions** - Must match functions in `examples/module-example.ts` exactly.
+- **Test implementations** - Must match both documentation and example files exactly.
+- **Unique codes** - Must be consistent across all three sources.
+
+## Test Design Principles
+
+- **Use shared utilities** - Create reusable test helpers to avoid duplication.
+- **Keep tests focused** - One concept per test file when possible.
+- **Use descriptive names** - Test names should clearly describe what they're testing.
+- **Separate typechecking from runtime tests** - Type safety section for types, other sections for behavior.
+- **Test error cases** - Don't just test success scenarios.
+- **Use unwrap for Results** - Always use `unwrap(result)` to validate Result types.
+- **Maintain perfect synchronization** - Tests must match documentation and example files exactly.
+
+## Result Validation Guidelines
+
+### Using unwrap for Result Validation
+
+When testing functions that return `Result<T, E>`, always use `unwrap(result)` for assertions:
+
+```typescript
+// For success cases.
+const result = functionName('valid input');
+expect(unwrap(result)).toEqual(expectedValue);
+
+// For error cases.
+const errorResult = functionName('invalid input');
+expect(unwrap(errorResult)).toEqual(expectedError);
+```
+
+## Common Test Patterns
+
+### Basic Function Example
+
+```typescript
+// Documentation.
+/**
+ * @example
+ * ```ts
+ * // event-001: Basic usage with union types for maximum type safety.
+ * const result = functionName('input');
+ * // result: expected output.
+ * ```
+ */
+
+// Test.
+it('should run example event-001: Basic usage with union types for maximum type safety', () => {
+  const result = functionName('input');
+  expect(result).toBe('expected output');
+  // Runtime test only - NO typechecking here.
+});
+```
+
+### Result Function Example
+
+```typescript
+// Documentation.
+/**
+ * @example
+ * ```ts
+ * // flow-001: Result pipeline with error handling.
+ * const result = functionName('input');
+ * if (isOk(result)) {
+ *   // unwrap(result): success value.
+ * } else {
+ *   // unwrap(result): error value.
+ * }
+ * ```
+ */
+
+// Test.
+it('should run example flow-001: Result pipeline with error handling', () => {
+  const result = functionName('input');
+
+  if (isOk(result)) {
+    expect(unwrap(result)).toBe('success value');
+  } else {
+    expect(unwrap(result)).toBe('error value');
+  }
+  // Runtime test only - NO typechecking here.
+});
+```
+
+## Repository-Specific Testing Commands
+
+### Important: Always Check vitest.config.ts First
+
+Before running tests, **always review the targets in the `vitest.config.ts` file** of each package to understand the available test projects and their configurations.
+
+### Core Package Testing
+
+```bash
+# Navigate to the core package.
+cd packages/core
+
+# Run tests for specific project with typechecking and coverage.
+pnpm test:project -- nameOfModule
+```
+
+### Command Options Explained
+
+- `-- nameOfModule` - Run tests for specific module (e.g., `flow`, `event`, `pipe`).
+- `--typecheck` - Enable TypeScript type checking during tests.
+- `--hideSkippedTests` - Hide skipped tests from output.
+- `--bail 1` - Stop on first test failure.
+- `--coverage` - Generate coverage report.
+
+### Example Commands
+
+```bash
+# Test flow module
+pnpm test:project -- flow
+
+# Test event module with typechecking
+pnpm test:project -- event --typecheck
+
+# Test pipe module with coverage
+pnpm test:project -- pipe --coverage
+```
+
+## Test Quality Checklist
+
+- [ ] Tests match documentation examples exactly.
+- [ ] Tests match example files exactly.
+- [ ] Tests use shared utilities to avoid duplication.
+- [ ] Type safety section tests all @public elements.
+- [ ] Type safety section uses `expectTypeOf` consistently.
+- [ ] Runtime tests focus on behavior only (no typechecking).
+- [ ] Tests cover error cases for result-based functions.
+- [ ] Tests use `unwrap(result)` for Result validation.
+- [ ] Test descriptions match documentation exactly.
+- [ ] Test files are focused and maintainable.
+
+## Synchronization Quality Checklist
+
+- [ ] All documented examples have corresponding tests.
+- [ ] All example file functions have corresponding tests.
+- [ ] Test names match example descriptions.
+- [ ] Code in tests matches code in documentation and example files.
+- [ ] Unique codes are consistent between documentation, examples, and tests.
+- [ ] Type safety section covers all @public elements from documentation.
+
+## Maintenance Guidelines
+
+### When Adding New Examples
+
+1. **Assign unique code** (e.g., `event-003`, `flow-004`).
+2. **Add to TSDoc documentation** with clear description and code.
+3. **Write to example file** - Add to `examples/module-example.ts` as independent function.
+4. **Create corresponding test** with exact same code and description.
+5. **Update Type safety section** - Add typechecking for new @public elements.
+6. **Use shared utilities** to avoid code duplication.
+7. **Verify test passes** and matches documented behavior.
+8. **Ensure module agnostic** - don't assume other modules.
+
+### When Updating Documentation
+
+1. **Update the TSDoc example** in function documentation.
+2. **Update example file** - Modify `examples/module-example.ts`.
+3. **Update corresponding test** to match exactly.
+4. **Update Type safety section** - Modify typechecking for changed @public elements.
+5. **Verify tests pass** with new behavior.
+6. **Maintain unique codes** - do not reuse codes.
+7. **Check module independence** - ensure no cross-module assumptions.
+
+### When Removing Examples
+
+1. **Remove from TSDoc documentation** completely.
+2. **Remove from example file** - Delete from `examples/module-example.ts`.
+3. **Remove corresponding test** completely.
+4. **Update Type safety section** - Remove typechecking for removed @public elements.
+5. **Verify remaining tests** still pass.
+
+## Test Organization Best Practices
+
+### Shared Test Utilities
+
+```typescript
+// Create reusable test helpers to avoid duplication
+const createTestHelpers = () => ({
+  createMockData: () => ({ /* mock data */ }),
+  createTestFunction: () => (input: string) => input,
+  // Add more helpers as needed
+});
+```
+
+### Test Structure Guidelines
+
+- **Group by functionality** - Organize tests by what they're testing.
+- **Use descriptive describe blocks** - Make test structure clear.
+- **Keep individual tests focused** - One assertion per test when possible.
+- **Use setup and teardown** - Leverage beforeEach/afterEach for common setup.
+
+### Type Safety in Tests
+
+```typescript
+// MANDATORY: Comprehensive typechecking for all @public elements
+describe('Type safety', () => {
+  it('should provide correct type inference for all public elements', () => {
+    // Test all @public functions
+    expectTypeOf(publicFunction).toBeFunction();
+    expectTypeOf(publicFunction('input')).toBeString();
+
+    // Test all @public classes
+    expectTypeOf(PublicClass).toBeConstructor();
+    expectTypeOf(new PublicClass()).toBeInstanceOf(PublicClass);
+
+    // Test all @public variables
+    expectTypeOf(publicVariable).toBeString();
+  });
+
+  it('should validate generic and complex types', () => {
+    // Test generics
+    expectTypeOf(genericFunction<string>).toBeFunction();
+    expectTypeOf(genericFunction<string>('test')).toBeString();
+
+    // Test unions and intersections
+    expectTypeOf(unionFunction).toBeFunction();
+    expectTypeOf(unionFunction('string')).toBeString();
+    expectTypeOf(unionFunction(123)).toBeNumber();
+  });
+});
+```
+
+## Key Testing Principles
+
+- **Design intelligent tests** - Use shared utilities and keep tests focused.
+- **Always test examples** - Every documented example must have a corresponding test.
+- **Synchronize with documentation and examples** - Tests must match both TSDoc and example files exactly.
+- **Use unwrap for Results** - Always use `unwrap(result)` to validate Result types.
+- **Check vitest.config.ts first** - Always review available test projects before running tests.
+- **Use correct test command** - `pnpm test:project -- nameOfModule` for specific module testing.
+- **Maintain perfect synchronization** - Tests must match documentation and example files exactly.
+- **Separate typechecking from runtime tests** - Type safety section for types, other sections for behavior.
+- **Comprehensive type safety testing** - Test all @public elements with `expectTypeOf`.

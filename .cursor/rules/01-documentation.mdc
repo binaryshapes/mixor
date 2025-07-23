@@ -1,0 +1,350 @@
+---
+alwaysApply: true
+---
+
+# Documentation Standards
+
+## Overview
+
+This rule defines the standards for documenting code with TSDoc format, ensuring clear, maintainable, and comprehensive documentation.
+
+## Core Documentation Principles
+
+### 1. TSDoc Documentation Format
+
+- **Always use TSDoc format** for function documentation.
+- **Include practical examples** that demonstrate real-world usage.
+- **Keep examples simple and concise** but comprehensive enough for most use cases.
+- **Use clear, descriptive names** for examples that explain their purpose.
+
+### 2. Module Agnostic Documentation
+
+- **Document each module independently** - avoid assuming dependencies on other modules.
+- **Use generic examples** - don't reference specific modules unless absolutely necessary.
+- **Focus on the module's own capabilities** - document what the module does, not what it uses.
+- **Avoid cross-module assumptions** - don't assume users will use complementary modules together.
+
+### 3. Avoid Documentation Duplication
+
+- **Document interfaces/types minimally** - focus on structure and purpose, not implementation details.
+- **Document implementations comprehensively** - provide detailed examples in function documentation.
+- **Use `@inheritDoc` for implementations** - reference interface documentation when appropriate.
+- **Keep interface docs focused on contracts** - avoid duplicating implementation examples.
+
+### 4. Clean Example Code
+
+- **No console.log in examples** - if you want to express output, indicate it as a comment in the code.
+- **Respect line length limits** - don't exceed the character limit based on the editor's ruler (e.g., 80, 100, 120 characters). Infer these lengths based on the codebase.
+
+### 5. Internal Elements Documentation
+
+- **For types, functions, classes, or variables with `@internal` label** - do not create examples, only document the element.
+- **Use `@link` references** - create hyperlinks between related documentation elements.
+- **Ensure all `@public` elements (except types and interfaces)** - must have `@example` tags with defined nomenclature.
+- **Each example must be an independent `@example`** - separate examples for different use cases.
+- **Always use periods at the end of each paragraph** - maintain consistent punctuation.
+
+## TSDoc Tags Reference
+
+Based on the [TSDoc specification](https://tsdoc.org/), here are the essential tags for our documentation:
+
+### Core Documentation Tags
+
+- **`@param`** - Document function parameters
+- **`@returns`** - Document return values
+- **`@example`** - Provide code examples (our primary focus)
+- **`@remarks`** - Additional explanatory text
+- **`@see`** - Reference related documentation
+
+### Visibility and Stability Tags
+
+- **`@public`** - Public API (default for exported members)
+- **`@internal`** - Internal implementation details
+- **`@alpha`** - Experimental API, may change
+- **`@beta`** - Beta API, mostly stable
+- **`@deprecated`** - Mark as deprecated
+- **`@experimental`** - Experimental API
+
+### Type Documentation Tags
+
+- **`@typeParam`** - Document generic type parameters
+- **`@defaultValue`** - Document default parameter values
+- **`@readonly`** - Mark properties as read-only
+
+### Inheritance and Override Tags
+
+- **`@inheritDoc`** - Inherit documentation from base class/interface
+- **`@override`** - Mark as overriding base implementation
+- **`@virtual`** - Mark as virtual (can be overridden)
+- **`@sealed`** - Mark as sealed (cannot be extended)
+
+### Reference and Linking Tags
+
+- **`@link`** - Create hyperlinks to other documentation (use extensively for cross-references)
+- **`@label`** - Provide alternative text for links
+- **`@packageDocumentation`** - Mark package-level documentation
+
+### Advanced Tags
+
+- **`@decorator`** - Mark as decorator function
+- **`@eventProperty`** - Mark as event property
+- **`@throws`** - Document exceptions that may be thrown
+- **`@privateRemarks`** - Internal notes for maintainers
+
+## Implementation Guidelines
+
+### TSDoc Documentation Standards
+
+```typescript
+/**
+ * Brief description of what the function does.
+ *
+ * @param param1 - Description of first parameter.
+ * @param param2 - Description of second parameter.
+ * @returns Description of return value.
+ *
+ * @example
+ * ```ts
+ * // event-001: Basic usage with union types for maximum type safety.
+ * const result = functionName('input');
+ * // result: expected output.
+ * ```
+ *
+ * @example
+ * ```ts
+ * // event-002: Error handling example.
+ * const result = functionName('invalid');
+ * if (isErr(result)) {
+ *   // unwrap(result): error message.
+ * }
+ * ```
+ *
+ * @public
+ */
+```
+
+### Documentation Hierarchy Guidelines
+
+1. **Interfaces/Types** - Document structure and contracts only.
+2. **Abstract Classes** - Document common behavior and extension points.
+3. **Concrete Implementations** - Document specific behavior and examples.
+4. **Utility Functions** - Document usage patterns and examples.
+
+### Internal vs Public Documentation Rules
+
+- **`@internal` elements** - Document without examples, focus on purpose and usage.
+- **`@public` elements (except types/interfaces)** - Must include `@example` tags with unique codes.
+- **Cross-references** - Use `@link` to reference related documentation elements.
+- **Punctuation** - Always end paragraphs with periods.
+
+## Module Agnostic Documentation Guidelines
+
+### Documenting Independent Modules
+
+```typescript
+// ✅ GOOD: Module agnostic documentation
+/**
+ * Validates string input according to specified rules.
+ *
+ * @param input - The string to validate.
+ * @param rules - Validation rules to apply.
+ * @returns Validation result.
+ *
+ * @example
+ * ```ts
+ * // schema-001: Basic string validation.
+ * const result = validateString('test', { minLength: 3 });
+ * // result: true.
+ * ```
+ */
+
+// ❌ AVOID: Assuming other modules
+/**
+ * Validates string input using flow pipeline.
+ *
+ * @param input - The string to validate.
+ * @returns Flow result with validation.
+ *
+ * @example
+ * ```ts
+ * // schema-001: Using flow for validation.
+ * const pipeline = flow(
+ *   validateString,
+ *   transformResult
+ * );
+ * ```
+ */
+```
+
+### Guidelines for Module Independence
+
+- **Focus on the module's capabilities** - Document what the module does.
+- **Use generic examples** - Don't assume specific module combinations.
+- **Document interfaces minimally** - Focus on contracts, not implementations.
+- **Avoid cross-module references** - Unless explicitly demonstrating integration.
+
+## Avoiding Documentation Duplication
+
+### Interface/Type Documentation (Minimal)
+
+```typescript
+/**
+ * Configuration for validation rules.
+ *
+ * @public
+ */
+interface ValidationConfig {
+  /** Minimum length requirement. */
+  minLength?: number;
+  /** Maximum length requirement. */
+  maxLength?: number;
+  /** Required pattern to match. */
+  pattern?: RegExp;
+}
+```
+
+### Implementation Documentation (Comprehensive)
+
+```typescript
+/**
+ * Validates a string against the provided configuration.
+ *
+ * @param input - The string to validate.
+ * @param config - Validation configuration.
+ * @returns True if validation passes, false otherwise.
+ *
+ * @example
+ * ```ts
+ * // validation-001: Basic string validation.
+ * const result = validateString('test', { minLength: 3 });
+ * // result: true.
+ * ```
+ *
+ * @example
+ * ```ts
+ * // validation-002: Complex validation with multiple rules.
+ * const result = validateString('test123', {
+ *   minLength: 5,
+ *   maxLength: 10,
+ *   pattern: /^[a-z0-9]+$/
+ * });
+ * // result: true.
+ * ```
+ *
+ * @public
+ */
+function validateString(input: string, config: ValidationConfig): boolean {
+  // Implementation details...
+}
+```
+
+### Using @inheritDoc for Implementations
+
+```typescript
+/**
+ * @inheritDoc
+ *
+ * @example
+ * ```ts
+ * // validation-003: Custom validation implementation.
+ * const customValidator = new CustomValidator();
+ * const result = customValidator.validate('input');
+ * // result: validation result.
+ * ```
+ *
+ * @public
+ */
+class CustomValidator implements Validator {
+  // Implementation...
+}
+```
+
+### Internal Element Documentation (No Examples)
+
+```typescript
+/**
+ * Internal helper function for processing validation results.
+ * Used by {@link validateString} and {@link validateNumber}.
+ *
+ * @param value - The value to process.
+ * @returns Processed validation result.
+ *
+ * @internal
+ */
+function processValidationResult(value: unknown): boolean {
+  // Implementation details...
+}
+```
+
+### Public Element with Multiple Independent Examples
+
+```typescript
+/**
+ * Validates user input and returns a result.
+ *
+ * @param input - The user input to validate.
+ * @returns Validation result with success or error.
+ *
+ * @example
+ * ```ts
+ * // validation-001: Basic input validation.
+ * const result = validateUserInput('test@example.com');
+ * if (isOk(result)) {
+ *   // unwrap(result): validated email.
+ * } else {
+ *   // unwrap(result): validation error.
+ * }
+ * ```
+ *
+ * @example
+ * ```ts
+ * // validation-002: Complex validation with custom rules.
+ * const result = validateUserInput('user@domain.com', {
+ *   requireDomain: true,
+ *   maxLength: 50
+ * });
+ * // result: validation result.
+ * ```
+ *
+ * @see {@link ValidationConfig} for configuration options.
+ * @see {@link ValidationError} for error types.
+ *
+ * @public
+ */
+function validateUserInput(input: string, config?: ValidationConfig): Result<string, ValidationError> {
+  // Implementation details...
+}
+```
+
+## Documentation Quality Checklist
+
+- [ ] Examples use TSDoc format.
+- [ ] Examples are simple and concise.
+- [ ] Examples cover common use cases.
+- [ ] Examples show both success and error scenarios.
+- [ ] Examples demonstrate TypeScript features.
+- [ ] All comments end with a period.
+- [ ] Documentation is module agnostic.
+- [ ] No cross-module assumptions in examples.
+- [ ] Interface/type documentation is minimal and focused.
+- [ ] No console.log in examples - use comments for expected output.
+- [ ] Respect line length limits based on codebase standards.
+- [ ] `@internal` elements documented without examples.
+- [ ] `@public` elements (except types/interfaces) have `@example` tags.
+- [ ] Each example is an independent `@example` block.
+- [ ] Cross-references use `@link` tags appropriately.
+- [ ] All paragraphs end with periods.
+
+## Key Documentation Principles
+
+- **Use TSDoc format** - Always document with TSDoc for consistency.
+- **Document modules independently** - Avoid cross-module assumptions in documentation.
+- **Minimize interface documentation** - Focus on contracts, not implementations.
+- **Use @inheritDoc for implementations** - Reference interface docs when appropriate.
+- **No console.log in examples** - Use comments to show expected output.
+- **Respect line length limits** - Follow codebase standards for character limits.
+- **Document @internal elements without examples** - Focus on purpose and usage only.
+- **Use @link for cross-references** - Create hyperlinks between related documentation.
+- **Require @example for @public elements** - All public functions, classes, and variables must have examples.
+- **Separate examples with independent @example blocks** - Each use case gets its own example.
+- **End all paragraphs with periods** - Maintain consistent punctuation throughout.
