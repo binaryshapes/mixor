@@ -153,6 +153,7 @@ type IsPrimitive<T> = T extends object ? false : true;
  * @public
  */
 type Literal<T> = T extends string | number ? T : never;
+
 // *********************************************************************************************
 // Object manipulation types.
 // *********************************************************************************************
