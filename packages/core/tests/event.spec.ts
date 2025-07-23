@@ -1,581 +1,458 @@
-import { setTimeout as sleep } from 'node:timers/promises';
-import { beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
+import { setTimeout } from 'node:timers/promises';
+import type { Any } from 'src/generics';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { type Event, type EventStore, event, eventStore } from '../src/event';
+import { EventError, event, events } from '../src/event';
+import { ok } from '../src/result';
+import { type Value, value } from '../src/value';
 
-describe('EventStore', () => {
-  // Define test event types.
-  type UserCreated = Event<'user.created', { email: string; password: string }>;
-  type UserUpdated = Event<'user.updated', { id: string }>;
-  type UserDeleted = Event<'user.deleted', { id: string }>;
-  type OrderPlaced = Event<'order.placed', { orderId: string; amount: number }>;
-  type OrderShipped = Event<'order.shipped', { orderId: string; trackingNumber: string }>;
-  type OrderDelivered = Event<'order.delivered', { orderId: string; deliveredAt: Date }>;
+// To simulate some time between events emitting.
+const sleep = () => setTimeout(20);
 
-  let store: EventStore<UserCreated | UserUpdated | UserDeleted>;
-
-  beforeEach(() => {
-    store = eventStore<UserCreated | UserUpdated | UserDeleted>();
-  });
-
-  describe('Type definitions', () => {
-    it('should handle Event type definition', () => {
-      // Create an event using the event constructor.
-      const userEvent = event<UserCreated>('user.created');
-      const createdEvent = userEvent({
-        email: 'test@example.com',
-        password: '123456',
-      });
-
-      // Verify the event structure.
-      expect(createdEvent._tag).toBe('Event');
-      expect(createdEvent.key).toBe('user.created');
-      expect(createdEvent.value.email).toBe('test@example.com');
-      expect(createdEvent.value.password).toBe('123456');
-      expect(createdEvent._hash).toBeTypeOf('string');
-      expect(createdEvent.timestamp).toBeTypeOf('number');
-
-      // Typechecking.
-      expectTypeOf(userEvent).toEqualTypeOf<(value: UserCreated['value']) => UserCreated>();
-      expectTypeOf(createdEvent).toEqualTypeOf<UserCreated>();
-    });
-
-    it('should handle EventList type definition', () => {
-      // Define event types for type safety.
-      type UserCreated = Event<'user.created', { email: string; password: string }>;
-      type UserUpdated = Event<'user.updated', { id: string }>;
-      type UserDeleted = Event<'user.deleted', { id: string }>;
-
-      // Create event list with documented events.
-      const events = {
-        'user.created': event<UserCreated>(
-          'This event is emitted when a user is created.',
-          'user.created',
-        ),
-        'user.updated': event<UserUpdated>(
-          'This event is emitted when a user is updated.',
-          'user.updated',
-        ),
-        'user.deleted': event<UserDeleted>(
-          'This event is emitted when a user is deleted.',
-          'user.deleted',
-        ),
-      };
-
-      // Typechecking.
-      expectTypeOf(events).toEqualTypeOf<{
-        'user.created': (value: UserCreated['value']) => UserCreated;
-        'user.updated': (value: UserUpdated['value']) => UserUpdated;
-        'user.deleted': (value: UserDeleted['value']) => UserDeleted;
-      }>();
-
-      // Test event creation from the list.
-      const userCreated = events['user.created']({ email: 'test@example.com', password: '123456' });
-      expect(userCreated.key).toBe('user.created');
-      expect(userCreated._doc).toBe('This event is emitted when a user is created.');
-    });
-
-    it('should handle EventStorePullOptions type definition', async () => {
-      // Add some events to test sorting.
-      store.add('user.created', { email: 'test1@example.com', password: '123456' });
-      await sleep(10);
-      store.add('user.created', { email: 'test2@example.com', password: '123456' });
-
-      // Pull events sorted by oldest first (default).
-      const events = store.pull({ sort: 'asc' });
-      expect(events[0].timestamp).toBeLessThan(events[1].timestamp);
-
-      // Add events again for descending test.
-      store.add('user.created', { email: 'test3@example.com', password: '123456' });
-      await sleep(10);
-      store.add('user.created', { email: 'test4@example.com', password: '123456' });
-
-      // Pull events sorted by newest first.
-      const recentEvents = store.pull({ sort: 'desc' });
-      expect(recentEvents[0].timestamp).toBeGreaterThan(recentEvents[1].timestamp);
-    });
-  });
-
+describe('Event', () => {
   describe('Basic functionality', () => {
-    it('should handle basic usage', () => {
-      // Create event store with explicit typing.
-      const store: EventStore<UserCreated | UserUpdated | UserDeleted> = eventStore();
-
-      // Typechecking.
-      expectTypeOf(store).toEqualTypeOf<EventStore<UserCreated | UserUpdated | UserDeleted>>();
-      expectTypeOf(store.add).toBeFunction();
-      expectTypeOf(store.get).toBeFunction();
-      expectTypeOf(store.pull).toBeFunction();
-      expectTypeOf(store.list).toBeFunction();
-    });
-
-    it('should handle advanced usage', () => {
-      const orderStore = eventStore<OrderPlaced | OrderShipped | OrderDelivered>();
-
-      // Typechecking.
-      expectTypeOf(orderStore).toEqualTypeOf<
-        EventStore<OrderPlaced | OrderShipped | OrderDelivered>
-      >();
-    });
-
-    it('should handle EventList usage', () => {
-      // Define event types for type safety.
-      type UserCreated = Event<'user.created', { email: string; password: string }>;
-      type UserUpdated = Event<'user.updated', { id: string }>;
-      type UserDeleted = Event<'user.deleted', { id: string }>;
-
-      // Create event list with documented events.
-      const events = {
-        'user.created': event<UserCreated>(
-          'This event is emitted when a user is created.',
-          'user.created',
-        ),
-        'user.updated': event<UserUpdated>(
-          'This event is emitted when a user is updated.',
-          'user.updated',
-        ),
-        'user.deleted': event<UserDeleted>(
-          'This event is emitted when a user is deleted.',
-          'user.deleted',
-        ),
-      };
-
-      // TypeScript automatically infers the event types from the EventList.
-      const store = eventStore(events);
-
-      // Typechecking.
-      expectTypeOf(store).toEqualTypeOf<EventStore<UserCreated | UserUpdated | UserDeleted>>();
-
-      // Test adding events using the event list.
-      const userCreated = store.add('user.created', {
-        email: 'test@example.com',
-        password: '123456',
+    it('should create an event constructor with documentation', () => {
+      const userCreated = event('User created event', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
       });
+
+      expect(userCreated).toBeDefined();
       expect(userCreated.key).toBe('user.created');
-      expect(userCreated._doc).toBe('This event is emitted when a user is created.');
-
-      const userUpdated = store.add('user.updated', { id: '123' });
-      expect(userUpdated.key).toBe('user.updated');
-      expect(userUpdated._doc).toBe('This event is emitted when a user is updated.');
+      expect(typeof userCreated).toBe('function');
     });
-  });
 
-  describe('add method', () => {
-    it('should add different event types correctly', () => {
-      const createdEvent = store.add('user.created', {
-        email: 'test@example.com',
-        password: '123456',
+    it('should create an event with timestamp', async () => {
+      const userCreated = event('User created event', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
       });
-      const updatedEvent = store.add('user.updated', { id: '123' });
-      const deletedEvent = store.add('user.deleted', { id: '456' });
 
-      expect(createdEvent.key).toBe('user.created');
-      expect(updatedEvent.key).toBe('user.updated');
-      expect(deletedEvent.key).toBe('user.deleted');
-
-      // Typechecking.
-      expectTypeOf(createdEvent).toEqualTypeOf<UserCreated>();
-      expectTypeOf(updatedEvent).toEqualTypeOf<UserUpdated>();
-      expectTypeOf(deletedEvent).toEqualTypeOf<UserDeleted>();
-    });
-
-    it('should generate unique hashes for different events', () => {
-      const event1 = store.add('user.created', { email: 'test1@example.com', password: '123456' });
-      const event2 = store.add('user.created', { email: 'test2@example.com', password: '123456' });
-
-      expect(event1._hash).not.toBe(event2._hash);
-      expect(event1._hash).toBeTypeOf('string');
-      expect(event2._hash).toBeTypeOf('string');
-    });
-
-    it('should include timestamp in events', () => {
       const before = Date.now();
-      const event = store.add('user.created', { email: 'test@example.com', password: '123456' });
+      await sleep();
+      const eventData = userCreated({ id: '123', name: 'John' });
+      await sleep();
       const after = Date.now();
 
-      expect(event.timestamp).toBeGreaterThanOrEqual(before);
-      expect(event.timestamp).toBeLessThanOrEqual(after);
+      expect(eventData.key).toBe('user.created');
+      expect(eventData.value).toEqual({ id: '123', name: 'John' });
+      expect(eventData.timestamp).toBeGreaterThanOrEqual(before);
+      expect(eventData.timestamp).toBeLessThanOrEqual(after);
     });
 
-    it('should use eventList when provided', () => {
-      // Create event store with event list.
-      const events = {
-        'user.created': event<UserCreated>(
-          'This event is emitted when a user is created.',
-          'user.created',
-        ),
-        'user.updated': event<UserUpdated>(
-          'This event is emitted when a user is updated.',
-          'user.updated',
-        ),
-      };
-
-      const storeWithEvents = eventStore(events);
-
-      // Add events using the event list.
-      const userCreated = storeWithEvents.add('user.created', {
-        email: 'test@example.com',
-        password: '123456',
+    it('should create events with complex value schemas', () => {
+      const userUpdated = event('User updated event', {
+        key: 'user.updated',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+          email: value('email', (email: string) => ok(email)),
+          age: value('age', (age: number) => ok(age)),
+        },
       });
 
-      const userUpdated = storeWithEvents.add('user.updated', { id: '123' });
-
-      // Verify events were created with documentation.
-      expect(userCreated.key).toBe('user.created');
-      expect(userCreated._doc).toBe('This event is emitted when a user is created.');
-      expect(userUpdated.key).toBe('user.updated');
-      expect(userUpdated._doc).toBe('This event is emitted when a user is updated.');
-
-      // Typechecking.
-      expectTypeOf(storeWithEvents).toEqualTypeOf<EventStore<UserCreated | UserUpdated>>();
-      expectTypeOf(userCreated).toEqualTypeOf<UserCreated>();
-      expectTypeOf(userUpdated).toEqualTypeOf<UserUpdated>();
-    });
-
-    it('should fallback to default event creation when key not in eventList', () => {
-      // Create event store with event list that only has one event.
-      const events = {
-        'user.created': event<UserCreated>(
-          'This event is emitted when a user is created.',
-          'user.created',
-        ),
-      };
-
-      // Create store with the event list.
-      const storeWithEvents = eventStore(events);
-
-      // Add event using the event list (should use documented constructor).
-      const userCreated = storeWithEvents.add('user.created', {
-        email: 'test@example.com',
-        password: '123456',
+      const eventData = userUpdated({
+        id: '123',
+        name: 'John',
+        email: 'john@example.com',
+        age: 30,
       });
 
-      // Verify event was created with documentation.
-      expect(userCreated.key).toBe('user.created');
-      expect(userCreated._doc).toBe('This event is emitted when a user is created.');
-
-      // Typechecking.
-      expectTypeOf(storeWithEvents).toEqualTypeOf<EventStore<UserCreated>>();
-      expectTypeOf(userCreated).toEqualTypeOf<UserCreated>();
+      expect(eventData.key).toBe('user.updated');
+      expect(eventData.value).toEqual({
+        id: '123',
+        name: 'John',
+        email: 'john@example.com',
+        age: 30,
+      });
     });
   });
 
-  describe('get method', () => {
-    it('should return undefined for non-existent hash', () => {
-      const event = store.get<'user.created'>('non-existent-hash');
-      expect(event).toBeUndefined();
-    });
-
-    it('should retrieve events by hash correctly', () => {
-      const createdEvent = store.add('user.created', {
-        email: 'test@example.com',
-        password: '123456',
+  describe('Event store functionality', () => {
+    it('should create an event store with multiple events', () => {
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
       });
-      const updatedEvent = store.add('user.updated', { id: '123' });
 
-      const retrievedCreated = store.get<'user.created'>(createdEvent._hash);
-      const retrievedUpdated = store.get<'user.updated'>(updatedEvent._hash);
+      const userUpdated = event('User updated', {
+        key: 'user.updated',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+          email: value('email', (email: string) => ok(email)),
+        },
+      });
 
-      expect(retrievedCreated).toEqual(createdEvent);
-      expect(retrievedUpdated).toEqual(updatedEvent);
-    });
-  });
+      const eventList = events([userCreated, userUpdated]);
 
-  describe('pull method', () => {
-    it('should sort events by timestamp correctly', async () => {
-      store.add('user.created', { email: 'test1@example.com', password: '123456' });
-      await sleep(10);
-      store.add('user.created', { email: 'test2@example.com', password: '123456' });
-
-      // Test ascending sort (oldest first).
-      const ascEvents = store.pull({ sort: 'asc' });
-      expect(ascEvents[0].timestamp).toBeLessThan(ascEvents[1].timestamp);
-
-      // Add events again for descending test.
-      store.add('user.created', { email: 'test3@example.com', password: '123456' });
-      await sleep(10);
-      store.add('user.created', { email: 'test4@example.com', password: '123456' });
-
-      // Test descending sort (newest first).
-      const descEvents = store.pull({ sort: 'desc' });
-      expect(descEvents[0].timestamp).toBeGreaterThan(descEvents[1].timestamp);
+      expect(eventList).toBeDefined();
+      expect(eventList.keys).toEqual(['user.created', 'user.updated']);
+      expect(typeof eventList.add).toBe('function');
+      expect(typeof eventList.list).toBe('function');
+      expect(typeof eventList.pull).toBe('function');
     });
 
-    it('should remove all events from store when pulled', () => {
-      store.add('user.created', { email: 'test@example.com', password: '123456' });
-      store.add('user.updated', { id: '123' });
+    it('should add events to the store', () => {
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
+      });
 
-      expect(store.list().length).toBe(2);
+      const eventList = events([userCreated]);
 
-      const pulledEvents = store.pull();
-      expect(pulledEvents.length).toBe(2);
-      expect(store.list().length).toBe(0);
+      eventList.add('user.created', { id: '123', name: 'John' });
+
+      const eventData = eventList.list();
+      expect(eventData).toHaveLength(1);
+      expect(eventData[0].key).toBe('user.created');
+      expect(eventData[0].value).toEqual({ id: '123', name: 'John' });
+      expect(eventData[0].timestamp).toBeDefined();
     });
-  });
 
-  describe('list method', () => {
-    it('should return empty array when store is empty', () => {
-      const events = store.list();
-      expect(events).toEqual([]);
+    it('should list events without removing them', () => {
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
+      });
+
+      const eventStore = events([userCreated]);
+
+      eventStore.add('user.created', { id: '123', name: 'John' });
+      eventStore.add('user.created', { id: '456', name: 'Jane' });
+
+      const eventList = eventStore.list();
+      expect(eventList).toHaveLength(2);
+      expect(eventList[0].key).toBe('user.created');
+      expect(eventList[1].key).toBe('user.created');
+      expect(eventList[0].value.id).toBe('123');
+      expect(eventList[1].value.id).toBe('456');
     });
 
-    it('should not remove events when listing', () => {
-      store.add('user.created', { email: 'test@example.com', password: '123456' });
+    it('should pull events and remove them from store', () => {
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
+      });
 
-      const events1 = store.list();
-      expect(events1.length).toBe(1);
+      const eventStore = events([userCreated]);
 
-      const events2 = store.list();
-      expect(events2.length).toBe(1);
-      expect(events2).toEqual(events1);
+      eventStore.add('user.created', { id: '123', name: 'John' });
+      eventStore.add('user.created', { id: '456', name: 'Jane' });
+
+      const pulledEvents = eventStore.pull();
+      expect(pulledEvents).toHaveLength(2);
+
+      const remainingEvents = eventStore.list();
+      expect(remainingEvents).toHaveLength(0);
+    });
+
+    it('should sort events by timestamp when listing', async () => {
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
+      });
+
+      const eventStore = events([userCreated]);
+
+      eventStore.add('user.created', { id: '123', name: 'John' });
+      await sleep();
+      eventStore.add('user.created', { id: '456', name: 'Jane' });
+
+      const pulledEvents = eventStore.list('asc');
+      expect(pulledEvents[0].timestamp).toBeLessThan(pulledEvents[1].timestamp);
+
+      const pulledEventsDesc = eventStore.list('desc');
+      expect(pulledEventsDesc[0].timestamp).toBeGreaterThan(pulledEventsDesc[1].timestamp);
+    });
+
+    it('should sort events by timestamp when pulling', async () => {
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
+      });
+
+      const eventStore = events([userCreated]);
+
+      eventStore.add('user.created', { id: '123', name: 'John' });
+      await sleep();
+      eventStore.add('user.created', { id: '456', name: 'Jane' });
+
+      const pulledEvents = eventStore.pull('asc');
+      expect(pulledEvents[0].timestamp).toBeLessThan(pulledEvents[1].timestamp);
+
+      eventStore.add('user.created', { id: '123', name: 'John' });
+      await sleep();
+      eventStore.add('user.created', { id: '456', name: 'Jane' });
+
+      const pulledEventsDesc = eventStore.pull('desc');
+      expect(pulledEventsDesc[0].timestamp).toBeGreaterThan(pulledEventsDesc[1].timestamp);
+    });
+
+    it('should throw EventError for invalid keys', () => {
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
+      });
+
+      const eventStore = events([userCreated]);
+
+      expect(() => {
+        // @ts-expect-error - invalid key
+        eventStore.add('invalid.key', { id: '123', name: 'John' });
+      }).toThrow(EventError);
     });
   });
 
   describe('Type safety', () => {
-    it('should enforce correct value types for each event key', () => {
-      // This should compile without errors.
-      store.add('user.created', { email: 'test@example.com', password: '123456' });
-      store.add('user.updated', { id: '123' });
-      store.add('user.deleted', { id: '456' });
+    it('should provide correct type inference for all public elements', () => {
+      // Test event function
+      expectTypeOf(event).toBeFunction();
+      expectTypeOf(event).parameter(0).toBeString();
+      expectTypeOf(event).parameter(1).toMatchTypeOf<{
+        key: string;
+        value: Record<string, Value<Any, Any>>;
+      }>();
 
-      // Typechecking.
-      expectTypeOf(store.add)
-        .parameter(0)
-        .toEqualTypeOf<'user.created' | 'user.updated' | 'user.deleted'>();
+      // Test events function
+      expectTypeOf(events).toBeFunction();
+      expectTypeOf(events).parameter(0).toBeArray();
+
+      // Test EventError
+      expectTypeOf(EventError).toBeObject();
     });
 
-    it('should provide correct return types for get method', () => {
-      const createdEvent = store.add('user.created', {
-        email: 'test@example.com',
-        password: '123456',
+    it('should validate event constructor types', () => {
+      const userCreated = event('User created event', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
       });
 
-      const retrievedEvent = store.get<'user.created'>(createdEvent._hash);
+      expectTypeOf(userCreated).toBeFunction();
+      expectTypeOf(userCreated).parameter(0).toEqualTypeOf<{
+        id: string;
+        name: string;
+      }>();
 
-      // Typechecking.
-      expectTypeOf(retrievedEvent).toEqualTypeOf<UserCreated | undefined>();
-      if (retrievedEvent) {
-        expectTypeOf(retrievedEvent.value).toEqualTypeOf<{ email: string; password: string }>();
-      }
+      const eventData = userCreated({ id: '123', name: 'John' });
+      expectTypeOf(eventData).toEqualTypeOf<{
+        key: 'user.created';
+        value: { id: string; name: string };
+        timestamp: number;
+      }>();
+    });
+
+    it('should validate event store types', () => {
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
+      });
+
+      const eventList = events([userCreated]);
+
+      expectTypeOf(eventList.keys).toBeArray();
+      expectTypeOf(eventList.add).toBeFunction();
+      expectTypeOf(eventList.list).toBeFunction();
+      expectTypeOf(eventList.pull).toBeFunction();
+
+      // Test add method types
+      expectTypeOf(eventList.add).parameter(0).toBeString();
+      expectTypeOf(eventList.add).parameter(1).toMatchTypeOf<{
+        id: string;
+        name: string;
+      }>();
+    });
+
+    it('should validate complex event types', () => {
+      const userUpdated = event('User updated event', {
+        key: 'user.updated',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+          email: value('email', (email: string) => ok(email)),
+          age: value('age', (age: number) => ok(age)),
+        },
+      });
+
+      expectTypeOf(userUpdated).parameter(0).toMatchTypeOf<{
+        id: string;
+        name: string;
+        email: string;
+        age: number;
+      }>();
     });
   });
 
   describe('Code examples', () => {
-    it('should run example event-001: Basic event constructor without documentation', () => {
-      // Define the event type.
-      type UserCreated = Event<'user.created', { email: string; password: string }>;
-
-      // Create an event constructor for the event type.
-      const userEvent = event<UserCreated>('user.created');
-
-      // Use the event constructor to create an event.
-      const userCreated = userEvent({ email: 'test@example.com', password: '123456' });
-
-      // Verify the event structure matches documentation.
-      expect(userCreated.key).toBe('user.created');
-      expect(userCreated.value.email).toBe('test@example.com');
-      expect(userCreated.value.password).toBe('123456');
-      expect(userCreated._hash).toBeTypeOf('string');
-      expect(userCreated.timestamp).toBeTypeOf('number');
-
-      // Typechecking.
-      expectTypeOf(userEvent).toEqualTypeOf<(value: UserCreated['value']) => UserCreated>();
-      expectTypeOf(userCreated).toEqualTypeOf<UserCreated>();
-    });
-
-    it('should run example event-002: Event constructor with documentation', () => {
-      // Create an event constructor with documentation.
-      const userEvent = event<UserCreated>(
-        'This event is emitted when a user is created.',
-        'user.created',
-      );
-
-      // Use the documented event constructor to create an event.
-      const userCreated = userEvent({ email: 'test@example.com', password: '123456' });
-
-      // Verify the event structure matches documentation.
-      expect(userCreated.key).toBe('user.created');
-      expect(userCreated.value.email).toBe('test@example.com');
-      expect(userCreated._doc).toBe('This event is emitted when a user is created.');
-
-      // Typechecking.
-      expectTypeOf(userEvent).toEqualTypeOf<(value: UserCreated['value']) => UserCreated>();
-      expectTypeOf(userCreated).toEqualTypeOf<UserCreated>();
-    });
-
-    it('should run example event-003: Add a user created event', () => {
-      // Add a user created event.
-      const userEvent = store.add('user.created', {
-        email: 'test@example.com',
-        password: '123456',
+    it('should run example event-001: Basic event creation with Value types for validation', () => {
+      // event-001: Basic event creation with Value types for validation.
+      const userCreated = event('User created event', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
       });
 
-      expect(userEvent.key).toBe('user.created');
-      expect(userEvent.value.email).toBe('test@example.com');
+      const eventData = userCreated({ id: '123', name: 'John' });
 
-      // Typechecking.
-      expectTypeOf(userEvent).toEqualTypeOf<UserCreated>();
-      expectTypeOf(userEvent.key).toBeString();
-      expectTypeOf(userEvent.value).toEqualTypeOf<{ email: string; password: string }>();
+      expect(eventData.key).toBe('user.created');
+      expect(eventData.value).toEqual({ id: '123', name: 'John' });
+      expect(eventData.timestamp).toBeDefined();
     });
 
-    it('should run example event-004: Retrieve an event by hash', () => {
-      // Add a user created event.
-      const userEvent = store.add('user.created', {
-        email: 'test@example.com',
-        password: '123456',
+    it('should run example event-002: Event creation with complex Value schema for validation', () => {
+      // event-002: Event creation with complex Value schema for validation.
+      const userUpdated = event('User updated event', {
+        key: 'user.updated',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+          email: value('email', (email: string) => ok(email)),
+          age: value('age', (age: number) => ok(age)),
+        },
       });
 
-      // Retrieve an event by hash.
-      const event = store.get<'user.created'>(userEvent._hash);
+      const eventData = userUpdated({
+        id: '123',
+        name: 'John',
+        email: 'john@example.com',
+        age: 30,
+      });
 
-      expect(event).toBeDefined();
-      if (event) {
-        expect(event.value.email).toBe('test@example.com');
+      expect(eventData.key).toBe('user.updated');
+      expect(eventData.value).toEqual({
+        id: '123',
+        name: 'John',
+        email: 'john@example.com',
+        age: 30,
+      });
+    });
+
+    it('should run example event-003: Creating an event store with multiple event types', () => {
+      // event-003: Creating an event store with multiple event types.
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
+      });
+
+      const userUpdated = event('User updated', {
+        key: 'user.updated',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+          email: value('email', (email: string) => ok(email)),
+        },
+      });
+
+      const eventList = events([userCreated, userUpdated]);
+
+      expect(eventList.keys).toEqual(['user.created', 'user.updated']);
+      expect(typeof eventList.add).toBe('function');
+      expect(typeof eventList.list).toBe('function');
+      expect(typeof eventList.pull).toBe('function');
+    });
+
+    it('should run example event-004: Using the event store to add and retrieve events', () => {
+      // event-004: Using the event store to add and retrieve events.
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
+      });
+
+      const userUpdated = event('User updated', {
+        key: 'user.updated',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+          email: value('email', (email: string) => ok(email)),
+        },
+      });
+
+      const eventList = events([userCreated, userUpdated]);
+
+      // Add events with type safety
+      eventList.add('user.created', { id: '123', name: 'John' });
+      eventList.add('user.updated', {
+        id: '123',
+        name: 'John',
+        email: 'john@example.com',
+      });
+
+      // List all events
+      const allEvents = eventList.list();
+      expect(allEvents).toHaveLength(2);
+
+      // Pull events (removes from store)
+      const pulledEvents = eventList.pull('asc');
+      expect(pulledEvents).toHaveLength(2);
+    });
+
+    it('should run example event-005: Error handling when adding events with invalid keys', () => {
+      // event-005: Error handling when adding events with invalid keys.
+      const userCreated = event('User created', {
+        key: 'user.created',
+        value: {
+          id: value('id', (id: string) => ok(id)),
+          name: value('name', (name: string) => ok(name)),
+        },
+      });
+
+      const eventList = events([userCreated]);
+
+      expect(() => {
+        // @ts-expect-error - invalid key
+        eventList.add('invalid.key', { id: '123', name: 'John' });
+      }).toThrow(EventError);
+
+      try {
+        // @ts-expect-error - invalid key
+        eventList.add('invalid.key', { id: '123', name: 'John' });
+      } catch (error) {
+        if (error instanceof EventError) {
+          expect(error.key).toBe('EVENT:INVALID_KEY');
+          expect(error.message).toContain('Event constructor not found for key: invalid.key');
+        }
       }
-
-      // Typechecking.
-      expectTypeOf(event).toEqualTypeOf<UserCreated | undefined>();
-    });
-
-    it('should run example event-005: Pull all events (removes them from store)', () => {
-      // Add some events.
-      store.add('user.created', { email: 'test@example.com', password: '123456' });
-      store.add('user.updated', { id: '123' });
-
-      // Pull all events (removes them from store).
-      const allEvents = store.pull();
-
-      expect(allEvents.length).toBe(2);
-      expect(store.list().length).toBe(0); // Store is now empty.
-
-      // Typechecking.
-      expectTypeOf(allEvents).toEqualTypeOf<(UserCreated | UserUpdated | UserDeleted)[]>();
-    });
-
-    it('should run example event-006: Pull events sorted by newest first', async () => {
-      // Add events with delays to ensure different timestamps.
-      store.add('user.created', { email: 'test1@example.com', password: '123456' });
-      await sleep(10);
-      store.add('user.created', { email: 'test2@example.com', password: '123456' });
-
-      // Pull events sorted by newest first.
-      const recentEvents = store.pull({ sort: 'desc' });
-
-      expect(recentEvents[0].timestamp > recentEvents[1].timestamp).toBe(true);
-
-      // Typechecking.
-      expectTypeOf(recentEvents).toEqualTypeOf<(UserCreated | UserUpdated | UserDeleted)[]>();
-    });
-
-    it('should run example event-007: List all events without removing them', () => {
-      // Add some events.
-      store.add('user.created', { email: 'test@example.com', password: '123456' });
-      store.add('user.updated', { id: '123' });
-
-      // List all events without removing them.
-      const events = store.list();
-
-      expect(events.length).toBe(2); // Number of events currently in the store.
-
-      // Typechecking.
-      expectTypeOf(events).toEqualTypeOf<(UserCreated | UserUpdated | UserDeleted)[]>();
-    });
-
-    it('should run example event-008: Basic usage with union types for maximum type safety', () => {
-      // Create event store with explicit typing.
-      const store: EventStore<UserCreated | UserUpdated | UserDeleted> = eventStore();
-
-      // Add events.
-      const userEvent = store.add('user.created', {
-        email: 'test@example.com',
-        password: '123456',
-      });
-      store.add('user.updated', { id: '123' });
-      store.add('user.deleted', { id: '456' });
-
-      // Verify events were added.
-      expect(store.list().length).toBe(3);
-      expect(userEvent.key).toBe('user.created');
-      expect(userEvent.value.email).toBe('test@example.com');
-
-      // Retrieve event.
-      const retrievedEvent = store.get<'user.created'>(userEvent._hash);
-      expect(retrievedEvent).toEqual(userEvent);
-
-      // Pull all events.
-      const allEvents = store.pull();
-      expect(allEvents.length).toBe(3);
-      expect(store.list().length).toBe(0);
-    });
-
-    it('should run example event-009: Advanced usage with multiple event types', () => {
-      const orderStore = eventStore<OrderPlaced | OrderShipped | OrderDelivered>();
-
-      // Add different types of events.
-      const placedEvent = orderStore.add('order.placed', { orderId: '123', amount: 99.99 });
-      const shippedEvent = orderStore.add('order.shipped', {
-        orderId: '123',
-        trackingNumber: 'TRK123',
-      });
-      const deliveredEvent = orderStore.add('order.delivered', {
-        orderId: '123',
-        deliveredAt: new Date(),
-      });
-
-      // Verify events.
-      expect(placedEvent.key).toBe('order.placed');
-      expect(shippedEvent.key).toBe('order.shipped');
-      expect(deliveredEvent.key).toBe('order.delivered');
-
-      // Verify store contents.
-      expect(orderStore.list().length).toBe(3);
-
-      // Pull events with sorting.
-      const events = orderStore.pull({ sort: 'desc' });
-      expect(events.length).toBe(3);
-      expect(orderStore.list().length).toBe(0);
-    });
-
-    it('should run example event-010: Usage with documented events using EventList (type inference)', () => {
-      // Define event types for type safety.
-      type UserCreated = Event<'user.created', { email: string; password: string }>;
-      type UserUpdated = Event<'user.updated', { id: string }>;
-      type UserDeleted = Event<'user.deleted', { id: string }>;
-
-      // Create event list with documented events.
-      const events = {
-        'user.created': event<UserCreated>(
-          'This event is emitted when a user is created.',
-          'user.created',
-        ),
-        'user.updated': event<UserUpdated>(
-          'This event is emitted when a user is updated.',
-          'user.updated',
-        ),
-        'user.deleted': event<UserDeleted>(
-          'This event is emitted when a user is deleted.',
-          'user.deleted',
-        ),
-      };
-
-      // TypeScript automatically infers the event types from the EventList.
-      const store = eventStore(events);
-
-      // Typechecking.
-      expectTypeOf(store).toEqualTypeOf<EventStore<UserCreated | UserUpdated | UserDeleted>>();
-
-      // Test adding events using the event list.
-      const userCreated = store.add('user.created', {
-        email: 'test@example.com',
-        password: '123456',
-      });
-      expect(userCreated.key).toBe('user.created');
-      expect(userCreated._doc).toBe('This event is emitted when a user is created.');
-
-      const userUpdated = store.add('user.updated', { id: '123' });
-      expect(userUpdated.key).toBe('user.updated');
-      expect(userUpdated._doc).toBe('This event is emitted when a user is updated.');
     });
   });
 });
