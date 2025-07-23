@@ -6,13 +6,14 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import type { Any } from './generics';
 
 /**
  * Known core elements.
  *
  * @internal
  */
-type Elements =
+type ElementsTags =
   | 'Aggregate'
   | 'Method'
   | 'Event'
@@ -25,6 +26,28 @@ type Elements =
   | 'Container';
 
 /**
+ * A element type conserves the original shape of the given type and adds a meta object with
+ * the following properties:
+ * - _id: Unique id of the element.
+ * - _tag: Tag of the element.
+ * - _hash: Hash of the element.
+ * - _doc: Documentation string of the element.
+ *
+ * @typeParam T - The tag of the element.
+ * @typeParam V - The values of the element.
+ *
+ * @internal
+ */
+type Element<T extends ElementsTags, V> = V & {
+  '~meta': {
+    _id: string;
+    _tag: T;
+    _hash: string;
+    _doc?: string;
+  };
+};
+
+/**
  * Options for element creation.
  *
  * @internal
@@ -33,22 +56,45 @@ type ElementOptions = {
   /** Unique hash of the element. */
   hash: string;
   /** Tag of the element. */
-  tag: Elements;
+  tag: ElementsTags;
   /** Documentation string of the element. */
   doc?: string;
 };
 
 /**
- * Creates an element with a id, tag, hash, and values.
+ * Creates an element with a unique id, tag, hash, and values.
  *
  * @param values - The values of the element.
- * @param options - The options of the element {@link ElementOptions}.
- * @returns The element object with the respective tag, hash and id.
+ * @param options - The options for element creation.
+ * @returns The element object with metadata including id, tag, hash, and optional documentation.
+ *
+ * @example
+ * ```ts
+ * // element-001: Basic element creation with required metadata.
+ * const userData = { name: 'John', age: 30 };
+ * const element = element(userData, {
+ *   hash: 'user-123',
+ *   tag: 'Value',
+ *   doc: 'User information element'
+ * });
+ * // element: userData with metadata attached.
+ * ```
+ *
+ * @example
+ * ```ts
+ * // element-002: Element creation without documentation.
+ * const configData = { port: 8080, host: 'localhost' };
+ * const element = element(configData, {
+ *   hash: 'config-456',
+ *   tag: 'Schema'
+ * });
+ * // element: configData with metadata attached.
+ * ```
  *
  * @public
  */
-function element<T>(values: T, options: ElementOptions) {
-  return Object.defineProperty(values, Symbol.for(options.tag), {
+const element = <T>(values: T, options: ElementOptions) =>
+  Object.defineProperty(values, '~meta', {
     value: {
       _id: crypto.randomUUID(),
       _tag: options.tag,
@@ -57,8 +103,31 @@ function element<T>(values: T, options: ElementOptions) {
     },
     writable: false,
     configurable: false,
-    enumerable: false,
+    enumerable: true,
   }) as T;
-}
 
-export { element };
+/**
+ * Gets the metadata of an element.
+ *
+ * @param element - The element to get the metadata of.
+ * @returns The metadata object containing id, tag, hash, and optional documentation.
+ *
+ * @example
+ * ```ts
+ * // element-003: Retrieving element metadata.
+ * const userData = { name: 'John', age: 30 };
+ * const element = element(userData, {
+ *   hash: 'user-123',
+ *   tag: 'Value',
+ *   doc: 'User information'
+ * });
+ * const metadata = getElementMeta(element);
+ * // metadata: { _id: string, _tag: 'Value', _hash: 'user-123', _doc: 'User information' }.
+ * ```
+ *
+ * @public
+ */
+const getElementMeta = (element: Any) => element['~meta'];
+
+export type { Element, ElementsTags };
+export { element, getElementMeta };
