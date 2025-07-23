@@ -6,422 +6,310 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import type { Any } from './generics';
+import { type Element, element } from './element';
+import type { Any, Prettify } from './generics';
 import { hash } from './hash';
+import { Panic } from './panic';
+import type { Value } from './value';
 
 /**
- * Represents a typed event with a key, value, hash, timestamp, and optional documentation.
- * This is the core data structure for all events in the system.
+ * Type for an event data structure containing key and value.
  *
- * @typeParam K - The event key (string literal type).
+ * @typeParam K - The event key type.
  * @typeParam T - The event value type.
- *
- * @example
- * ```ts
- * // Define a user created event type.
- * type UserCreated = Event<'user.created', { email: string; password: string }>;
- *
- * // The event will have this structure.
- * // {
- * //   _tag: 'Event';
- * //   _hash: string;
- * //   key: 'user.created';
- * //   value: { email: string; password: string };
- * //   timestamp: number;
- * //   _doc?: string; // Optional documentation
- * // }
- * ```
- *
- * @public
- */
-type Event<K extends string, T> = {
-  _tag: 'Event';
-  _hash: string;
-  key: K;
-  value: T;
-  timestamp: number;
-  _doc?: string;
-};
-
-/**
- * Type for an event constructor function that creates events.
- * This can be either a simple event constructor or a documented one.
- *
- * @typeParam E - The event type.
- *
- * @example
- * ```ts
- * // Simple event constructor
- * const userCreated = event<UserCreated>('user.created');
- *
- * // Documented event constructor
- * const userCreated = event<UserCreated>(
- *   doc`This event is emitted when a user is created.`,
- *   'user.created'
- * );
- * ```
- *
- * @public
- */
-type EventConstructor<E extends Event<string, Any>> = (value: E['value']) => E;
-
-/**
- * Type for a list of event constructors indexed by their keys.
- * This allows for type-safe event store creation with documented events.
- *
- * @typeParam T - Union type of all possible events.
- *
- * @example
- * ```ts
- * const events: EventList<UserCreated | UserUpdated | UserDeleted> = {
- *   'user.created': event<UserCreated>(
- *     doc`This event is emitted when a user is created.`,
- *     'user.created'
- *   ),
- *   'user.updated': event<UserUpdated>(
- *     doc`This event is emitted when a user is updated.`,
- *     'user.updated'
- *   ),
- * };
- * ```
- *
- * @public
- */
-type EventList<T extends Event<string, Any>> = {
-  [K in T['key']]: EventConstructor<Extract<T, { key: K }>>;
-};
-
-/**
- * Options for pulling events from the store.
- * Controls how events are sorted when retrieved.
- *
- * @example
- * ```ts
- * // Pull events sorted by oldest first (default).
- * const events = store.pull({ sort: 'asc' });
- *
- * // Pull events sorted by newest first.
- * const recentEvents = store.pull({ sort: 'desc' });
- * ```
  *
  * @internal
  */
-type EventStorePullOptions = {
-  /**
-   * Sort order for events when pulling from the store.
-   * - `'asc'`: Oldest events first (default).
-   * - `'desc'`: Newest events first.
-   */
-  sort: 'asc' | 'desc';
-};
+type EventData<K, T> = Prettify<{
+  key: K;
+  value: T;
+  timestamp: number;
+}>;
 
 /**
- * Interface for an event store that manages typed events.
- * Provides methods to add, retrieve, and manage events with full type safety.
+ * Type for an event constructor function that creates typed events.
+ * Extends the Element type to provide event-specific functionality.
  *
- * @typeParam T - Union type of all possible events in the store.
+ * @typeParam K - The event key type.
+ * @typeParam T - The event value type.
+ *
+ * @internal
+ */
+type Event<K, T> = Element<
+  'Event',
+  EventData<K, T> & {
+    (value: T): EventData<K, T>;
+  }
+>;
+
+/**
+ * Converts an array of events to a record of values for type inference.
+ *
+ * @typeParam T - The array of events to convert.
+ * @returns The record of values with proper type inference.
+ *
+ * @internal
+ */
+type EventListToRecord<T extends Event<Any, Value<Any, Any>>[]> = Prettify<{
+  [K in T[number]['key']]: Extract<T[number], { key: K }>['value'];
+}>;
+
+/**
+ * Extracts the actual value types from a record of Value wrappers.
+ * This type utility converts `Value<T, E>` to `T` for each property.
+ *
+ * @typeParam T - The record of Value wrappers.
+ * @returns The record with actual value types instead of Value wrappers.
+ *
+ * @internal
+ */
+type EventValue<T extends Record<Any, Value<Any, Any>>> = Prettify<{
+  [K in keyof T]: T[K] extends Value<infer N, Any> ? N : T[K];
+}>;
+
+/**
+ * Creates a typed event constructor with documentation and validation.
+ * The function takes a record of Value wrappers and returns an event constructor
+ * that accepts the actual value types (extracted from the Value wrappers).
+ *
+ * @param doc - The documentation string describing the event.
+ * @param def - The event definition containing key and value schema with Value wrappers.
+ * @returns A typed event constructor function that accepts actual values.
  *
  * @example
  * ```ts
- * // Define event types for type safety.
- * type UserCreated = Event<'user.created', { email: string; password: string }>;
- * type UserUpdated = Event<'user.updated', { id: string }>;
- * type UserDeleted = Event<'user.deleted', { id: string }>;
+ * // event-001: Basic event creation with Value types for validation.
+ * const userCreated = event('User created event', {
+ *   key: 'user.created',
+ *   value: {
+ *     id: value('id', (id: string) => ok(id)),
+ *     name: value('name', (name: string) => ok(name))
+ *   }
+ * });
+ * const eventData = userCreated({ id: '123', name: 'John' });
+ * // eventData: { key: 'user.created', value: { id: '123', name: 'John' }, timestamp: number }
+ * ```
  *
- * // Create event store with explicit typing.
- * const store: EventStore<UserCreated | UserUpdated | UserDeleted> = eventStore();
+ * @example
+ * ```ts
+ * // event-002: Event creation with complex Value schema for validation.
+ * const userUpdated = event('User updated event', {
+ *   key: 'user.updated',
+ *   value: {
+ *     id: value('id', (id: string) => ok(id)),
+ *     name: value('name', (name: string) => ok(name)),
+ *     email: value('email', (email: string) => ok(email)),
+ *     age: value('age', (age: number) => ok(age))
+ *   }
+ * });
+ * const eventData = userUpdated({
+ *   id: '123',
+ *   name: 'John',
+ *   email: 'john@example.com',
+ *   age: 30
+ * });
+ * // eventData: typed event with timestamp
  * ```
  *
  * @public
  */
-interface EventStore<T extends Event<string, Any>> {
+const event = <K extends string, V extends Record<string, Value<Any, Any>>>(
+  doc: string,
+  def: Omit<EventData<K, V>, 'timestamp'>,
+): Event<K, EventValue<V>> => {
+  const constructor = (value: EventValue<V>) => ({
+    key: def.key,
+    value,
+    timestamp: Date.now(),
+  });
+
+  constructor.key = def.key;
+
+  return element(constructor, {
+    tag: 'Event',
+    hash: hash(constructor),
+    doc,
+  }) as Event<K, EventValue<V>>;
+};
+
+/**
+ * Interface for a type-safe event store that manages multiple event types.
+ * Provides methods to add, retrieve, and manage events with full type safety.
+ *
+ * @typeParam R - The record type mapping event keys to their value types.
+ *
+ * @public
+ */
+interface EventStore<R> {
   /**
-   * Adds an event to the store.
+   * The available event keys in the store.
    *
-   * @param key - The event key (must be one of the keys in the union type T).
-   * @param value - The event value (must match the type for the given key).
-   * @returns The created event object.
+   * @returns Array of event keys.
    *
-   * @example
-   * ```ts
-   * // event-003: Add a user created event.
-   * const userEvent = store.add('user.created', { email: 'test@example.com', password: '123456' });
-   * // userEvent.key === 'user.created'.
-   * // userEvent.value.email === 'test@example.com'.
-   * ```
+   * @public
    */
-  add: <K extends T['key']>(
-    key: K,
-    value: Extract<T, { key: K }>['value'],
-  ) => Event<K, Extract<T, { key: K }>['value']>;
+  keys: (keyof R)[];
 
   /**
-   * Retrieves an event from the store by its hash.
+   * Adds a typed event to the store.
    *
-   * @param hash - The hash of the event to retrieve.
-   * @returns The event if found, undefined otherwise.
+   * @param key - The event key (must be one of the keys in the union type R).
+   * @param value - The event value (must match the type for the given key).
    *
-   * @example
-   * ```ts
-   * // event-004: Retrieve an event by hash.
-   * const event = store.get<'user.created'>(userEvent._hash);
-   * if (event) {
-   *   // event.value.email === 'test@example.com'.
-   * }
-   * ```
+   * @public
    */
-  get: <K extends T['key']>(hash: string) => Extract<T, { key: K }> | undefined;
+  add: <K extends keyof R>(key: K, value: R[K]) => void;
 
   /**
    * Retrieves and removes all events from the store.
    * Events are returned sorted by timestamp (oldest first by default).
    *
-   * @param opts - Options for pulling events.
-   * - `sort`: Sort order for events ('asc' for oldest first, 'desc' for newest first).
-   *
+   * @param sort - Sort order for events ('asc' for oldest first, 'desc' for newest first).
    * @returns Array of all events that were in the store.
    *
-   * @example
-   * ```ts
-   * // event-005: Pull all events (removes them from store).
-   * const allEvents = store.pull();
-   * // allEvents.length === Number of events that were in the store.
-   * // store.list().length === 0 (store is now empty).
-   * ```
-   *
-   * @example
-   * ```ts
-   * // event-006: Pull events sorted by newest first.
-   * const recentEvents = store.pull({ sort: 'desc' });
-   * // recentEvents[0].timestamp > recentEvents[1].timestamp.
-   * ```
+   * @public
    */
-  pull: (opts?: EventStorePullOptions) => T[];
+  pull: (sort?: 'asc' | 'desc') => Event<keyof R, R[keyof R]>[];
 
   /**
    * Lists all events currently in the store without removing them.
    *
    * @returns Array of all events in the store.
    *
-   * @example
-   * ```ts
-   * // event-007: List all events without removing them.
-   * const events = store.list();
-   * // events.length === Number of events currently in the store.
-   * ```
+   * @public
    */
-  list: () => T[];
+  list: (sort?: 'asc' | 'desc') => Event<keyof R, R[keyof R]>[];
 }
 
 /**
- * Interface for the event constructor function with overloads.
- * This allows for different function signatures based on whether documentation is provided.
- *
- * @internal
- */
-interface EventFunction {
-  /**
-   * Creates a new event constructor without documentation.
-   *
-   * @typeParam E - The event type.
-   * @param key - The key of the event.
-   * @returns A function that creates an event with the given key.
-   */
-  <E extends Event<string, Any>>(key: E['key']): EventConstructor<E>;
-
-  /**
-   * Creates a new event constructor with documentation.
-   *
-   * @typeParam E - The event type.
-   * @param documentation - The documentation string for the event.
-   * @param key - The key of the event.
-   * @returns A function that creates a documented event with the given key.
-   */
-  <E extends Event<string, Any>>(documentation: string, key: E['key']): EventConstructor<E>;
-}
-
-/**
- * Creates a new event constructor for the given {@link Event} type.
- * This function supports both documented and non-documented events through function overloads.
- *
- * @remarks
- * This function is used by the {@link eventStore} to handle the creation of events. It is recommended
- * to use that API instead of this function, at least for the most common use cases. If you need
- * make other logic around the creation of events, this function is the way to go.
- *
- * @param documentationOrKey - The documentation string or key of the event.
- * @param key - The key of the event. If not provided, the documentationOrKey is used as the key.
- * @returns A function that creates an event with the given key.
+ * Panic error for the event module.
+ * Used when an invalid event key is provided to the event store.
  *
  * @example
  * ```ts
- * // event-001: Basic event constructor without documentation.
- * // Define the event type.
- * type UserCreated = Event<'user.created', { email: string; password: string }>;
+ * // Handling EventError in event store operations.
+ * const store = events([userCreated]);
  *
- * // Create an event constructor without documentation.
- * const userEvent = event<UserCreated>('user.created');
- *
- * // Use the event constructor to create an event.
- * const userCreated = userEvent({ email: 'test@example.com', password: '123456' });
- * // userCreated.key === 'user.created'.
- * // userCreated.value.email === 'test@example.com'.
- * // userCreated.value.password === '123456'.
- * // userCreated._hash === '...'.
- * // userCreated.timestamp === ...
- * ```
- *
- * @example
- * ```ts
- * // event-002: Event constructor with documentation.
- * // Create an event constructor with documentation.
- * const userEvent = event<UserCreated>(
- *   'This event is emitted when a user is created.',
- *   'user.created'
- * );
- *
- * // Use the documented event constructor to create an event.
- * const userCreated = userEvent({ email: 'test@example.com', password: '123456' });
- * // userCreated.key === 'user.created'.
- * // userCreated.value.email === 'test@example.com'.
- * // userCreated._doc === 'This event is emitted when a user is created.'
+ * try {
+ *   store.add('invalid.key', { id: '123', name: 'John' });
+ * } catch (error) {
+ *   if (error instanceof EventError) {
+ *     console.log('EventError:', error.key); // "EVENT:INVALID_KEY"
+ *     console.log('Message:', error.message); // "Event constructor not found for key: invalid.key"
+ *   }
+ * }
  * ```
  *
  * @public
  */
-const event: EventFunction =
-  <E extends Event<string, Any>>(documentationOrKey: string, key?: E['key']): EventConstructor<E> =>
-  (value: E['value']) =>
-    ({
-      _tag: 'Event',
-      _hash: hash(value),
-      // If two arguments are provided, first is documentation, second is key.
-      _doc: !key ? undefined : documentationOrKey,
-      // If only one argument is provided, it's the key (no documentation).
-      key: key ? key : (documentationOrKey as E['key']),
-      value,
-      timestamp: Date.now(),
-    }) as E;
+const EventError = Panic<'EVENT', 'INVALID_KEY'>('EVENT');
 
 /**
- * Interface for the event store factory function with overloads.
- * This allows for different function signatures based on the input type.
+ * Creates a type-safe event store from a list of event constructors.
+ * The store provides full type safety for adding and retrieving events.
+ * Each event constructor in the array must have a unique key.
  *
- * @internal
- */
-interface EventStoreFunction {
-  /**
-   * Creates an event store with union type specification.
-   *
-   * @typeParam T - Union type of all possible events in the store.
-   * @returns An event store with methods to add, retrieve, and manage events.
-   */
-  <T extends Event<string, Any>>(): EventStore<T>;
-
-  /**
-   * Creates an event store with event list specification.
-   * TypeScript will automatically infer the event types from the EventList.
-   *
-   * @param eventList - Object containing event constructors indexed by their keys.
-   * @returns An event store with methods to add, retrieve, and manage events.
-   */
-  <T extends Record<string, EventConstructor<Any>>>(
-    eventList: T,
-  ): EventStore<ReturnType<T[keyof T]>>;
-}
-
-/**
- * Creates an event store with automatic event function generation.
- * This allows for concise event store creation with perfect typing.
- * Supports both union type specification and event list specification.
- *
- * @typeParam T - Union type of all possible events in the store.
- * @param eventList - Optional object containing event constructors indexed by their keys.
- * @returns An event store with methods to add, retrieve, and manage events.
+ * @param events - The array of event constructors to include in the store.
+ * @returns A type-safe event store with methods to manage events.
  *
  * @example
  * ```ts
- * // event-008: Basic usage with union types for maximum type safety.
- * type UserCreated = Event<'user.created', { email: string; password: string }>;
- * type UserUpdated = Event<'user.updated', { id: string }>;
- * type UserDeleted = Event<'user.deleted', { id: string }>;
+ * // event-003: Creating an event store with multiple event types.
+ * const userCreated = event('User created', {
+ *   key: 'user.created',
+ *   value: {
+ *     id: value('id', (id: string) => ok(id)),
+ *     name: value('name', (name: string) => ok(name))
+ *   }
+ * });
  *
- * const store = eventStore<UserCreated | UserUpdated | UserDeleted>();
+ * const userUpdated = event('User updated', {
+ *   key: 'user.updated',
+ *   value: {
+ *     id: value('id', (id: string) => ok(id)),
+ *     name: value('name', (name: string) => ok(name)),
+ *     email: value('email', (email: string) => ok(email))
+ *   }
+ * });
+ *
+ * const eventStore = events([userCreated, userUpdated]);
+ * // eventStore: EventStore with type-safe add, pull, and list methods
  * ```
  *
  * @example
  * ```ts
- * // event-009: Advanced usage with multiple event types.
- * type OrderPlaced = Event<'order.placed', { orderId: string; amount: number }>;
- * type OrderShipped = Event<'order.shipped', { orderId: string; trackingNumber: string }>;
- * type OrderDelivered = Event<'order.delivered', { orderId: string; deliveredAt: Date }>;
+ * // event-004: Using the event store to add and retrieve events.
+ * const store = events([userCreated, userUpdated]);
  *
- * const orderStore = eventStore<OrderPlaced | OrderShipped | OrderDelivered>();
+ * // Add events with type safety
+ * store.add('user.created', { id: '123', name: 'John' });
+ * store.add('user.updated', {
+ *   id: '123',
+ *   name: 'John',
+ *   email: 'john@example.com'
+ * });
+ *
+ * // List all events
+ * const allEvents = store.list();
+ * // allEvents: Array of events with timestamps
+ *
+ * // Pull events (removes from store)
+ * const pulledEvents = store.pull('asc');
+ * // pulledEvents: Array of events sorted by timestamp
  * ```
  *
  * @example
  * ```ts
- * // event-010: Usage with documented events using EventList (type inference).
- * type UserCreated = Event<'user.created', { email: string; password: string }>;
- * type UserUpdated = Event<'user.updated', { id: string }>;
- * type UserDeleted = Event<'user.deleted', { id: string }>;
+ * // event-005: Error handling when adding events with invalid keys.
+ * const store = events([userCreated]);
  *
- * const events = {
- *   'user.created': event<UserCreated>(
- *     'This event is emitted when a user is created.',
- *     'user.created'
- *   ),
- *   'user.updated': event<UserUpdated>(
- *     'This event is emitted when a user is updated.',
- *     'user.updated'
- *   ),
- *   'user.deleted': event<UserDeleted>(
- *     'This event is emitted when a user is deleted.',
- *     'user.deleted'
- *   ),
- * };
- *
- * // TypeScript automatically infers the event types from the EventList.
- * const store = eventStore(events);
+ * try {
+ *   store.add('invalid.key', { id: '123', name: 'John' });
+ * } catch (error) {
+ *   if (error instanceof EventError) {
+ *     console.log('EventError caught:', error.key, error.message);
+ *     // Output: "EVENT:INVALID_KEY Event constructor not found for key: invalid.key"
+ *   }
+ * }
  * ```
  *
  * @public
  */
-const eventStore: EventStoreFunction = <
-  T extends Event<string, Any> | Record<string, EventConstructor<Any>>,
->(
-  eventList?: T extends Record<string, EventConstructor<Any>> ? T : never,
-): EventStore<T extends Record<string, EventConstructor<Any>> ? ReturnType<T[keyof T]> : T> => {
+const events = <E extends Event<Any, Any>[], R = EventListToRecord<E>>(
+  events: E,
+): EventStore<R> => {
   const store: Any[] = [];
+  const eventMap = new Map<string, Event<Any, Any>>();
+
+  for (const key in events) {
+    const ev = events[key];
+    eventMap.set(ev.key, ev);
+  }
+
+  const sortStore = (sort: 'asc' | 'desc') =>
+    store
+      .slice()
+      .sort((a, b) => (sort === 'asc' ? a.timestamp - b.timestamp : b.timestamp - a.timestamp));
 
   return {
+    keys: Array.from(eventMap.keys()) as (keyof R)[],
     add: (key, value) => {
-      // If eventList is provided, use the corresponding event constructor.
-      if (eventList && key in eventList) {
-        const eventConstructor = eventList[key];
-        const e = eventConstructor(value);
-        store.push(e);
-        return e;
+      const eventConstructor = eventMap.get(key as Any);
+
+      if (!eventConstructor) {
+        throw new EventError('INVALID_KEY', `Event constructor not found for key: ${String(key)}`);
       }
 
-      // Fallback to the original event creation logic.
-      const e = event(key)(value);
-      store.push(e);
-      return e;
+      store.push(eventConstructor(value));
     },
-    get: (hash: string) => store.find((event) => event._hash === hash),
-    pull: (opts: EventStorePullOptions = { sort: 'asc' }) => {
-      const list = store
-        .slice()
-        .sort((a, b) =>
-          opts.sort === 'asc' ? a.timestamp - b.timestamp : b.timestamp - a.timestamp,
-        );
+    pull: (sort: 'asc' | 'desc' = 'asc') => {
+      const list = sortStore(sort);
       store.splice(0);
       return list;
     },
-    list: () => store.map((event) => event),
+    list: (sort: 'asc' | 'desc' = 'asc') => sortStore(sort),
   };
 };
 
-export type { Event, EventStore, EventConstructor, EventList };
-export { event, eventStore };
+export type { Event, EventStore };
+export { event, events, EventError };
