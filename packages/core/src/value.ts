@@ -6,6 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import { type Element, element, isElement } from './element';
 import type { Any } from './generics';
 import { hash } from './hash';
 import { type Result } from './result';
@@ -18,6 +19,9 @@ import { type Result } from './result';
  * @param value - The value to validate.
  * @returns A result containing the validated value or an error.
  *
+ * @see {@link Value} for the value wrapper that uses this function.
+ * @see {@link Result} for the result type returned by validation.
+ *
  * @internal
  */
 type ValueFunction<T, E> = (value: T) => Result<T, E>;
@@ -28,184 +32,150 @@ type ValueFunction<T, E> = (value: T) => Result<T, E>;
  * @typeParam T - The type of the value to validate.
  * @typeParam E - The type of the error.
  *
- * @example
- * ```ts
- * // Create a value validator for age.
- * const ageValue = value((age: number) => age >= 18 ? ok(age) : err('INVALID_AGE'));
- *
- * // Validate individual age values.
- * const validAge = ageValue(21); // ok(21).
- * const invalidAge = ageValue(15); // err('INVALID_AGE').
- * ```
+ * @see {@link ValueFunction} for the validation function type.
+ * @see {@link Result} for the result type returned by validation.
+ * @see {@link Element} for the base element type.
  *
  * @public
  */
-interface Value<T, E> {
-  /**
-   * The tag of the value wrapper.
-   *
-   * @public
-   */
-  readonly _tag: 'Value';
-
-  /**
-   * The hash of the value wrapper.
-   *
-   * @public
-   */
-  readonly _hash: string;
-
-  /**
-   * The documentation of this value wrapper (optional).
-   *
-   * @public
-   */
-  readonly _doc?: string;
-
-  /**
-   * Validates a single value using the provided validation function.
-   *
-   * @param input - The value to validate.
-   * @returns A result containing the validated value or an error.
-   *
-   * @example
-   * ```ts
-   * const nameValue = value((name: string) =>
-   *   name.length > 0 ? ok(name) : err('EMPTY_NAME')
-   * );
-   *
-   * const result = nameValue('John'); // ok('John').
-   * ```
-   *
-   * @public
-   */
-  (input: T): Result<T, E>;
-
-  /**
-   * The validation function used by this value wrapper.
-   *
-   * @public
-   */
-  readonly validator: ValueFunction<T, E>;
-}
+type Value<T, E> = Element<
+  'Value',
+  {
+    /**
+     * Validates a single value using the provided validation function.
+     *
+     * @param input - The value to validate.
+     * @returns A result containing the validated value or an error.
+     *
+     * @see {@link ValueFunction} for the validation function type.
+     * @public
+     */
+    (input: T): Result<T, E>;
+    /**
+     * The validation function used by this value wrapper.
+     *
+     * @readonly
+     * @see {@link ValueFunction} for the validation function type.
+     * @public
+     */
+    readonly validator: ValueFunction<T, E>;
+  }
+>;
 
 /**
  * Interface for the value function overloads.
  *
- * @public
+ * @see {@link Value} for the value wrapper type.
+ * @see {@link ValueFunction} for the validation function type.
+ *
+ * @internal
  */
 interface ValueDefinition {
   /**
    * Creates a value wrapper for individual field validation.
-   * It provides a simple interface for single-value validation.
    *
    * @param validator - The validation function to wrap.
    * @returns A value wrapper that can validate individual values.
    *
-   * @example
-   * ```ts
-   * // Basic value validation.
-   * const nameValue = value((name: string) =>
-   *   name.length > 0 ? ok(name) : err('EMPTY_NAME')
-   * );
-   *
-   * const result = nameValue('John'); // ok('John').
-   * ```
-   *
+   * @see {@link Value} for the value wrapper type.
    * @public
    */
   <T, E>(validator: ValueFunction<T, E>): Value<T, E>;
 
   /**
    * Creates a value wrapper for individual field validation with documentation.
-   * It provides a simple interface for single-value validation.
    *
    * @param doc - Documentation of the value being validated.
    * @param validator - The validation function to wrap.
    * @returns A value wrapper that can validate individual values.
    *
-   * @example
-   * ```ts
-   * // Value validation with documentation.
-   * const ageValue = value(
-   *   'User age must be at least 18 years old',
-   *   (age: number) => age >= 18 ? ok(age) : err('INVALID_AGE')
-   * );
-   *
-   * const result = ageValue(21); // ok(21).
-   * console.log(ageValue.doc); // 'User age must be at least 18 years old'.
-   * ```
-   *
-   * @example
-   * ```ts
-   * // Complex value validation.
-   * const emailValue = value(
-   *   'Email address validation',
-   *   (email: string) => {
-   *     if (!email.includes('@')) return err('INVALID_EMAIL');
-   *     if (email.length < 5) return err('EMAIL_TOO_SHORT');
-   *     return ok(email);
-   *   }
-   * );
-   *
-   * const validEmail = emailValue('user@example.com'); // ok('user@example.com').
-   * const invalidEmail = emailValue('invalid'); // err('INVALID_EMAIL').
-   * ```
-   *
-   * @example
-   * ```ts
-   * // Value validation with type safety.
-   * const ageValue = value(
-   *   'Age validation with bounds',
-   *   (age: number) => {
-   *     if (age < 0) return err('NEGATIVE_AGE');
-   *     if (age > 150) return err('AGE_TOO_HIGH');
-   *     return ok(age);
-   *   }
-   * );
-   *
-   * // TypeScript will enforce the correct input type.
-   * const result = ageValue(25); // ok(25).
-   * // const error = ageValue('25'); // TypeScript error.
-   * ```
-   *
-   * @example
-   * ```ts
-   * // Value validation with custom error types.
-   * const emailValue = value(
-   *   'Email format validation',
-   *   (email: string) => {
-   *     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-   *     return emailRegex.test(email) ? ok(email) : err('INVALID_EMAIL_FORMAT');
-   *   }
-   * );
-   *
-   * const validEmail = emailValue('user@example.com'); // ok('user@example.com').
-   * const invalidEmail = emailValue('invalid-email'); // err('INVALID_EMAIL_FORMAT').
-   * ```
-   *
-   * @example
-   * ```ts
-   * // Integration with builder for password validation.
-   * const passwordBuilder = builder({
-   *   hasUppercase: (value: string) => /[A-Z]/.test(value) ? ok(value) : err('NO_UPPERCASE'),
-   *   minLength: (min: number) => (value: string) => value.length >= min ? ok(value) : err('TOO_SHORT'),
-   * });
-   *
-   * const passwordValidator = passwordBuilder.hasUppercase().minLength(8);
-   * const passwordValue = value(
-   *   'Password strength validation',
-   *   (password: string) => passwordValidator.build('strict')(password)
-   * );
-   *
-   * const validPassword = passwordValue('SecurePass'); // ok('SecurePass').
-   * const weakPassword = passwordValue('weak'); // err('NO_UPPERCASE').
-   * ```
-   *
+   * @see {@link Value} for the value wrapper type.
    * @public
    */
   <T, E>(doc: string, validator: ValueFunction<T, E>): Value<T, E>;
 }
+
+/**
+ * Creates a value wrapper for individual field validation.
+ *
+ * @param args - The arguments to create the value wrapper. Can be either a validation function or
+ * a doc string followed by a validation function.
+ * @returns A value wrapper that can validate individual values.
+ *
+ * @see {@link Value} for the value wrapper type.
+ * @see {@link ValueFunction} for the validation function type.
+ * @see {@link isValue} for checking if a value is a value wrapper.
+ *
+ * @example
+ * ```ts
+ * // value-001: Basic value validation.
+ * const nameValue = value((name: string) =>
+ *   name.length > 0 ? ok(name) : err('EMPTY_NAME')
+ * );
+ * // nameValue: Value<string, 'EMPTY_NAME'>.
+ * const result = nameValue('John'); // ok('John').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // value-002: Value validation with documentation.
+ * const ageValue = value(
+ *   'User age must be at least 18 years old',
+ *   (age: number) => age >= 18 ? ok(age) : err('INVALID_AGE')
+ * );
+ * // ageValue: Value<number, 'INVALID_AGE'>.
+ * const result = ageValue(21); // ok(21).
+ * ```
+ *
+ * @example
+ * ```ts
+ * // value-003: Complex value validation with multiple checks.
+ * const emailValue = value(
+ *   'Email address validation',
+ *   (email: string) => {
+ *     if (!email.includes('@')) return err('INVALID_EMAIL');
+ *     if (email.length < 5) return err('EMAIL_TOO_SHORT');
+ *     return ok(email);
+ *   }
+ * );
+ * // emailValue: Value<string, 'INVALID_EMAIL' | 'EMAIL_TOO_SHORT'>.
+ * const validEmail = emailValue('user@example.com'); // ok('user@example.com').
+ * const invalidEmail = emailValue('invalid'); // err('INVALID_EMAIL').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // value-004: Value validation with type safety and bounds.
+ * const ageValue = value(
+ *   'Age validation with bounds',
+ *   (age: number) => {
+ *     if (age < 0) return err('NEGATIVE_AGE');
+ *     if (age > 150) return err('AGE_TOO_HIGH');
+ *     return ok(age);
+ *   }
+ * );
+ * // ageValue: Value<number, 'NEGATIVE_AGE' | 'AGE_TOO_HIGH'>.
+ * const result = ageValue(25); // ok(25).
+ * // const error = ageValue('25'); // TypeScript error.
+ * ```
+ *
+ * @example
+ * ```ts
+ * // value-005: Value validation with custom error types.
+ * const emailValue = value(
+ *   'Email format validation',
+ *   (email: string) => {
+ *     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+ *     return emailRegex.test(email) ? ok(email) : err('INVALID_EMAIL_FORMAT');
+ *   }
+ * );
+ * // emailValue: Value<string, 'INVALID_EMAIL_FORMAT'>.
+ * const validEmail = emailValue('user@example.com'); // ok('user@example.com').
+ * const invalidEmail = emailValue('invalid-email'); // err('INVALID_EMAIL_FORMAT').
+ * ```
+ *
+ * @public
+ */
 const value: ValueDefinition = <T, E>(
   ...args: [ValueFunction<T, E>] | [string, ValueFunction<T, E>] | [(input: T) => Result<T, E>]
 ): Value<T, E> => {
@@ -213,37 +183,44 @@ const value: ValueDefinition = <T, E>(
   const validator = typeof args[0] === 'function' ? args[0] : (args[1] as ValueFunction<T, E>);
   const valueWrapper = (input: T): Result<T, E> => validator(input);
 
-  // Attach the validator function to the wrapper for introspection.
-  return Object.assign(valueWrapper, {
+  // Create the value element with metadata using the element function.
+  const valueObject = Object.assign(valueWrapper, {
     validator,
-    _tag: 'Value',
-    _hash: hash(doc, validator),
-    _doc: doc,
+  });
+
+  return element(valueObject, {
+    hash: hash(doc, validator),
+    tag: 'Value',
+    doc,
   }) as Value<T, E>;
 };
 
 /**
  * Guard check to determine if the given value is a value wrapper.
+ *
  * @param value - The value to check.
  * @returns True if the value is a value wrapper, false otherwise.
  *
+ * @see {@link Value} for the value wrapper type.
+ * @see {@link value} for creating value wrappers.
+ *
  * @example
  * ```ts
- * // Check if a value is a value wrapper.
+ * // value-006: Check if a value is a value wrapper.
  * const ageValue = value((age: number) => age >= 18 ? ok(age) : err('INVALID_AGE'));
  * const isAgeValue = isValue(ageValue); // true.
  * ```
  *
  * @example
  * ```ts
- * // Check if a regular function is not a value wrapper.
+ * // value-007: Check if a regular function is not a value wrapper.
  * const regularFunction = (age: number) => age >= 18 ? ok(age) : err('INVALID_AGE');
  * const isValueWrapper = isValue(regularFunction); // false.
  * ```
  *
  * @example
  * ```ts
- * // Check if other types are not value wrappers.
+ * // value-008: Check if other types are not value wrappers.
  * const string = 'hello';
  * const number = 42;
  * const object = { age: 18 };
@@ -256,15 +233,7 @@ const value: ValueDefinition = <T, E>(
  * @public
  */
 const isValue = (value: unknown): value is Value<Any, Any> =>
-  !!value &&
-  typeof value === 'function' &&
-  '_tag' in value &&
-  value._tag === 'Value' &&
-  '_hash' in value &&
-  '_doc' in value &&
-  'validator' in value &&
-  typeof value.validator === 'function' &&
-  value._hash === hash(value._doc, value.validator);
+  typeof value === 'function' && isElement(value, 'Value');
 
 export type { Value };
 export { value, isValue };
