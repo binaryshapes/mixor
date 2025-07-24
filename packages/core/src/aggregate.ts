@@ -7,7 +7,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { element } from './element';
-import type { Event, EventStore } from './event';
+import type { EventStore } from './event';
 import type { Any, Prettify } from './generics';
 import { hash } from './hash';
 import { Panic } from './panic';
@@ -15,10 +15,6 @@ import type { Result } from './result';
 import { isErr, ok } from './result';
 import type { InferSchema, Schema, SchemaErrors, SchemaValues } from './schema';
 import { type Specification, isSpec } from './specification';
-
-// *********************************************************************************************
-// Aggregate types.
-// *********************************************************************************************
 
 /**
  * Configuration for creating an aggregate with schema validation, event handling,
@@ -33,14 +29,14 @@ import { type Specification, isSpec } from './specification';
  */
 type AggregateConfig<
   T,
-  E extends Event<string, Any>,
+  E extends EventStore<Any>,
   S extends Record<string, Specification<SchemaValues<T>>>,
   M,
 > = {
   /** Schema for validating the aggregate's data structure. */
   schema: Schema<T>;
   /** Event store for handling domain events. */
-  events: EventStore<E>;
+  events: E;
   /** Business rule specifications for validation. */
   specs: S;
   /** Custom methods that define aggregate behavior. */
@@ -151,10 +147,6 @@ interface AggregateMethod {
   ): (...args: T) => Result<R, E | SpecError<BeforeSpec> | SpecError<AfterSpec>>;
 }
 
-// *********************************************************************************************
-// Aggregate internal functions.
-// *********************************************************************************************
-
 const createAggregateState = <C extends AggregateConfig<Any, Any, Any, Any>>(
   config: C,
   initialState: InferSchema<C['schema']>,
@@ -222,8 +214,8 @@ const createAggregateMethodLogic = <C extends AggregateConfig<Any, Any, Any, Any
       doc: string,
       fn: (...args: T) => Result<R, E>,
     ): ((...args: T) => Result<R, E>) => {
-      const methodFn = (...args: T) => fn(...args);
-      return element(methodFn, {
+      const aggregateMethod = (...args: T) => fn(...args);
+      return element(aggregateMethod, {
         tag: 'Method',
         hash: hash(doc, fn),
         doc,
@@ -243,7 +235,7 @@ const createAggregateMethodLogic = <C extends AggregateConfig<Any, Any, Any, Any
     fn: (...args: T) => Result<R, E>,
     specs?: { before?: BeforeSpec; after?: AfterSpec },
   ) => {
-    const methodFn = (...args: T) => {
+    const aggregateMethod = (...args: T) => {
       if (specs?.before && isSpec(specs.before) && stateManager) {
         const currentState = stateManager.getState();
         const beforeResult = specs.before.satisfy(currentState);
@@ -262,7 +254,7 @@ const createAggregateMethodLogic = <C extends AggregateConfig<Any, Any, Any, Any
       return fnResult;
     };
 
-    return element(methodFn, {
+    return element(aggregateMethod, {
       tag: 'Method',
       hash: hash(doc, fn, specs),
       doc,
@@ -289,7 +281,7 @@ interface AggregateConstructor {
    */
   <
     T,
-    E extends Event<string, Any>,
+    E extends EventStore<Any>,
     S extends Record<string, Specification<SchemaValues<T>>>,
     M extends (options: {
       self: AggregateState<AggregateConfig<T, E, S, M>>;
@@ -316,7 +308,7 @@ interface AggregateConstructor {
    */
   <
     T,
-    E extends Event<string, Any>,
+    E extends EventStore<Any>,
     S extends Record<string, Specification<SchemaValues<T>>>,
     M extends (options: {
       self: AggregateState<AggregateConfig<T, E, S, M>>;
@@ -332,14 +324,10 @@ interface AggregateConstructor {
   ) => Result<AggregateInstance<AggregateConfig<T, E, S, M>>, SchemaErrors<T> | SpecError<S>>;
 }
 
-// *********************************************************************************************
-// Public aggregate functions.
-// *********************************************************************************************
-
 /**
  * Panic error for the aggregate module.
  *
- * @internal
+ * @public
  */
 const AggregateError = Panic<
   'AGGREGATE',
@@ -349,7 +337,7 @@ const AggregateError = Panic<
 
 const aggregate: AggregateConstructor = <
   T,
-  E extends Event<string, Any>,
+  E extends EventStore<Any>,
   S extends Record<string, Specification<SchemaValues<T>>>,
   M extends (options: {
     self: AggregateState<AggregateConfig<T, E, S, M>>;
@@ -443,4 +431,4 @@ const aggregate: AggregateConstructor = <
   };
 };
 
-export { aggregate };
+export { aggregate, AggregateError };

@@ -1,4 +1,4 @@
-export * from './aggregate-legacy';
+export * from './aggregate';
 export * from './builder';
 export * from './container';
 export * from './doc';
