@@ -1,7 +1,8 @@
 ---
-alwaysApply: true
+description: Testing Standards
+globs: *.spec.ts
+alwaysApply: false
 ---
-
 # Testing Standards
 
 ## Overview
