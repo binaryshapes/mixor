@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { type ElementsTags, element, getElementMeta } from '../src/element';
+import { type ElementsTags, element, getElementMeta, isElement } from '../src/element';
 import type { Any } from '../src/generics';
 
 describe('Element', () => {
@@ -72,6 +72,43 @@ describe('Element', () => {
       expect(elementInstance.details.email).toBe('john@example.com');
       expect(elementInstance.tags).toEqual(['user', 'active']);
     });
+
+    it('should correctly identify element tags', () => {
+      const userData = { name: 'John', age: 30 };
+      const elementInstance = element(userData, {
+        hash: 'user-123',
+        tag: 'Value',
+        doc: 'User information',
+      });
+
+      expect(isElement(elementInstance, 'Value')).toBe(true);
+      expect(isElement(elementInstance, 'Aggregate')).toBe(false);
+      expect(isElement(elementInstance, 'Event')).toBe(false);
+      expect(isElement(elementInstance, 'Schema')).toBe(false);
+    });
+
+    it('should return false for non-element objects', () => {
+      const regularObject = { name: 'John', age: 30 };
+      const nullValue = null;
+      const undefinedValue = undefined;
+
+      expect(isElement(regularObject, 'Value')).toBe(false);
+      expect(isElement(nullValue, 'Value')).toBe(false);
+      expect(isElement(undefinedValue, 'Value')).toBe(false);
+    });
+
+    it('should return false for elements with different tags', () => {
+      const userData = { name: 'John', age: 30 };
+      const elementInstance = element(userData, {
+        hash: 'user-123',
+        tag: 'Aggregate',
+        doc: 'User information',
+      });
+
+      expect(isElement(elementInstance, 'Value')).toBe(false);
+      expect(isElement(elementInstance, 'Aggregate')).toBe(true);
+      expect(isElement(elementInstance, 'Event')).toBe(false);
+    });
   });
 
   describe('Type safety', () => {
@@ -89,6 +126,9 @@ describe('Element', () => {
 
       // Test getElementMeta function
       expectTypeOf(getElementMeta).toBeFunction();
+
+      // Test isElement function
+      expectTypeOf(isElement).toBeFunction();
     });
 
     it('should validate function signatures', () => {
@@ -147,13 +187,30 @@ describe('Element', () => {
         tag: 'Value',
         doc: 'User information',
       });
-      const metadata = getElementMeta(elementInstance);
+
+      const metadata = getElementMeta<'Value'>(elementInstance);
 
       expect(metadata).toBeDefined();
-      expect(metadata._tag).toBe('Value');
-      expect(metadata._hash).toBe('user-123');
-      expect(metadata._doc).toBe('User information');
-      expect(typeof metadata._id).toBe('string');
+      if (metadata) {
+        expect(metadata._tag).toBe('Value');
+        expect(metadata._hash).toBe('user-123');
+        expect(metadata._doc).toBe('User information');
+        expect(typeof metadata._id).toBe('string');
+      }
+    });
+
+    it('should run example element-004: Checking if an element is of a specific tag', () => {
+      const userData = { name: 'John', age: 30 };
+      const elementInstance = element(userData, {
+        hash: 'user-123',
+        tag: 'Value',
+        doc: 'User information',
+      });
+      const isUserElement = isElement(elementInstance, 'Value');
+
+      expect(isUserElement).toBe(true);
+      expect(isElement(elementInstance, 'Aggregate')).toBe(false);
+      expect(isElement(elementInstance, 'Schema')).toBe(false);
     });
   });
 });
