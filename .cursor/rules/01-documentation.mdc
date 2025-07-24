@@ -1,4 +1,5 @@
 ---
+description: Documentation Standards
 alwaysApply: true
 ---
 
@@ -136,6 +137,138 @@ Based on the [TSDoc specification](https://tsdoc.org/), here are the essential t
 - **`@public` elements (except types/interfaces)** - Must include `@example` tags with unique codes.
 - **Cross-references** - Use `@link` to reference related documentation elements.
 - **Punctuation** - Always end paragraphs with periods.
+
+### Public vs Internal Interface/Type Guidelines
+
+#### When to Use `@public` for Interfaces/Types
+
+- **User-facing contracts** - Interfaces that users need to understand or implement.
+- **Return types of public functions** - Types that are part of the public API.
+- **Configuration interfaces** - Types that users pass to public functions.
+- **Error types** - Types that users need to handle or understand.
+
+#### When to Use `@internal` for Interfaces/Types
+
+- **Implementation details** - Interfaces used internally but not exposed to users.
+- **Builder pattern interfaces** - Interfaces that define internal builder methods.
+- **Helper types** - Types used for internal type manipulation.
+- **Internal contracts** - Interfaces that are part of the implementation but not the API.
+
+#### Export Consistency Rules
+
+- **All `@public` elements MUST be exported** - Every public element must be available to users.
+- **All exported elements SHOULD be `@public`** - Exported elements should be documented as public.
+- **`@internal` elements should NOT be exported** - Internal elements should not be exposed.
+- **Exception: Internal types used in public return types** - These may need to be exported for TypeScript but should remain `@internal`.
+
+#### Examples of Correct Usage
+
+```typescript
+// ✅ GOOD: Public interface that users need to understand
+/**
+ * Configuration for validation rules.
+ *
+ * @public
+ */
+interface ValidationConfig {
+  minLength?: number;
+  maxLength?: number;
+}
+
+// ✅ GOOD: Public function that returns a public type
+/**
+ * Creates a validator with the given configuration.
+ *
+ * @param config - Validation configuration.
+ * @returns A validator function.
+ *
+ * @example
+ * ```ts
+ * // validation-001: Basic validator creation.
+ * const validator = createValidator({ minLength: 3 });
+ * // validator: ValidationFunction.
+ * ```
+ *
+ * @public
+ */
+function createValidator(config: ValidationConfig): ValidationFunction {
+  // Implementation...
+}
+
+// ✅ GOOD: Internal interface for implementation details
+/**
+ * Internal builder interface for creating validators.
+ * Used by the builder pattern but not exposed to users.
+ *
+ * @internal
+ */
+interface ValidatorBuilder<T> {
+  rule(rule: Rule<T>): ValidatorBuilder<T>;
+  build(): Validator<T>;
+}
+
+// ❌ BAD: Internal interface exported (should not be exported)
+/**
+ * Internal helper interface.
+ *
+ * @internal
+ */
+interface InternalHelper {
+  // Implementation details...
+}
+export { InternalHelper }; // Should not be exported!
+
+// ❌ BAD: Public interface not exported (should be exported)
+/**
+ * Public configuration interface.
+ *
+ * @public
+ */
+interface PublicConfig {
+  // Public API...
+}
+// Missing: export { PublicConfig };
+```
+
+#### Builder Pattern Guidelines
+
+- **Builder interfaces should be `@internal`** - Users don't need to know the builder interface.
+- **Builder methods should be `@internal`** - The methods are internal implementation details.
+- **Public API is the factory function** - `spec()` is public, `SpecificationBuilder` is internal.
+- **TypeScript handles the typing** - Users get autocompletion without knowing the interface.
+
+```typescript
+// ✅ GOOD: Builder pattern with internal interface
+/**
+ * Creates a specification builder.
+ *
+ * @returns A specification builder.
+ *
+ * @example
+ * ```ts
+ * // spec-001: Basic specification creation.
+ * const spec = spec<User>()
+ *   .rule('validation', u => ok(u))
+ *   .build();
+ * ```
+ *
+ * @public
+ */
+function spec<T>(): SpecificationBuilderInitial<T, never> {
+  // Returns internal interface, but users don't need to know it
+}
+
+/**
+ * Internal builder interface.
+ * Users interact with this through the builder pattern.
+ *
+ * @internal
+ */
+interface SpecificationBuilder<T, E> {
+  rule<R>(rule: R): SpecificationBuilder<T, E | RuleError<R>>;
+  build(): Specification<T, E>;
+}
+```
 
 ## Module Agnostic Documentation Guidelines
 
@@ -334,6 +467,12 @@ function validateUserInput(input: string, config?: ValidationConfig): Result<str
 - [ ] Each example is an independent `@example` block.
 - [ ] Cross-references use `@link` tags appropriately.
 - [ ] All paragraphs end with periods.
+- [ ] `@public` interfaces/types are user-facing contracts or configuration.
+- [ ] `@internal` interfaces/types are implementation details or builder patterns.
+- [ ] All `@public` elements are exported.
+- [ ] All exported elements are `@public` (with exceptions for internal types in public return types).
+- [ ] Builder pattern interfaces are `@internal` and not exported.
+- [ ] Public API functions return internal types when appropriate (TypeScript handles typing).
 
 ## Key Documentation Principles
 
@@ -348,3 +487,7 @@ function validateUserInput(input: string, config?: ValidationConfig): Result<str
 - **Require @example for @public elements** - All public functions, classes, and variables must have examples.
 - **Separate examples with independent @example blocks** - Each use case gets its own example.
 - **End all paragraphs with periods** - Maintain consistent punctuation throughout.
+- **Use @public for user-facing contracts** - Interfaces that users need to understand or implement.
+- **Use @internal for implementation details** - Builder patterns and internal helper types.
+- **Ensure export consistency** - All @public elements must be exported, @internal elements should not be exported.
+- **Builder patterns hide internal interfaces** - Users interact through public factory functions, not internal interfaces.
