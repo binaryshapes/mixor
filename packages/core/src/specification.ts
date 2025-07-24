@@ -6,6 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import { type Element, element, isElement } from './element';
 import type { Any } from './generics';
 import { hash } from './hash';
 import { Panic } from './panic';
@@ -31,12 +32,13 @@ type RuleFunction<T, E> = (entity: T) => Result<T, E>;
  *
  * @internal
  */
-type Rule<T, E> = ((entity: T) => Result<T, E>) & {
-  readonly _tag: 'Rule';
-  readonly _hash: string;
-  readonly _doc?: string;
-  readonly validator: RuleFunction<T, E>;
-};
+type Rule<T, E> = Element<
+  'Spec',
+  {
+    readonly validator: RuleFunction<T, E>;
+  }
+> &
+  ((entity: T) => Result<T, E>);
 
 /**
  * A condition function that determines if a specification should be applied.
@@ -75,62 +77,107 @@ type RuleFunctionError<F> = F extends RuleFunction<Any, infer E> ? E : never;
  *
  * @public
  */
-type Specification<T, E = Any> = {
-  /**
-   * The tag of the specification.
-   * @public
-   */
-  readonly _tag: 'Specification';
-  /**
-   * The hash of the specification.
-   * @public
-   */
-  readonly _hash: string;
-  /**
-   * The documentation of this specification (optional).
-   * @public
-   */
-  readonly _doc?: string;
-  /**
-   * Validates an entity against this specification.
-   * Returns a Result indicating success or failure with validation errors.
-   *
-   * @param entity - The entity to validate.
-   * @returns A Result with the entity on success or validation errors on failure.
-   *
-   * @public
-   */
-  satisfy: (entity: T) => Result<T, E>;
-  /**
-   * Combines this specification with another using AND logic.
-   * Both specifications must be satisfied for the result to be successful.
-   *
-   * @param other - The other specification to combine with.
-   * @returns A new specification that requires both to be satisfied.
-   *
-   * @public
-   */
-  and: <E2>(other: Specification<T, E2>) => Specification<T, E | E2>;
-  /**
-   * Combines this specification with another using OR logic.
-   * At least one specification must be satisfied for the result to be successful.
-   *
-   * @param other - The other specification to combine with.
-   * @returns A new specification that requires at least one to be satisfied.
-   *
-   * @public
-   */
-  or: <E2>(other: Specification<T, E2>) => Specification<T, E | E2>;
-  /**
-   * Negates this specification.
-   * Returns a specification that is satisfied when the original is not satisfied.
-   *
-   * @returns A new specification that is the negation of this one.
-   *
-   * @public
-   */
-  not: () => Specification<T, E | 'Specification should not be satisfied'>;
-};
+type Specification<T, E = Any> = Element<
+  'Spec',
+  {
+    /**
+     * Validates an entity against this specification.
+     * Returns a Result indicating success or failure with validation errors.
+     *
+     * @param entity - The entity to validate.
+     * @returns A Result with the entity on success or validation errors on failure.
+     *
+     * @public
+     */
+    satisfy: (entity: T) => Result<T, E>;
+    /**
+     * Combines this specification with another using AND logic.
+     * Both specifications must be satisfied for the result to be successful.
+     *
+     * @param other - The other specification to combine with.
+     * @returns A new specification that requires both to be satisfied.
+     *
+     * @example
+     * ```ts
+     * // spec-008: Combining specifications with AND logic.
+     * const adminSpec = spec<User>()
+     *   .rule('must be admin', u => u.role === 'Admin' ? ok(u) : err('NOT_ADMIN'))
+     *   .build();
+     *
+     * const emailSpec = spec<User>()
+     *   .rule('must have corporate email', u => u.email.endsWith('@company.com') ? ok(u) : err('INVALID_EMAIL'))
+     *   .build();
+     *
+     * const combinedSpec = adminSpec.and(emailSpec);
+     * const result = combinedSpec.satisfy(user);
+     * if (isErr(result)) {
+     *   // unwrap(result): 'NOT_ADMIN' | 'INVALID_EMAIL'.
+     * } else {
+     *   // unwrap(result): user object (when both specs are satisfied).
+     * }
+     * ```
+     *
+     * @public
+     */
+    and: <E2>(other: Specification<T, E2>) => Specification<T, E | E2>;
+    /**
+     * Combines this specification with another using OR logic.
+     * At least one specification must be satisfied for the result to be successful.
+     *
+     * @param other - The other specification to combine with.
+     * @returns A new specification that requires at least one to be satisfied.
+     *
+     * @example
+     * ```ts
+     * // spec-009: Combining specifications with OR logic.
+     * const adminSpec = spec<User>()
+     *   .rule('must be admin', u => u.role === 'Admin' ? ok(u) : err('NOT_ADMIN'))
+     *   .build();
+     *
+     * const userSpec = spec<User>()
+     *   .rule('must be user', u => u.role === 'User' ? ok(u) : err('NOT_USER'))
+     *   .build();
+     *
+     * const combinedSpec = adminSpec.or(userSpec);
+     * const result = combinedSpec.satisfy(user);
+     * if (isOk(result)) {
+     *   // unwrap(result): user object (when at least one spec is satisfied).
+     * } else {
+     *   // unwrap(result): 'NOT_ADMIN' | 'NOT_USER' (when both specs fail).
+     * }
+     * ```
+     *
+     * @public
+     */
+    or: <E2>(other: Specification<T, E2>) => Specification<T, E | E2>;
+    /**
+     * Negates this specification.
+     * Returns a specification that is satisfied when the original is not satisfied.
+     *
+     * @param e - The error to return when the original specification is satisfied.
+     * @returns A new specification that is the negation of this one.
+     *
+     * @example
+     * ```ts
+     * // spec-007: Negating a specification with custom error.
+     * const adminSpec = spec<User>()
+     *   .rule('must be admin', u => u.role === 'Admin' ? ok(u) : err('NOT_ADMIN'))
+     *   .build();
+     *
+     * const notAdminSpec = adminSpec.not('USER_MUST_NOT_BE_ADMIN');
+     * const result = notAdminSpec.satisfy(user);
+     * if (isErr(result)) {
+     *   // unwrap(result): 'USER_MUST_NOT_BE_ADMIN'.
+     * } else {
+     *   // unwrap(result): user object (when user is not admin).
+     * }
+     * ```
+     *
+     * @public
+     */
+    not: <TE extends string | Record<string, Any>>(e: TE) => Specification<T, E | TE>;
+  }
+>;
 
 /**
  * Builder for creating specifications with a fluent API.
@@ -145,7 +192,7 @@ interface SpecificationBuilder<T, E> {
   /**
    * Sets a condition that must be true for the specification to be evaluated.
    * If the condition is false, the specification is considered satisfied.
-   * Optional - rules can be added directly without calling when().
+   * This is optional, rules can be added directly without calling when().
    *
    * @param condition - The condition function.
    * @returns The builder for chaining rules.
@@ -155,7 +202,7 @@ interface SpecificationBuilder<T, E> {
   when(condition: Condition<T>): SpecificationBuilderWithRules<T, E>;
   /**
    * Adds a rule to the specification.
-   * Can be called directly without when() for unconditional rules.
+   * Can be called directly without `when()` for unconditional rules.
    * Supports three forms: documented rule, function direct, or rule object.
    *
    * @param rule - The rule function to validate.
@@ -226,13 +273,16 @@ type SpecificationBuilderWithRules<T, E> = Omit<SpecificationBuilder<T, E>, 'whe
 
 /**
  * Panic error for the specification module.
+ * Raised when the specification is invalid or cannot be built.
  *
  * @public
  */
 const SpecificationError = Panic<
   'SPECIFICATION',
-  // Raised when the specification is invalid.
-  'NO_RULE_ADDED'
+  // Raised when the specification is built without rules.
+  | 'NO_RULE_ADDED'
+  // Raised when the rule is invalid.
+  | 'INVALID_RULE'
 >('SPECIFICATION');
 
 /**
@@ -278,21 +328,24 @@ function createSpecification<T>(
       return other.satisfy(entity);
     });
 
-  const not = () =>
+  const not = <TE extends string | Record<string, Any>>(e: TE) =>
     makeSpec((entity: T) => {
       const r = satisfy(entity);
-      return isOk(r) ? err('Specification should not be satisfied') : ok(entity);
+      return isOk(r) ? err(e) : ok(entity);
     });
 
   const makeSpec = (satisfy: Any) => {
-    return Object.assign(satisfy, {
-      _tag: 'Specification' as const,
-      _hash: hash(rules),
-      _doc: doc ?? (rules.length > 0 ? rules[0]._doc : undefined),
+    const specObject = Object.assign(satisfy, {
       satisfy,
       and,
       or,
       not,
+    });
+
+    return element(specObject, {
+      hash: hash(rules),
+      tag: 'Spec',
+      doc,
     });
   };
 
@@ -357,7 +410,7 @@ function spec<T, E = never>(
     return {
       rule(...args: Any[]) {
         if (typeof args[0] === 'string' && args[1]) {
-          // rule('doc', fn) - documented rule
+          // rule('doc', fn) - documented rule.
           const createdRule = rule(args[0], args[1]) as Rule<T, Any>;
           return createBuilder<TE | RuleFunctionError<(typeof args)[1]>>(
             builderDoc,
@@ -365,7 +418,7 @@ function spec<T, E = never>(
             [...builderRules, createdRule],
           );
         } else if (typeof args[0] === 'function') {
-          // rule(fn) - function without documentation
+          // rule(fn) - function without documentation.
           const createdRule = rule(args[0]) as Rule<T, Any>;
           return createBuilder<TE | RuleFunctionError<(typeof args)[0]>>(
             builderDoc,
@@ -373,12 +426,11 @@ function spec<T, E = never>(
             [...builderRules, createdRule],
           );
         } else {
-          // rule(ruleObject) - predefined rule object
-          return createBuilder<TE | RuleError<(typeof args)[0]>>(builderDoc, builderCondition, [
-            ...builderRules,
-            args[0] as Rule<T,
-              Any>,
-          ]);
+          // Invalid rule format - throw error
+          throw new SpecificationError(
+            'INVALID_RULE',
+            `Invalid rule format. Expected function or documented rule, got: ${typeof args[0]}`,
+          );
         }
       },
       build() {
@@ -403,7 +455,7 @@ function spec<T, E = never>(
  * Creates a rule for entity validation.
  * This function supports both documented and non-documented rules through function overloads.
  *
- * @param args - The documentation string or validation function.
+ * @param args - The documentation string and/or validation function.
  * @returns A rule that can validate entities.
  *
  * @example
@@ -425,7 +477,22 @@ function spec<T, E = never>(
  *   (user: User) => user.permissions.includes('manage_users') ? ok(user) : err('NO_PERMISSION')
  * );
  *
- * console.log(hasPermission._doc); // 'User must have management permission'.
+ * // getElementMeta(hasPermission)._doc: 'User must have management permission'.
+ * ```
+ *
+ * @example
+ * ```ts
+ * // spec-006: Accessing element metadata.
+ * const hasPermission = rule(
+ *   'User must have management permission',
+ *   (user: User) => user.permissions.includes('manage_users') ? ok(user) : err('NO_PERMISSION')
+ * );
+ *
+ * // getElementMeta(hasPermission)._id: unique UUID.
+ * // getElementMeta(hasPermission)._tag: 'Spec'.
+ * // getElementMeta(hasPermission)._hash: content hash.
+ * // getElementMeta(hasPermission)._doc: 'User must have management permission'.
+ * // All metadata is now accessible through getElementMeta function.
  * ```
  *
  * @public
@@ -435,13 +502,20 @@ function rule<T, E>(...args: [RuleFunction<T, E>] | [string, RuleFunction<T, E>]
   const validator = (typeof args[0] === 'function' ? args[0] : args[1]) as RuleFunction<T, E>;
   const ruleWrapper = (entity: T): Result<T, E> => validator(entity);
 
+  // Create the rule element with metadata
+  const ruleElement = element(
+    {
+      validator,
+    },
+    {
+      hash: hash(doc, validator),
+      tag: 'Spec',
+      doc,
+    },
+  );
+
   // Attach the validator function to the wrapper for introspection.
-  return Object.assign(ruleWrapper, {
-    validator,
-    _tag: 'Rule',
-    _hash: hash(doc, validator),
-    _doc: doc,
-  }) as Rule<T, E>;
+  return Object.assign(ruleWrapper, ruleElement) as Rule<T, E>;
 }
 
 /**
@@ -463,12 +537,8 @@ function rule<T, E>(...args: [RuleFunction<T, E>] | [string, RuleFunction<T, E>]
  *
  * @public
  */
-const isSpec = (maybeSpec: unknown): maybeSpec is Specification<Any, Any> =>
-  !!maybeSpec &&
-  typeof maybeSpec === 'function' &&
-  '_tag' in maybeSpec &&
-  '_hash' in maybeSpec &&
-  maybeSpec._tag === 'Specification';
+const isSpec = (maybeSpec: Any): maybeSpec is Specification<Any, Any> =>
+  typeof maybeSpec === 'function' && isElement(maybeSpec, 'Spec');
 
 export type { Specification };
 export { spec, rule, isSpec, SpecificationError };

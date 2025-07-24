@@ -1,4 +1,5 @@
-import { err, isOk, ok, unwrap } from '../src/result';
+import { getElementMeta } from '../src/element';
+import { err, isErr, isOk, ok, unwrap } from '../src/result';
 import { isSpec, rule, spec } from '../src/specification';
 
 // Test data types.
@@ -106,7 +107,8 @@ function specRuleCreationWithDocumentation() {
     user.permissions.includes('manage_users') ? ok(user) : err('NO_PERMISSION'),
   );
 
-  console.log('Rule documentation:', hasPermission._doc); // 'User must have management permission'.
+  const metadata = getElementMeta(hasPermission);
+  console.log('Rule documentation:', metadata?._doc); // 'User must have management permission'.
 }
 
 /**
@@ -128,9 +130,98 @@ function specCheckingIfValueIsSpecification() {
   console.log('Is not spec:', isNotSpec);
 }
 
+/**
+ * spec-006: Accessing element metadata.
+ */
+function specAccessingElementMetadata() {
+  console.log('\nspec-006: Accessing element metadata.');
+
+  const hasPermission = rule('User must have management permission', (user: User) =>
+    user.permissions.includes('manage_users') ? ok(user) : err('NO_PERMISSION'),
+  );
+
+  const metadata = getElementMeta(hasPermission);
+  console.log('Element ID:', metadata?._id);
+  console.log('Element Tag:', metadata?._tag);
+  console.log('Element Hash:', metadata?._hash);
+  console.log('Element Doc:', metadata?._doc);
+  // All metadata is now accessible through getElementMeta function.
+}
+
+/**
+ * spec-007: Negating a specification with custom error.
+ */
+function specNegatingASpecificationWithCustomError() {
+  console.log('\nspec-008: Negating a specification with custom error.');
+
+  const adminSpec = spec<User>()
+    .rule('must be admin', (u) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN')))
+    .build();
+
+  const notAdminSpec = adminSpec.not('USER_MUST_NOT_BE_ADMIN');
+  const result = notAdminSpec.satisfy(validUser);
+  if (isErr(result)) {
+    console.log('Error result:', unwrap(result)); // 'USER_MUST_NOT_BE_ADMIN'.
+  } else {
+    console.log('Success result:', unwrap(result)); // user object (when user is not admin).
+  }
+}
+
+/**
+ * spec-009: Combining specifications with AND logic.
+ */
+function specCombiningSpecificationsWithAndLogic() {
+  console.log('\nspec-009: Combining specifications with AND logic.');
+
+  const adminSpec = spec<User>()
+    .rule('must be admin', (u) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN')))
+    .build();
+
+  const emailSpec = spec<User>()
+    .rule('must have corporate email', (u) =>
+      u.email.endsWith('@company.com') ? ok(u) : err('INVALID_EMAIL'),
+    )
+    .build();
+
+  const combinedSpec = adminSpec.and(emailSpec);
+  const result = combinedSpec.satisfy(validUser);
+  if (isErr(result)) {
+    console.log('Error result:', unwrap(result)); // 'NOT_ADMIN' | 'INVALID_EMAIL'.
+  } else {
+    console.log('Success result:', unwrap(result)); // user object (when both specs are satisfied).
+  }
+}
+
+/**
+ * spec-010: Combining specifications with OR logic.
+ */
+function specCombiningSpecificationsWithOrLogic() {
+  console.log('\nspec-010: Combining specifications with OR logic.');
+
+  const adminSpec = spec<User>()
+    .rule('must be admin', (u) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN')))
+    .build();
+
+  const userSpec = spec<User>()
+    .rule('must be user', (u) => (u.role === 'User' ? ok(u) : err('NOT_USER')))
+    .build();
+
+  const combinedSpec = adminSpec.or(userSpec);
+  const result = combinedSpec.satisfy(validUser);
+  if (isOk(result)) {
+    console.log('Success result:', unwrap(result)); // user object (when at least one spec is satisfied).
+  } else {
+    console.log('Error result:', unwrap(result)); // 'NOT_ADMIN' | 'NOT_USER' (when both specs fail).
+  }
+}
+
 // Execute all examples
 specBasicSpecification();
 specComplexSpecification();
 specBasicRuleCreation();
 specRuleCreationWithDocumentation();
 specCheckingIfValueIsSpecification();
+specAccessingElementMetadata();
+specNegatingASpecificationWithCustomError();
+specCombiningSpecificationsWithAndLogic();
+specCombiningSpecificationsWithOrLogic();
