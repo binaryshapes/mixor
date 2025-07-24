@@ -275,7 +275,7 @@ const EventError = Panic<'EVENT', 'INVALID_KEY'>('EVENT');
  *
  * @public
  */
-const events = <E extends Event<Any, Any>[], R = EventListToRecord<E>>(
+const events = <K extends string, E extends Event<K, Any>[], R = EventListToRecord<E>>(
   events: E,
 ): EventStore<R> => {
   const store: Any[] = [];
