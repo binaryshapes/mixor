@@ -263,13 +263,13 @@ pnpm test:project -- nameOfModule
 
 ```bash
 # Test flow module
-pnpm test:project -- flow
+pnpm test-project -- flow
 
 # Test event module with typechecking
-pnpm test:project -- event --typecheck
+pnpm test-project -- event --typecheck
 
 # Test pipe module with coverage
-pnpm test:project -- pipe --coverage
+pnpm test-project -- pipe --coverage
 ```
 
 ## Test Quality Checklist
