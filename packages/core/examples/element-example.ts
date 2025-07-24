@@ -1,4 +1,4 @@
-import { element, getElementMeta } from '../src/element';
+import { element, getElementMeta, isElement } from '../src/element';
 import type { Any } from '../src/generics';
 
 /**
@@ -54,12 +54,36 @@ function elementRetrieveMetadata() {
   // Demonstrate metadata retrieval
   console.log('Original element:', elementInstance);
   console.log('Retrieved metadata:', metadata);
-  console.log('Metadata tag:', metadata._tag);
-  console.log('Metadata hash:', metadata._hash);
-  console.log('Metadata doc:', metadata._doc);
-  console.log('Metadata id:', metadata._id);
+
+  if (metadata) {
+    console.log('Metadata tag:', metadata._tag);
+    console.log('Metadata hash:', metadata._hash);
+    console.log('Metadata doc:', metadata._doc);
+    console.log('Metadata id:', metadata._id);
+  }
+}
+
+/**
+ * element-004: Checking if an element is of a specific tag.
+ */
+function elementCheckTag() {
+  console.log('\nelement-004: Checking if an element is of a specific tag.');
+  const userData = { name: 'John', age: 30 };
+  const elementInstance = element(userData, {
+    hash: 'user-123',
+    tag: 'Value',
+    doc: 'User information',
+  });
+  const isUserElement = isElement(elementInstance, 'Value');
+
+  // Demonstrate tag checking
+  console.log('Element:', elementInstance);
+  console.log('Is Value element:', isUserElement);
+  console.log('Is Aggregate element:', isElement(elementInstance, 'Aggregate'));
+  console.log('Is Schema element:', isElement(elementInstance, 'Schema'));
 }
 
 elementBasicCreation();
 elementCreationWithoutDoc();
 elementRetrieveMetadata();
+elementCheckTag();
