@@ -325,7 +325,21 @@ interface AggregateConstructor {
 }
 
 /**
- * Panic error for the aggregate module.
+ * Panic error for the aggregate module. Used when aggregate operations fail
+ * due to invalid configuration or unexpected errors.
+ *
+ * @example
+ * ```ts
+ * // aggregate-004: Handling aggregate configuration errors.
+ * try {
+ *   const invalidAggregate = aggregate(null as any);
+ * } catch (error) {
+ *   if (error instanceof AggregateError) {
+ *     // error.code: 'INVALID_CONFIGURATION'.
+ *     // error.message: 'Invalid aggregate configuration.'.
+ *   }
+ * }
+ * ```
  *
  * @public
  */
@@ -335,6 +349,116 @@ const AggregateError = Panic<
   'INVALID_CONFIGURATION'
 >('AGGREGATE');
 
+/**
+ * Creates an aggregate with schema validation, event handling, business rule specifications,
+ * and custom methods. Aggregates are domain objects that encapsulate business logic and
+ * maintain consistency through validation rules.
+ *
+ * @param docOrConfig - Documentation string or aggregate configuration.
+ * @param configParam - Aggregate configuration (when documentation is provided).
+ * @returns A function that creates aggregate instances with validation and event handling.
+ *
+ * @example
+ * ```ts
+ * // aggregate-001: Basic aggregate creation with schema validation.
+ * const userAggregate = aggregate({
+ *   schema: {
+ *     id: string,
+ *     name: string,
+ *     email: string
+ *   },
+ *   events: eventStore(),
+ *   specs: {},
+ *   methods: ({ self, fn }) => ({
+ *     updateName: fn('Update user name', (name: string) => {
+ *       return self.set('name', name);
+ *     })
+ *   })
+ * });
+ *
+ * const result = userAggregate({
+ *   id: 'user-1',
+ *   name: 'John Doe',
+ *   email: 'john@example.com'
+ * });
+ * // result: aggregate instance with validation and methods.
+ * ```
+ *
+ * @example
+ * ```ts
+ * // aggregate-002: Aggregate with business rule specifications.
+ * const orderAggregate = aggregate({
+ *   schema: {
+ *     id: string,
+ *     total: number,
+ *     status: string
+ *   },
+ *   events: eventStore(),
+ *   specs: {
+ *     positiveTotal: spec('Total must be positive', (state) =>
+ *       state.total > 0 ? ok(state) : err('Total must be positive')
+ *     )
+ *   },
+ *   methods: ({ self, fn, specs }) => ({
+ *     updateTotal: fn('Update order total', (total: number) => {
+ *       const setResult = self.set('total', total);
+ *       if (isErr(setResult)) return setResult;
+ *       return specs.positiveTotal.satisfy(self.getState());
+ *     })
+ *   })
+ * });
+ *
+ * const result = orderAggregate({
+ *   id: 'order-1',
+ *   total: 100,
+ *   status: 'pending'
+ * });
+ * // result: aggregate instance with business rule validation.
+ * ```
+ *
+ * @example
+ * ```ts
+ * // aggregate-003: Aggregate with event handling and documentation.
+ * const productAggregate = aggregate(
+ *   'Product aggregate with inventory management',
+ *   {
+ *     schema: {
+ *       id: string,
+ *       name: string,
+ *       stock: number
+ *     },
+ *     events: eventStore(),
+ *     specs: {
+ *       nonNegativeStock: spec('Stock cannot be negative', (state) =>
+ *         state.stock >= 0 ? ok(state) : err('Stock cannot be negative')
+ *       )
+ *     },
+ *     methods: ({ self, fn, specs }) => ({
+ *       reduceStock: fn('Reduce product stock', (quantity: number) => {
+ *         const newStock = self.getState().stock - quantity;
+ *         const setResult = self.set('stock', newStock);
+ *         if (isErr(setResult)) return setResult;
+ *
+ *         const validationResult = specs.nonNegativeStock.satisfy(self.getState());
+ *         if (isErr(validationResult)) return validationResult;
+ *
+ *         self.emit({ type: 'stock_reduced', quantity });
+ *         return ok(self.getState());
+ *       })
+ *     })
+ *   }
+ * );
+ *
+ * const result = productAggregate({
+ *   id: 'prod-1',
+ *   name: 'Widget',
+ *   stock: 50
+ * });
+ * // result: aggregate instance with event emission and validation.
+ * ```
+ *
+ * @public
+ */
 const aggregate: AggregateConstructor = <
   T,
   E extends EventStore<Any>,
