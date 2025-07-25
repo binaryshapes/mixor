@@ -1,0 +1,30 @@
+{
+  "name": "hono-openapi",
+  "version": "1.0.0",
+  "description": "A simple API with Mixor and Hono",
+  "author": "Carlos Cosming",
+  "license": "MIT",
+  "keywords": [
+    "mixor",
+    "hono",
+    "api"
+  ],
+  "scripts": {
+    "dev": "node --watch --import tsx --conditions development src/main.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.17.1",
+    "@hono/zod-openapi": "^1.0.2",
+    "@mixor/core": "workspace:*",
+    "@mixor/values": "workspace:*",
+    "hono": "^4.8.5",
+    "zod": "^4.0.9"
+  },
+  "devDependencies": {
+    "@nuxo/tsup": "^1.0.0",
+    "@types/node": "^20.11.17",
+    "tslib": "^2.8.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.4"
+  }
+}
