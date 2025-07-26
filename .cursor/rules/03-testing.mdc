@@ -32,6 +32,8 @@ This rule defines the standards for creating and maintaining tests that are sync
 - **Type safety section is mandatory** - every test file must include comprehensive typechecking.
 - **Test all @public elements** - validate TypeScript support for all public functions, classes, and variables.
 - **Use expectTypeOf for typechecking** - always validate type inference and constraints.
+- **Use toEqualTypeOf instead of toMatchTypeOf** - `toMatchTypeOf` is deprecated by Vitest, use `toEqualTypeOf` for strict type equality.
+- **Use Result type for typechecking when applicable** - When testing functions that return `Result<T, E>`, use `Result<T, E>` directly in type assertions.
 - **Separate typechecking from runtime tests** - keep Type safety section focused only on types.
 
 ### 4. Result Validation Guidelines
@@ -41,6 +43,38 @@ This rule defines the standards for creating and maintaining tests that are sync
 - **Runtime tests focus on behavior only** - avoid typechecking in non-Type safety sections.
 
 ## Type Safety Testing Guidelines
+
+### Vitest Typechecking Best Practices
+
+#### Using toEqualTypeOf vs toMatchTypeOf
+
+- **Use `toEqualTypeOf` for strict type equality** - This is the preferred method for type checking.
+- **Avoid `toMatchTypeOf`** - This method is deprecated by Vitest and should not be used.
+- **Use `Result<T, E>` for typechecking when applicable** - When testing functions that return `Result<T, E>`, use the `Result<T, E>` type directly instead of union types.
+
+#### Examples of Correct Typechecking
+
+```typescript
+// Import Result type for typechecking
+import { type Result, err, isErr, isOk, ok, unwrap } from '../src/result';
+
+// ✅ GOOD: Use toEqualTypeOf for strict type equality
+expectTypeOf(functionName('input')).toEqualTypeOf<Result<string, 'ERROR_TYPE'>>();
+
+// ✅ GOOD: Test specific error types with inference
+const numberValue = value((num: number) => num > 0 ? ok(num) : err('NEGATIVE'));
+expectTypeOf(numberValue(5)).toEqualTypeOf<Result<number, 'NEGATIVE'>>();
+
+// ✅ GOOD: Test function signatures
+expectTypeOf(functionName).toBeFunction();
+expectTypeOf(functionName.validator).toBeFunction();
+
+// ❌ AVOID: Don't use toMatchTypeOf (deprecated)
+// expectTypeOf(functionName('input')).toMatchTypeOf<Result<string, 'ERROR_TYPE'>>();
+
+// ❌ AVOID: Don't use union types for Result typechecking
+// expectTypeOf(functionName('input')).toMatchTypeOf<ReturnType<typeof ok<string>> | ReturnType<typeof err<'ERROR_TYPE'>>>();
+```
 
 ### Comprehensive Type Safety Section
 
@@ -61,7 +95,7 @@ describe('Type safety', () => {
     expectTypeOf(publicVariable).toBeString();
 
     // Test all @public types/interfaces
-    expectTypeOf<PublicType>().toMatchTypeOf<ExpectedType>();
+    expectTypeOf<PublicType>().toEqualTypeOf<ExpectedType>();
   });
 
   it('should validate generic type constraints', () => {
@@ -81,7 +115,7 @@ describe('Type safety', () => {
     expectTypeOf(unionFunction(123)).toBeNumber();
 
     // Test intersection types
-    expectTypeOf(intersectionType).toMatchTypeOf<ExpectedIntersection>();
+    expectTypeOf(intersectionType).toEqualTypeOf<ExpectedIntersection>();
   });
 });
 ```
@@ -90,6 +124,8 @@ describe('Type safety', () => {
 
 - **Test all @public elements** - Every public function, class, variable, type, and interface.
 - **Use expectTypeOf consistently** - Always use `expectTypeOf` for type validation.
+- **Use toEqualTypeOf instead of toMatchTypeOf** - `toMatchTypeOf` is deprecated by Vitest, use `toEqualTypeOf` for strict type equality.
+- **Use Result type for typechecking when applicable** - When testing functions that return `Result<T, E>`, use `Result<T, E>` directly in type assertions instead of union types.
 - **Test type inference** - Validate that functions return expected types.
 - **Test generic constraints** - Validate generic type parameters and constraints.
 - **Test union/intersection types** - Validate complex type compositions.
@@ -180,6 +216,20 @@ expect(unwrap(result)).toEqual(expectedValue);
 // For error cases.
 const errorResult = functionName('invalid input');
 expect(unwrap(errorResult)).toEqual(expectedError);
+```
+
+### Using Result Type for Typechecking
+
+When testing type safety for functions that return `Result<T, E>`, use the `Result<T, E>` type directly:
+
+```typescript
+// ✅ GOOD: Use Result type directly for typechecking
+const result = functionName('input');
+expectTypeOf(result).toEqualTypeOf<Result<string, 'ERROR_TYPE'>>();
+
+// ❌ AVOID: Don't use union types for Result typechecking
+const result = functionName('input');
+expectTypeOf(result).toMatchTypeOf<ReturnType<typeof ok<string>> | ReturnType<typeof err<'ERROR_TYPE'>>>();
 ```
 
 ## Common Test Patterns
@@ -279,6 +329,8 @@ pnpm test-project -- pipe --coverage
 - [ ] Tests use shared utilities to avoid duplication.
 - [ ] Type safety section tests all @public elements.
 - [ ] Type safety section uses `expectTypeOf` consistently.
+- [ ] Type safety section uses `toEqualTypeOf` instead of `toMatchTypeOf`.
+- [ ] Type safety section uses `Result<T, E>` for typechecking when applicable.
 - [ ] Runtime tests focus on behavior only (no typechecking).
 - [ ] Tests cover error cases for result-based functions.
 - [ ] Tests use `unwrap(result)` for Result validation.
@@ -373,6 +425,19 @@ describe('Type safety', () => {
     expectTypeOf(unionFunction('string')).toBeString();
     expectTypeOf(unionFunction(123)).toBeNumber();
   });
+
+  it('should validate Result types correctly', () => {
+    // ✅ GOOD: Use Result type directly for typechecking
+    const result = resultFunction('input');
+    expectTypeOf(result).toEqualTypeOf<Result<string, 'ERROR_TYPE'>>();
+
+    // ✅ GOOD: Test specific error types with inference
+    const numberResult = numberFunction(42);
+    expectTypeOf(numberResult).toEqualTypeOf<Result<number, 'NEGATIVE'>>();
+
+    // ❌ AVOID: Don't use union types for Result typechecking
+    // expectTypeOf(result).toMatchTypeOf<ReturnType<typeof ok<string>> | ReturnType<typeof err<'ERROR_TYPE'>>>();
+  });
 });
 ```
 
@@ -382,6 +447,8 @@ describe('Type safety', () => {
 - **Always test examples** - Every documented example must have a corresponding test.
 - **Synchronize with documentation and examples** - Tests must match both TSDoc and example files exactly.
 - **Use unwrap for Results** - Always use `unwrap(result)` to validate Result types.
+- **Use toEqualTypeOf instead of toMatchTypeOf** - `toMatchTypeOf` is deprecated by Vitest, use `toEqualTypeOf` for strict type equality.
+- **Use Result type for typechecking when applicable** - When testing functions that return `Result<T, E>`, use `Result<T, E>` directly in type assertions.
 - **Check vitest.config.ts first** - Always review available test projects before running tests.
 - **Use correct test command** - `pnpm test:project -- nameOfModule` for specific module testing.
 - **Maintain perfect synchronization** - Tests must match documentation and example files exactly.
