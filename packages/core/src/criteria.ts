@@ -234,35 +234,55 @@ type Criteria<T> =
 interface CriteriaBuilder<T> {
   /**
    * Combines the current criteria with others using AND logic.
+   * Accepts both Criteria objects and CriteriaBuilder objects.
    *
    * @param others - Additional criteria to combine with AND.
    * @returns A new CriteriaBuilder with the combined criteria.
    *
    * @example
    * ```ts
-   * // criteria-001: Basic AND composition.
+   * // criteria-008: Basic AND composition.
    * const criteria = criteria<User>({ score: { $gte: 90 } })
    *   .and({ rating: { $gte: 4 } })
    *   .build();
    * ```
+   *
+   * @example
+   * ```ts
+   * // criteria-007: AND composition with existing criteria.
+   * const existingCriteria = criteria<User>({ score: { $gte: 90 } }).build();
+   * const finalCriteria = criteria<User>({ rating: { $gte: 4 } })
+   *   .and(existingCriteria)
+   *   .build();
+   * ```
    */
-  and(...others: Criteria<T>[]): CriteriaBuilder<T>;
+  and(...others: (Criteria<T> | CriteriaBuilder<T>)[]): CriteriaBuilder<T>;
 
   /**
    * Combines the current criteria with others using OR logic.
+   * Accepts both Criteria objects and CriteriaBuilder objects.
    *
    * @param others - Additional criteria to combine with OR.
    * @returns A new CriteriaBuilder with the combined criteria.
    *
    * @example
    * ```ts
-   * // criteria-002: Basic OR composition.
+   * // criteria-009: Basic OR composition.
    * const criteria = criteria<User>({ score: { $gte: 90 } })
    *   .or({ rating: { $gte: 4 } })
    *   .build();
    * ```
+   *
+   * @example
+   * ```ts
+   * // criteria-010: OR composition with existing criteria.
+   * const existingCriteria = criteria<User>({ score: { $gte: 90 } }).build();
+   * const finalCriteria = criteria<User>({ rating: { $gte: 4 } })
+   *   .or(existingCriteria)
+   *   .build();
+   * ```
    */
-  or(...others: Criteria<T>[]): CriteriaBuilder<T>;
+  or(...others: (Criteria<T> | CriteriaBuilder<T>)[]): CriteriaBuilder<T>;
 
   /**
    * Negates the current criteria.
@@ -271,7 +291,7 @@ interface CriteriaBuilder<T> {
    *
    * @example
    * ```ts
-   * // criteria-003: Negating criteria.
+   * // criteria-011: Negating criteria.
    * const criteria = criteria<User>({ score: { $lt: 50 } })
    *   .not()
    *   .build();
@@ -286,7 +306,7 @@ interface CriteriaBuilder<T> {
    *
    * @example
    * ```ts
-   * // criteria-004: Building final criteria.
+   * // criteria-012: Building final criteria.
    * const finalCriteria = criteria<User>({ score: { $gte: 90 } })
    *   .and({ rating: { $gte: 4 } })
    *   .build();
@@ -313,9 +333,58 @@ interface CriteriaBuilder<T> {
  * @example
  * ```ts
  * // criteria-002: Composing existing criteria.
- * const SelectedUserForContest = criteria(UserHasGreatScore)
- *   .and(criteria(UserIsEarlyAdopter).or(UserIsInvestor).build())
- *   .and(criteria(UserHasBadRating).not().build())
+ * const SelectedUserForContest = UserHasGreatScore
+ *   .and(UserIsEarlyAdopter.or(UserIsInvestor))
+ *   .and(UserHasBadRating.not())
+ *   .build();
+ * ```
+ *
+ * @example
+ * ```ts
+ * // criteria-003: Complex chaining with AND/OR operations.
+ * const ComplexCriteria = criteria<User>({
+ *   score: { $gte: 70 },
+ * })
+ *   .and({ rating: { $gte: 3 } })
+ *   .or({ tags: { $contains: 'vip' } })
+ *   .and({ isActive: true })
+ *   .build();
+ * ```
+ *
+ * @example
+ * ```ts
+ * // criteria-004: Negation example.
+ * const NegatedCriteria = criteria<User>({
+ *   score: { $lt: 50 },
+ * })
+ *   .not()
+ *   .build();
+ * ```
+ *
+ * @example
+ * ```ts
+ * // criteria-005: Negation of complex composition.
+ * const AdvancedCriteria = criteria<User>({
+ *   score: { $gte: 60 },
+ * })
+ *   .and({ rating: { $gte: 4 } })
+ *   .or({ tags: { $contains: 'premium' } })
+ *   .and({ isActive: true })
+ *   .not()
+ *   .build();
+ * ```
+ *
+ * @example
+ * ```ts
+ * // criteria-006: Multiple operators in single chain.
+ * const MultiOperatorCriteria = criteria<User>({
+ *   score: { $gte: 50 },
+ * })
+ *   .and({ rating: { $gte: 2 } })
+ *   .or({ tags: { $contains: 'vip' } })
+ *   .and({ isActive: true })
+ *   .or({ createdAt: { $lt: new Date('2023-01-01') } })
+ *   .and({ rating: { $lte: 5 } })
  *   .build();
  * ```
  *
@@ -323,16 +392,34 @@ interface CriteriaBuilder<T> {
  */
 function criteria<T>(criteriaDefinition: Criteria<T>): CriteriaBuilder<T> {
   return {
-    and: (...others: Criteria<T>[]) => {
+    and: (...others: (Criteria<T> | CriteriaBuilder<T>)[]) => {
       const existingAnd = criteriaDefinition.$and ? criteriaDefinition.$and : [criteriaDefinition];
-      const newAnds = others.flatMap((c) => (c.$and ? c.$and : [c]));
+      const newAnds = others.flatMap((c) => {
+        if ('build' in c) {
+          // It's a CriteriaBuilder, get the built criteria
+          const builtCriteria = c.build();
+          return builtCriteria.$and ? builtCriteria.$and : [builtCriteria];
+        } else {
+          // It's a Criteria, use it directly
+          return c.$and ? c.$and : [c];
+        }
+      });
       return criteria<T>({
         $and: [...existingAnd, ...newAnds],
       });
     },
-    or: (...others: Criteria<T>[]) => {
+    or: (...others: (Criteria<T> | CriteriaBuilder<T>)[]) => {
       const existingOr = criteriaDefinition.$or ? criteriaDefinition.$or : [criteriaDefinition];
-      const newOrs = others.flatMap((c) => (c.$or ? c.$or : [c]));
+      const newOrs = others.flatMap((c) => {
+        if ('build' in c) {
+          // It's a CriteriaBuilder, get the built criteria
+          const builtCriteria = c.build();
+          return builtCriteria.$or ? builtCriteria.$or : [builtCriteria];
+        } else {
+          // It's a Criteria, use it directly
+          return c.$or ? c.$or : [c];
+        }
+      });
       return criteria<T>({
         $or: [...existingOr, ...newOrs],
       });
