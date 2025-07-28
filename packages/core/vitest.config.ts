@@ -5,6 +5,7 @@ export default defineVitestConfig({
     project('aggregate'),
     project('builder'),
     project('container'),
+    project('criteria'),
     project('doc'),
     project('element'),
     project('env'),
