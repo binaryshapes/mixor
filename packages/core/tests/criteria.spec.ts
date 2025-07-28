@@ -152,6 +152,86 @@ describe('Criteria', () => {
         ],
       });
     });
+
+    it('should handle AND composition with CriteriaBuilder objects', () => {
+      // Create a CriteriaBuilder
+      const builderCriteria = criteria<User>({ score: { $gte: 90 } }).and({ rating: { $gte: 4 } });
+
+      // Compose with another CriteriaBuilder
+      const anotherBuilder = criteria<User>({ isActive: true }).and({ tags: { $contains: 'vip' } });
+
+      const result = criteria<User>({ createdAt: { $lt: new Date() } })
+        .and(builderCriteria, anotherBuilder)
+        .build();
+
+      expect(result).toEqual({
+        $and: [
+          { createdAt: { $lt: new Date() } },
+          { score: { $gte: 90 } },
+          { rating: { $gte: 4 } },
+          { isActive: true },
+          { tags: { $contains: 'vip' } },
+        ],
+      });
+    });
+
+    it('should handle OR composition with CriteriaBuilder objects', () => {
+      // Create a CriteriaBuilder
+      const builderCriteria = criteria<User>({ score: { $gte: 90 } }).or({ rating: { $gte: 4 } });
+
+      // Compose with another CriteriaBuilder
+      const anotherBuilder = criteria<User>({ isActive: true }).or({ tags: { $contains: 'vip' } });
+
+      const result = criteria<User>({ createdAt: { $lt: new Date() } })
+        .or(builderCriteria, anotherBuilder)
+        .build();
+
+      expect(result).toEqual({
+        $or: [
+          { createdAt: { $lt: new Date() } },
+          { score: { $gte: 90 } },
+          { rating: { $gte: 4 } },
+          { isActive: true },
+          { tags: { $contains: 'vip' } },
+        ],
+      });
+    });
+
+    it('should handle AND composition with direct Criteria objects', () => {
+      // Create a direct Criteria object (not a CriteriaBuilder)
+      const directCriteria: Criteria<User> = { score: { $gte: 90 } };
+      const anotherDirectCriteria: Criteria<User> = { rating: { $gte: 4 } };
+
+      const result = criteria<User>({ isActive: true })
+        .and(directCriteria, anotherDirectCriteria)
+        .build();
+
+      expect(result).toEqual({
+        $and: [
+          { isActive: true },
+          { score: { $gte: 90 } },
+          { rating: { $gte: 4 } },
+        ],
+      });
+    });
+
+    it('should handle OR composition with direct Criteria objects', () => {
+      // Create a direct Criteria object (not a CriteriaBuilder)
+      const directCriteria: Criteria<User> = { score: { $gte: 90 } };
+      const anotherDirectCriteria: Criteria<User> = { rating: { $gte: 4 } };
+
+      const result = criteria<User>({ isActive: true })
+        .or(directCriteria, anotherDirectCriteria)
+        .build();
+
+      expect(result).toEqual({
+        $or: [
+          { isActive: true },
+          { score: { $gte: 90 } },
+          { rating: { $gte: 4 } },
+        ],
+      });
+    });
   });
 
   describe('Type safety', () => {
@@ -253,39 +333,34 @@ describe('Criteria', () => {
     it('should run example criteria-002: Composing existing criteria', () => {
       const UserHasGreatScore = criteria<User>({
         score: { $gte: 90 },
-      }).build();
+      });
 
       const UserIsEarlyAdopter = criteria<User>({
         createdAt: { $lt: new Date('2023-03-01') },
-      }).build();
+      });
 
       const UserIsInvestor = criteria<User>({
         tags: { $contains: 'founder' },
-      }).build();
+      });
 
       const UserHasBadRating = criteria<User>({
         rating: { $lt: 2 },
-      }).build();
+      });
 
-      const SelectedUserForContest = criteria(UserHasGreatScore)
-        .and(UserIsEarlyAdopter)
-        .or(UserIsInvestor)
-        .and(criteria(UserHasBadRating).not().build())
+      // Elegant inline composition: UserHasGreatScore AND (UserIsEarlyAdopter OR UserIsInvestor) AND NOT UserHasBadRating
+      const SelectedUserForContest = UserHasGreatScore.and(UserIsEarlyAdopter.or(UserIsInvestor))
+        .and(UserHasBadRating.not())
         .build();
 
       expect(SelectedUserForContest).toEqual({
         $and: [
           {
+            score: { $gte: 90 },
+          },
+          {
             $or: [
               {
-                $and: [
-                  {
-                    score: { $gte: 90 },
-                  },
-                  {
-                    createdAt: { $lt: new Date('2023-03-01') },
-                  },
-                ],
+                createdAt: { $lt: new Date('2023-03-01') },
               },
               {
                 tags: { $contains: 'founder' },
@@ -301,7 +376,7 @@ describe('Criteria', () => {
       });
     });
 
-    it('should run example criteria-003: Complex chaining with multiple operations', () => {
+    it('should run example criteria-003: Complex chaining with AND/OR operations', () => {
       const ComplexCriteria = criteria<User>({
         score: { $gte: 70 },
       })
@@ -350,7 +425,7 @@ describe('Criteria', () => {
       });
     });
 
-    it('should run example criteria-005: Advanced composition with nested operations', () => {
+    it('should run example criteria-005: Negation of complex composition', () => {
       const AdvancedCriteria = criteria<User>({
         score: { $gte: 60 },
       })
@@ -385,6 +460,57 @@ describe('Criteria', () => {
             },
           ],
         },
+      });
+    });
+
+    it('should run example criteria-006: Multiple operators in single chain', () => {
+      const MultiOperatorCriteria = criteria<User>({
+        score: { $gte: 50 },
+      })
+        .and({ rating: { $gte: 2 } })
+        .or({ tags: { $contains: 'vip' } })
+        .and({ isActive: true })
+        .or({ createdAt: { $lt: new Date('2023-01-01') } })
+        .and({ rating: { $lte: 5 } })
+        .build();
+
+      expect(MultiOperatorCriteria).toEqual({
+        $and: [
+          {
+            $or: [
+              {
+                $and: [
+                  {
+                    $or: [
+                      {
+                        $and: [
+                          {
+                            score: { $gte: 50 },
+                          },
+                          {
+                            rating: { $gte: 2 },
+                          },
+                        ],
+                      },
+                      {
+                        tags: { $contains: 'vip' },
+                      },
+                    ],
+                  },
+                  {
+                    isActive: true,
+                  },
+                ],
+              },
+              {
+                createdAt: { $lt: new Date('2023-01-01') },
+              },
+            ],
+          },
+          {
+            rating: { $lte: 5 },
+          },
+        ],
       });
     });
   });
