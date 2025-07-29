@@ -2,4 +2,5 @@ autoInstallPeers: true
 strictPeerDependencies: false
 
 packages:
+  - examples/*
   - packages/*
