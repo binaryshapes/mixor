@@ -9,7 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 
-import { config } from './config';
+import { config } from './_config';
 import type { Any, Prettify } from './generics';
 import { Panic } from './panic';
 
