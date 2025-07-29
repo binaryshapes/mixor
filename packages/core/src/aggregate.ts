@@ -60,6 +60,8 @@ type AggregateInstance<C extends AggregateConfig<Any, Any, Any, Any>> = Prettify
       pullEvents: AggregateState<C>['pullEvents'];
       /** Gets the current state as a readonly object. */
       getState: AggregateState<C>['getState'];
+      /** Emits an event to the event store. */
+      emit: AggregateState<C>['emit'];
     }
 >;
 
@@ -523,6 +525,7 @@ const aggregate: AggregateConstructor = <
           getEvents: state.getEvents,
           pullEvents: state.pullEvents,
           getState: state.getState,
+          emit: state.emit,
         }
       : {
           ...methods,
