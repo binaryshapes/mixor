@@ -1,6 +1,7 @@
 export * from './aggregate';
 export * from './builder';
 export * from './container';
+export * from './criteria';
 export * from './doc';
 export * from './element';
 export * from './env';
@@ -13,5 +14,6 @@ export * from './pipe';
 export * from './result';
 export * from './schema';
 export * from './specification';
+export * from './trace';
 export * from './value';
 export type * from './generics';
