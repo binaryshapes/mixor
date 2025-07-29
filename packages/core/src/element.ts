@@ -23,7 +23,8 @@ type ElementsTags =
   | 'Port'
   | 'Adapter'
   | 'Service'
-  | 'Container';
+  | 'Container'
+  | 'Criteria';
 
 /**
  * Metadata of an element.
