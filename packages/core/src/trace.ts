@@ -11,96 +11,107 @@ import { EventEmitter } from 'node:events';
 
 import { config } from './_config';
 import type { Any, Prettify } from './generics';
+import { hash } from './hash';
 import { Panic } from './panic';
 
 /**
- * Trace data structure containing identification and metadata.
- *
- * @param Tag - The tag identifier for the trace.
+ * The maximum number of listeners for the tracer.
  *
  * @internal
  */
-type TraceData<Tag extends string> = {
-  /** Unique identifier for the trace. */
-  id: string;
-  /** Parent trace identifier for hierarchical tracing. */
-  parentId?: string;
-  /** Type of the traced element. */
-  type: 'function' | 'object' | 'primitive';
-  /** Tag identifier for categorization. */
-  tag: Tag;
-  /** Name of the traced element. */
-  name: string;
-};
+const MAX_LISTENERS = config.tracerMaxListeners;
 
 /**
- * Trace metadata for documentation and context.
+ * Trace module error.
  *
- * @internal
+ * @param tag - The tag of the error.
+ * @param message - The error message.
+ * @returns The error.
+ *
+ * @public
  */
-type TraceMeta = {
-  /** Human-readable name of the traced element. */
-  name: string;
-  /** Description of the element's purpose. */
-  description: string;
-  /** Scope or context where the element is used. */
-  scope: string;
-  /** Documentation URL or reference. */
-  doc: string;
-};
+const TraceableError = Panic<
+  'TRACEABLE',
+  // Raised when the traceable configuration already exists in a element.
+  | 'ALREADY_TRACEABLE'
+  // Raised when the traceable configuration does not exist in a element.
+  | 'NOT_TRACEABLE'
+  // Raised when the traceable element is not a function.
+  | 'NOT_FUNCTION'
+  // Raised when the traceable element is already traced.
+  | 'ALREADY_TRACED'
+>('TRACEABLE');
 
 /**
- * Base trace structure that extends any type with trace data.
+ * Represents the metadata for a traceable element. It could be extended with additional metadata.
  *
- * @param Tag - The tag identifier for the trace.
- * @param T - The original type to be traced.
+ * @typeParam Meta - The additional metadata for the trace.
  *
- * @internal
+ * @public
  */
-type Trace<Tag extends string, T> = T & {
-  /** Trace data containing identification and metadata. */
-  readonly '~data': TraceData<Tag>;
-  /** Trace metadata for documentation. */
-  readonly '~meta': TraceMeta;
-};
+type TraceableMeta<Meta extends Record<string, Any> = object> = Prettify<
+  {
+    /** Human-readable name of the traced element. */
+    name: string;
+    /** Description of the element's purpose. */
+    description: string;
+    /** Scope or context where the element is used. */
+    scope: string;
+  } & Meta
+>;
 
 /**
- * Function type that can be traced (sync or async).
+ * Represents a traceable element. It could be a function or an object.
  *
- * @internal
+ * @typeParam Tag - The tag identifier for the trace.
+ * @typeParam Type - The type of the traced element.
+ * @typeParam Meta - The additional metadata for the trace.
+ *
+ * @public
  */
-type TraceableFunction = (...args: Any) => Any | Promise<Any>;
-
-/**
- * Element types that can be traced (functions or objects).
- *
- * @internal
- */
-type TraceableElement = TraceableFunction | Record<string, Any>;
-
-/**
- * Traceable element with metadata setting capabilities.
- *
- * @param Tag - The tag identifier for the trace.
- * @param T - The original type to be traced.
- * @param List - The remaining metadata properties to set.
- *
- * @internal
- */
-type Traceable<Tag extends string, T, List = TraceMeta> = Trace<Tag, T> & {
+type Traceable<Tag extends string, Type, Meta extends Record<string, Any> = never> = Type & {
   /**
-   * Set metadata property and return updated traceable element.
+   * Set the metadata for the traceable element.
    *
-   * @param key - The metadata property to set.
-   * @param value - The value to assign.
-   * @returns Updated traceable element or final trace if all metadata is set.
+   * @param meta - The metadata to set.
+   * @returns The traceable element.
    */
-  set<K extends keyof List>(
-    key: K,
-    value: List[K],
-  ): Omit<List, K> extends Record<string, never>
-    ? Trace<Tag, T>
-    : Traceable<Tag, T, Prettify<Omit<List, K>>>;
+  meta: (meta: TraceableMeta<Meta>) => Traceable<Tag, Type, Meta>;
+
+  /**
+   * Set the parent of the traceable element.
+   *
+   * @param parent - The parent traceable element.
+   * @returns The traceable element.
+   */
+  parent: (parent: Traceable<Any, Any, Any>) => Traceable<Tag, Type, Meta>;
+
+  /**
+   * Enable tracing for the element.
+   *
+   * @returns The traced element.
+   */
+  trace: () => Traceable<Tag, Type, Meta>;
+
+  /** Trace internal data. */
+  readonly '~trace': {
+    /** Unique identifier for the trace. */
+    id: string;
+    /** Parent trace identifier for hierarchical tracing. */
+    parentId?: string | undefined;
+    /** Type of the traced element. */
+    type: 'function' | 'object' | 'primitive';
+    /** Tag identifier for categorization. */
+    tag: Tag;
+    /** Name of the traced element. */
+    name: string;
+    /** Indicates if the traced element is traceable. */
+    traced: boolean;
+    /** Hash value of the traceable element. */
+    hash: string;
+    /** Metadata for the traced element. */
+    meta: TraceableMeta<Meta>;
+  };
 };
 
 /**
@@ -148,35 +159,52 @@ const parseObject = (obj: Any): Any => {
  *
  * @internal
  */
-function makeTraceable<Tag extends string, T extends TraceableElement>(fn: T) {
-  const wrapped: Traceable<Tag, T> = function (...args: Any[]) {
+function trace<T extends Traceable<Any, Any, Any>>(fn: T): T {
+  if (typeof fn !== 'function') {
+    throw new TraceableError('NOT_FUNCTION', 'Cannot auto-trace non-function elements');
+  }
+
+  if (!isTraceable(fn)) {
+    throw new TraceableError('NOT_TRACEABLE', 'Cannot auto-trace non-traceable elements');
+  }
+
+  if ((fn as Any)['~trace'].traced) {
+    throw new TraceableError('ALREADY_TRACED', 'Element is already traced');
+  }
+
+  const wrapped = function (...args: Any[]) {
     const input = { type: parseObject(args), values: args };
     const start = process.hrtime.bigint();
+    const traceId = randomUUID();
+    const elementId = (fn as Any)['~trace'].id;
 
-    tracer.emit('start', { start, input });
+    tracer.emit('start', { traceId, elementId, start, input });
 
     const emitPerf = (end: bigint, output: Any, isAsync: boolean) => {
       tracer.emit('end', { end, output });
       tracer.emit('perf', {
+        traceId,
+        elementId,
         durationMs: Number(end - start) / 1_000_000,
         start,
         end,
         input,
         output,
-        meta: wrapped['~meta'],
         async: isAsync,
       });
     };
 
     const emitError = (end: bigint, error: Error, isAsync: boolean) => {
       tracer.emit('error', {
+        traceId,
+        elementId,
         error,
         durationMs: Number(end - start) / 1_000_000,
         start,
         end,
         input,
-        meta: wrapped['~meta'],
         async: isAsync,
+        trace: (fn as Any)['~trace'],
       });
     };
 
@@ -206,16 +234,194 @@ function makeTraceable<Tag extends string, T extends TraceableElement>(fn: T) {
       emitError(process.hrtime.bigint(), error as Error, false);
       throw error;
     }
-  } as Traceable<Tag, T>;
+  };
 
+  // Keep the original name of the function.
   Object.defineProperty(wrapped, 'name', {
-    value: fn.name,
+    value: (fn as Any).name,
     writable: false,
     enumerable: false,
   });
 
-  return wrapped;
+  return wrapped as T;
 }
+
+/**
+ * Makes an element traceable by attaching tracing capabilities to it.
+ *
+ * This function transforms any function or object into a traceable element
+ * that can be monitored for performance and execution details. The element
+ * gains additional methods for metadata management and parent-child relationships.
+ *
+ * @typeParam Tag - The tag identifier for the trace.
+ * @typeParam T - The type of the element to make traceable.
+ * @typeParam Meta - The additional metadata for the trace.
+ * @param tag - The tag identifier for categorization.
+ * @param element - The element to make traceable.
+ * @returns The traceable element with additional capabilities.
+ *
+ * @example
+ * ```ts
+ * // trace-001: Basic function tracing.
+ * const add = (a: number, b: number) => a + b;
+ * const traceableAdd = traceable('math', add);
+ *
+ * const result = traceableAdd(5, 3);
+ * // result: 8.
+ * ```
+ *
+ * @example
+ * ```ts
+ * // trace-002: Object tracing with metadata.
+ * const userService = {
+ *   getUser: (id: string) => ({ id, name: 'John' }),
+ *   updateUser: (id: string, data: Any) => ({ id, ...data }),
+ * };
+ *
+ * const traceableService = traceable('Service', userService).meta({
+ *   scope: 'Authentication',
+ *   name: 'UserService',
+ *   description: 'User management operations',
+ * });
+ *
+ * const user = traceableService.getUser('123');
+ * // user: { id: '123', name: 'John' }.
+ * ```
+ *
+ * @example
+ * ```ts
+ * // trace-003: Async function tracing.
+ * const asyncOperation = async (data: string) => {
+ *   await new Promise(resolve => setTimeout(resolve, 100));
+ *   return `Processed: ${data}`;
+ * };
+ *
+ * const traceableAsync = traceable('async', asyncOperation);
+ * const result = await traceableAsync('test');
+ * // result: 'Processed: test'.
+ * ```
+ *
+ * @public
+ */
+const traceable = <Tag extends string, T, Meta extends Record<string, Any> = TraceableMeta>(
+  tag: Tag,
+  element: T,
+) => {
+  if (isTraceable(element)) {
+    throw new TraceableError('ALREADY_TRACEABLE', 'Element is already traceable');
+  }
+
+  // Define the element internal trace data.
+  const traceMeta = {
+    id: randomUUID(),
+    parentId: undefined,
+    type: typeof element === 'function' ? 'function' : 'object',
+    tag,
+    traced: false,
+    hash: hash(element, tag),
+    name: (element as Any).name || 'anonymous',
+    meta: {} as TraceableMeta<Meta>,
+  };
+
+  // Attach the trace data to the element (initialization).
+  Object.defineProperty(element, '~trace', {
+    value: traceMeta,
+    writable: false,
+    enumerable: config.showTraceMeta,
+    configurable: false,
+  });
+
+  // Generates the autoTrace property.
+  Object.defineProperty(element, 'trace', {
+    value: () => {
+      const traced = Object.assign(trace(element) as Any, element as Any);
+      traced['~trace'].traced = true;
+      return traced;
+    },
+    writable: false,
+    enumerable: config.showTraceMeta,
+  });
+
+  // Generates the meta property.
+  Object.defineProperty(element, 'meta', {
+    value: (meta: TraceableMeta<Any>) => {
+      if (!isTraceable(element)) {
+        throw new TraceableError('NOT_TRACEABLE', 'Element is not traceable');
+      }
+      // Override the metadata.
+      (element as Any)['~trace'].meta = meta;
+
+      return element;
+    },
+    writable: false,
+    enumerable: config.showTraceMeta,
+  });
+
+  // Generates the parent property.
+  Object.defineProperty(element, 'parent', {
+    value: (parent: Traceable<Any, Any, Any>) => {
+      if (!isTraceable(parent)) {
+        throw new TraceableError('NOT_TRACEABLE', 'Parent is not traceable');
+      }
+
+      // Set the parent id.
+      (element as Any)['~trace'].parentId = parent['~trace'].id;
+      return element;
+    },
+    writable: false,
+    enumerable: config.showTraceMeta,
+  });
+
+  return element as Traceable<Tag, T, Meta>;
+};
+
+/**
+ * Check if an element is traceable.
+ *
+ * @param element - The element to check.
+ * @returns True if the element is traceable, false otherwise.
+ *
+ * @example
+ * ```ts
+ * // trace-004: Check if element is traceable.
+ * const fn = () => 'test';
+ * const tracedFn = traceable('test', fn);
+ *
+ * const isTraceable = isTraceable(tracedFn);
+ * // isTraceable: true.
+ *
+ * const isNotTraceable = isTraceable(fn);
+ * // isNotTraceable: false.
+ * ```
+ *
+ * @public
+ */
+const isTraceable = (element: Any): boolean => !!element && '~trace' in element;
+
+/**
+ * Check if an element is traced which means it has been wrapped by the trace function.
+ *
+ * @param element - The element to check.
+ * @returns True if the element is traced, false otherwise.
+ *
+ * @example
+ * ```ts
+ * // trace-005: Check if element is traced.
+ * const fn = () => 'test';
+ * const traceableFn = traceable('test', fn);
+ * const tracedFn = traceableFn.trace();
+ *
+ * const isTraced = isTraced(tracedFn);
+ * // isTraced: true.
+ *
+ * const isNotTraced = isTraced(traceableFn);
+ * // isNotTraced: false.
+ * ```
+ *
+ * @public
+ */
+const isTraced = (element: Any): boolean =>
+  isTraceable(element) && !!(element as Any)['~trace'] && (element as Any)['~trace'].traced;
 
 /**
  * Global tracer for emitting and subscribing to trace events.
@@ -234,7 +440,7 @@ function makeTraceable<Tag extends string, T extends TraceableElement>(fn: T) {
  *
  * @example
  * ```ts
- * // trace-009: Tracer event subscription.
+ * // trace-006: Tracer event subscription.
  * tracer.on('start', (data) => {
  *   console.log('Function started:', data.input);
  * });
@@ -254,12 +460,39 @@ function makeTraceable<Tag extends string, T extends TraceableElement>(fn: T) {
  * });
  * ```
  *
+ * @example
+ * ```ts
+ * // trace-007: Custom trace event emission.
+ * tracer.emit('perf', {
+ *   durationMs: 150,
+ *   start: process.hrtime.bigint(),
+ *   end: process.hrtime.bigint(),
+ *   input: { type: 'number', values: [5] },
+ *   output: { type: 'number', values: 10 },
+ *   meta: { name: 'test' },
+ *   async: false
+ * });
+ * ```
+ *
+ * @example
+ * ```ts
+ * // trace-008: Subscribe to trace events once.
+ * tracer.once('perf', (data) => {
+ *   console.log(`First function took ${data.durationMs}ms`);
+ * });
+ *
+ * const fn = traceable('test', (x: number) => x * 2);
+ * fn(5); // This will trigger the once listener.
+ * fn(10); // This will NOT trigger the once listener.
+ * ```
+ *
  * @public
  */
 const tracer = (() => {
   type TracerEvents = 'start' | 'end' | 'error' | 'perf';
 
   const tracer = new EventEmitter();
+  tracer.setMaxListeners(MAX_LISTENERS);
 
   return {
     /**
@@ -267,20 +500,6 @@ const tracer = (() => {
      *
      * @param event - The event type to emit.
      * @param data - The data to include with the event.
-     *
-     * @example
-     * ```ts
-     * // trace-006: Emit custom trace event.
-     * tracer.emit('perf', {
-     *   durationMs: 150,
-     *   start: process.hrtime.bigint(),
-     *   end: process.hrtime.bigint(),
-     *   input: { type: 'number', values: [5] },
-     *   output: { type: 'number', values: 10 },
-     *   meta: { name: 'test' },
-     *   async: false
-     * });
-     * ```
      *
      * @public
      */
@@ -294,21 +513,6 @@ const tracer = (() => {
      * @param event - The event type to listen for.
      * @param listener - The callback function to execute.
      *
-     * @example
-     * ```ts
-     * // trace-007: Subscribe to trace events.
-     * tracer.on('start', (data) => {
-     *   console.log('Function started:', data.input);
-     * });
-     *
-     * tracer.on('perf', (data) => {
-     *   console.log(`Duration: ${data.durationMs}ms`);
-     *   if (data.async) {
-     *     console.log('Async function completed');
-     *   }
-     * });
-     * ```
-     *
      * @public
      */
     on: (event: TracerEvents, listener: (...args: Any[]) => void) => {
@@ -321,18 +525,6 @@ const tracer = (() => {
      * @param event - The event type to listen for.
      * @param listener - The callback function to execute.
      *
-     * @example
-     * ```ts
-     * // trace-008: Subscribe to trace events once.
-     * tracer.once('perf', (data) => {
-     *   console.log(`First function took ${data.durationMs}ms`);
-     * });
-     *
-     * const fn = traceable('test', (x: number) => x * 2);
-     * fn(5); // This will trigger the once listener.
-     * fn(10); // This will NOT trigger the once listener.
-     * ```
-     *
      * @public
      */
     once: (event: TracerEvents, listener: (...args: Any[]) => void) => {
@@ -342,199 +534,48 @@ const tracer = (() => {
 })();
 
 /**
- * Trace module error.
+ * Get the trace information for a traceable element.
  *
- * @param tag - The tag of the error.
- * @param message - The error message.
- * @returns The error.
+ * This function provides safe access to the internal trace data of a traceable element.
+ * It returns detailed information about the element's tracing configuration including
+ * metadata, performance data, and hierarchical relationships.
  *
- * @example
- * ```ts
- * // trace-001: Basic error handling.
- * try {
- *   const result = traceable('test', someFunction);
- * } catch (error) {
- *   if (error instanceof TraceableError) {
- *     // Handle traceable error.
- *   }
- * }
- * ```
- *
- * @public
- */
-const TraceableError = Panic<
-  'TRACEABLE',
-  // Raised when the traceable configuration already exists in a element.
-  | 'ALREADY_TRACEABLE'
-  // Raised when the traceable configuration does not exist in a element.
-  | 'NOT_TRACEABLE'
->('TRACEABLE');
-
-/**
- * Check if an element is traceable.
- *
- * @param element - The element to check.
- * @returns True if the element is traceable, false otherwise.
+ * @param element - The traceable element to get information for.
+ * @returns The trace information.
+ * @throws A {@link TraceableError} when the element is not traceable.
  *
  * @example
  * ```ts
- * // trace-002: Check if element is traceable.
+ * // trace-009: Get trace information for an element.
  * const fn = () => 'test';
- * const tracedFn = traceable('test', fn);
+ * const traceableFn = traceable('test', fn)
+ *   .meta({
+ *     name: 'TestFunction',
+ *     description: 'A simple test function',
+ *     scope: 'testing'
+ *   });
  *
- * const isTraced = isTraceable(tracedFn);
- * // isTraced: true.
- *
- * const isNotTraced = isTraceable(fn);
- * // isNotTraced: false.
+ * const info = traceInfo(traceableFn);
+ * // info: {
+ * //   id: 'uuid',
+ * //   tag: 'test',
+ * //   name: 'TestFunction',
+ * //   traced: false,
+ * //   meta: { name: 'TestFunction', description: '...', scope: 'testing' }
+ * // }
  * ```
  *
  * @public
  */
-const isTraceable = (element: Any): boolean =>
-  !!element && '~data' in element && '~meta' in element;
-
-/**
- * Make an element traceable.
- *
- * @param tag - The tag of the object.
- * @param element - The element to trace.
- * @param parentId - The parent id of the element.
- * @returns The traced element.
- *
- * @example
- * ```ts
- * // trace-003: Basic function tracing.
- * const fn = (x: number) => x * 2;
- * const tracedFn = traceable('math', fn);
- *
- * const result = tracedFn(5);
- * // result: 10.
- * ```
- *
- * @example
- * ```ts
- * // trace-004: Object tracing with metadata.
- * const obj = { value: 42 };
- * const tracedObj = traceable('data', obj)
- *   .set('name', 'testObject')
- *   .set('description', 'Test object for tracing')
- *   .set('scope', 'example')
- *   .set('doc', 'https://example.com/docs');
- * ```
- *
- * @example
- * ```ts
- * // trace-005: Hierarchical tracing with parentId.
- * const parentFn = traceable('parent', () => 'parent');
- * const childFn = traceable('child', () => 'child', parentFn['~data'].id);
- * ```
- *
- * @example
- * ```ts
- * // trace-010: Async function tracing.
- * const asyncFn = async (x: number) => {
- *   await setTimeout(100);
- *   return x * 2;
- * };
- * const tracedAsyncFn = traceable('async', asyncFn);
- *
- * const result = await tracedAsyncFn(5);
- * // result: 10.
- * ```
- *
- * @example
- * ```ts
- * // trace-011: Async function with error handling.
- * const asyncFn = traceable('async', async (x: number) => {
- *   if (x < 0) throw new Error('Negative number');
- *   return x * 2;
- * });
- *
- * try {
- *   const result = await asyncFn(5);
- *   // result: 10.
- * } catch (error) {
- *   // Handle error.
- * }
- * ```
- *
- * @public
- */
-const traceable = <Tag extends string, T extends TraceableElement>(
-  tag: Tag,
+const traceInfo = <T extends { '~trace': Traceable<Any, Any, Any>['~trace'] }>(
   element: T,
-  parentId?: string,
-): Traceable<Tag, T, TraceMeta> => {
-  if (isTraceable(element)) {
-    throw new TraceableError('ALREADY_TRACEABLE', 'Element is already traceable');
-  }
-
-  let traceableElement: Traceable<Tag, T, TraceMeta> | T;
-
-  // If the element is a function, wrap it with the traceable function.
-  if (typeof element === 'function') {
-    traceableElement = makeTraceable<Tag, T>(element);
-  } else if (typeof element === 'object') {
-    traceableElement = element;
-  } else {
+): T['~trace'] => {
+  if (!isTraceable(element)) {
     throw new TraceableError('NOT_TRACEABLE', 'Element is not traceable');
   }
 
-  const name = traceableElement.name || 'anonymous';
-  const id = randomUUID();
-  const meta: Partial<TraceMeta> = {};
-
-  Object.defineProperties(traceableElement, {
-    '~data': {
-      value: {
-        id,
-        parentId,
-        type: typeof traceableElement,
-        tag,
-        name,
-      },
-      writable: false,
-      enumerable: config.showTraceMeta,
-      configurable: false,
-    },
-    '~meta': {
-      value: meta,
-      writable: true,
-      enumerable: config.showTraceMeta,
-      configurable: false,
-    },
-    set: {
-      value: (key: keyof TraceMeta, value: string) => {
-        // Override the name of the element.
-        if (key === 'name') {
-          (traceableElement as Any)['~data'].name = value;
-        }
-
-        meta[key] = value;
-
-        // If all metadata already have a value,
-        // we delete the set method to avoid further modifications.
-        if (
-          Object.keys(meta).length === 4 &&
-          Object.keys(meta).includes('name') &&
-          Object.keys(meta).includes('scope') &&
-          Object.keys(meta).includes('description') &&
-          Object.keys(meta).includes('doc') &&
-          Object.values(meta).every((value) => !!value)
-        ) {
-          Reflect.deleteProperty(traceableElement, 'set');
-        }
-
-        return traceableElement;
-      },
-      writable: true,
-      enumerable: config.showTraceMeta,
-      configurable: true,
-    },
-  });
-
-  return traceableElement as Traceable<Tag, T>;
+  return element['~trace'];
 };
 
-export { traceable, tracer, isTraceable, TraceableError };
+export type { Traceable, TraceableMeta };
+export { traceable, tracer, isTraceable, isTraced, traceInfo, TraceableError };
