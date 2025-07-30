@@ -1,92 +1,137 @@
-import { setTimeout } from 'node:timers/promises';
-
-import { TraceableError, isTraceable, traceable, tracer } from '../src/trace';
+import type { Any } from '../src/generics';
+import { isTraceable, isTraced, traceInfo, traceable, tracer } from '../src/trace';
 
 /**
- * trace-001: Basic error handling.
+ * trace-001: Basic function tracing.
  */
-function traceBasicErrorHandling() {
-  console.log('\ntrace-001: Basic error handling.');
+function traceBasicFunctionTracing() {
+  console.log('\ntrace-001: Basic function tracing.');
 
-  try {
-    const fn = () => 'test';
-    const tracedFn = traceable('test', fn);
-    traceable('test', tracedFn); // This will throw
-  } catch (error) {
-    if (error instanceof TraceableError) {
-      console.log('Error key:', error.key);
-      console.log('Error message:', error.message);
-    }
-  }
+  const add = (a: number, b: number) => a + b;
+  const traceableAdd = traceable('math', add);
+
+  const result = traceableAdd(5, 3);
+  console.log('Result:', result);
+  console.log('Is traceable:', isTraceable(traceableAdd));
+  console.log('Is traced:', isTraced(traceableAdd));
 }
 
 /**
- * trace-002: Check if element is traceable.
+ * trace-002: Object tracing with metadata.
  */
-function traceCheckTraceable() {
-  console.log('\ntrace-002: Check if element is traceable.');
+function traceObjectTracingWithMetadata() {
+  console.log('\ntrace-002: Object tracing with metadata.');
+
+  const userService = {
+    getUser: (id: string) => ({ id, name: 'John' }),
+    updateUser: (id: string, data: Any) => ({ id, ...data }),
+  };
+
+  const traceableService = traceable('Service', userService).meta({
+    scope: 'Authentication',
+    name: 'UserService',
+    description: 'User management operations',
+  });
+
+  const user = traceableService.getUser('123');
+  console.log('User:', user);
+  console.log('Is traceable:', isTraceable(traceableService));
+
+  const info = traceInfo(traceableService);
+  console.log('Service trace info:', info);
+}
+
+/**
+ * trace-003: Async function tracing.
+ */
+function traceAsyncFunctionTracing() {
+  console.log('\ntrace-003: Async function tracing.');
+
+  const asyncOperation = async (data: string) => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return `Processed: ${data}`;
+  };
+
+  const traceableAsync = traceable('async', asyncOperation);
+
+  // Execute the async function
+  traceableAsync('test').then((result) => {
+    console.log('Async result:', result);
+    console.log('Is traceable:', isTraceable(traceableAsync));
+  });
+}
+
+/**
+ * trace-004: Check if element is traceable.
+ */
+function traceCheckIfElementIsTraceable() {
+  console.log('\ntrace-004: Check if element is traceable.');
 
   const fn = () => 'test';
   const tracedFn = traceable('test', fn);
 
-  const isTraced = isTraceable(tracedFn);
-  console.log('Is traced function traceable:', isTraced);
+  const isTraceableResult = isTraceable(tracedFn);
+  console.log('Is traceable:', isTraceableResult);
 
-  const isNotTraced = isTraceable(fn);
-  console.log('Is original function traceable:', isNotTraced);
+  const isNotTraceable = isTraceable(fn);
+  console.log('Is not traceable:', isNotTraceable);
 }
 
 /**
- * trace-003: Basic function tracing.
+ * trace-005: Check if element is traced.
  */
-function traceBasicFunctionTracing() {
-  console.log('\ntrace-003: Basic function tracing.');
+function traceCheckIfElementIsTraced() {
+  console.log('\ntrace-005: Check if element is traced.');
 
-  const fn = (x: number) => x * 2;
-  const tracedFn = traceable('math', fn);
+  const fn = () => 'test';
+  const traceableFn = traceable('test', fn);
+  const tracedFn = traceableFn.trace();
+
+  const isTracedResult = isTraced(tracedFn);
+  console.log('Is traced:', isTracedResult);
+
+  const isNotTraced = isTraced(traceableFn);
+  console.log('Is not traced:', isNotTraced);
+}
+
+/**
+ * trace-006: Tracer event subscription.
+ */
+function traceTracerEventSubscription() {
+  console.log('\ntrace-006: Tracer event subscription.');
+
+  // Set up event listeners
+  tracer.on('start', (data) => {
+    console.log('Function started:', data.input);
+  });
+
+  tracer.on('perf', (data) => {
+    console.log(`Duration: ${data.durationMs}ms`);
+    if (data.async) {
+      console.log('Async function completed');
+    }
+  });
+
+  tracer.on('error', (data) => {
+    console.log('Error occurred:', data.error);
+    if (data.async) {
+      console.log('Async function error');
+    }
+  });
+
+  // Create and execute a traced function
+  const fn = traceable('test', (x: number) => x * 2);
+  const tracedFn = fn.trace();
 
   const result = tracedFn(5);
-  console.log('Result:', result);
-  console.log('Function name:', tracedFn.name);
+  console.log('Function result:', result);
 }
 
 /**
- * trace-004: Object tracing with metadata.
+ * trace-007: Custom trace event emission.
  */
-function traceObjectTracing() {
-  console.log('\ntrace-004: Object tracing with metadata.');
-
-  const obj = { value: 42 };
-  const tracedObj = traceable('data', obj)
-    .set('name', 'testObject')
-    .set('description', 'Test object for tracing')
-    .set('scope', 'example')
-    .set('doc', 'https://example.com/docs');
-
-  console.log('Traced object:', tracedObj);
-  console.log('Object value:', tracedObj.value);
-  console.log('Metadata:', tracedObj['~meta']);
-}
-
-/**
- * trace-005: Hierarchical tracing with parentId.
- */
-function traceHierarchicalTracing() {
-  console.log('\ntrace-005: Hierarchical tracing with parentId.');
-
-  const parentFn = traceable('parent', () => 'parent');
-  const childFn = traceable('child', () => 'child', parentFn['~data'].id);
-
-  console.log('Parent function data:', parentFn['~data']);
-  console.log('Child function data:', childFn['~data']);
-  console.log('Parent ID in child:', childFn['~data'].parentId);
-}
-
-/**
- * trace-006: Emit custom trace event.
- */
-function traceEmitCustomEvent() {
-  console.log('\ntrace-006: Emit custom trace event.');
+function traceCustomTraceEventEmission() {
+  console.log('\ntrace-007: Custom trace event emission.');
 
   tracer.emit('perf', {
     durationMs: 150,
@@ -98,134 +143,52 @@ function traceEmitCustomEvent() {
     async: false,
   });
 
-  console.log('Custom event emitted');
-}
-
-/**
- * trace-007: Subscribe to trace events.
- */
-function traceSubscribeToEvents() {
-  console.log('\ntrace-007: Subscribe to trace events.');
-
-  const startListener = (data: { input: unknown }) => {
-    console.log('Function started:', data.input);
-  };
-
-  const perfListener = (data: { durationMs: number; async?: boolean }) => {
-    console.log(`Duration: ${data.durationMs}ms`);
-    if (data.async) {
-      console.log('Async function completed');
-    }
-  };
-
-  tracer.on('start', startListener);
-  tracer.on('perf', perfListener);
-
-  const fn = traceable('test', (x: number) => x + 1);
-  const result = fn(10);
-
-  console.log('Result:', result);
+  console.log('Custom trace event emitted');
 }
 
 /**
  * trace-008: Subscribe to trace events once.
  */
-function traceSubscribeOnce() {
+function traceSubscribeToTraceEventsOnce() {
   console.log('\ntrace-008: Subscribe to trace events once.');
 
-  let onceCalled = false;
-  const onceListener = (data: { durationMs: number }) => {
-    onceCalled = true;
+  tracer.once('perf', (data) => {
     console.log(`First function took ${data.durationMs}ms`);
-  };
-
-  tracer.once('perf', onceListener);
-
-  const fn = traceable('test', (x: number) => x * 2);
-  fn(5); // This will trigger the once listener.
-  fn(10); // This will NOT trigger the once listener.
-
-  console.log('Once listener called:', onceCalled);
-}
-
-/**
- * trace-009: Tracer event subscription.
- */
-function traceEventSubscription() {
-  console.log('\ntrace-009: Tracer event subscription.');
-
-  const startListener = (data: { input: unknown }) => {
-    console.log('Function started with input:', data.input);
-  };
-
-  const perfListener = (data: { durationMs: number; async?: boolean }) => {
-    console.log(`Duration: ${data.durationMs}ms`);
-    if (data.async) {
-      console.log('Async function completed');
-    }
-  };
-
-  const errorListener = (data: { error: Error; async?: boolean }) => {
-    console.log('Error occurred:', data.error);
-    if (data.async) {
-      console.log('Async function error');
-    }
-  };
-
-  tracer.on('start', startListener);
-  tracer.on('perf', perfListener);
-  tracer.on('error', errorListener);
-
-  const fn = traceable('test', (x: number) => x + 1);
-  const result = fn(10);
-
-  console.log('Result:', result);
-}
-
-/**
- * trace-010: Async function tracing.
- */
-async function traceAsyncFunctionTracing() {
-  console.log('\ntrace-010: Async function tracing.');
-
-  const asyncFn = async (x: number) => {
-    await setTimeout(100);
-    return x * 2;
-  };
-  const tracedAsyncFn = traceable('async', asyncFn);
-
-  const result = await tracedAsyncFn(5);
-  console.log('Result:', result);
-}
-
-/**
- * trace-011: Async function with error handling.
- */
-async function traceAsyncErrorHandling() {
-  console.log('\ntrace-011: Async function with error handling.');
-
-  const asyncFn = traceable('async', async (x: number) => {
-    if (x < 0) throw new Error('Negative number');
-    return x * 2;
   });
 
-  try {
-    const result = await asyncFn(5);
-    console.log('Result:', result);
-  } catch (error) {
-    console.log('Error caught:', (error as Error).message);
-  }
+  const fn = traceable('test', (x: number) => x * 2);
+  fn(5); // This will trigger the once listener
+  fn(10); // This will NOT trigger the once listener
+
+  console.log('Once event listener executed');
+}
+
+/**
+ * trace-009: Get trace information for an element.
+ */
+function traceGetTraceInformationForElement() {
+  console.log('\ntrace-009: Get trace information for an element.');
+
+  const fn = () => 'test';
+  const traceableFn = traceable('test', fn).meta({
+    name: 'TestFunction',
+    description: 'A simple test function',
+    scope: 'testing',
+  });
+
+  const info = traceInfo(traceableFn);
+  console.log('Trace info:', info);
+  console.log('Is traceable:', isTraceable(traceableFn));
+  console.log('Is traced:', isTraced(traceableFn));
 }
 
 // Execute all examples
-traceBasicErrorHandling();
-traceCheckTraceable();
 traceBasicFunctionTracing();
-traceObjectTracing();
-traceHierarchicalTracing();
-traceEmitCustomEvent();
-traceSubscribeToEvents();
-traceSubscribeOnce();
-traceEventSubscription();
+traceObjectTracingWithMetadata();
 traceAsyncFunctionTracing();
-traceAsyncErrorHandling();
+traceCheckIfElementIsTraceable();
+traceCheckIfElementIsTraced();
+traceTracerEventSubscription();
+traceCustomTraceEventEmission();
+traceSubscribeToTraceEventsOnce();
+traceGetTraceInformationForElement();
