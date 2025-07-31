@@ -192,7 +192,7 @@ interface EventStore<R> {
  * @example
  * ```ts
  * // Handling EventError in event store operations.
- * const store = events([userCreated]);
+ * const store = events(userCreated);
  *
  * try {
  *   store.add('invalid.key', { id: '123', name: 'John' });
@@ -211,9 +211,9 @@ const EventError = Panic<'EVENT', 'INVALID_KEY'>('EVENT');
 /**
  * Creates a type-safe event store from a list of event constructors.
  * The store provides full type safety for adding and retrieving events.
- * Each event constructor in the array must have a unique key.
+ * Each event constructor must have a unique key.
  *
- * @param events - The array of event constructors to include in the store.
+ * @param events - The event constructors to include in the store (variadic parameters).
  * @returns A type-safe event store with methods to manage events.
  *
  * @example
@@ -236,14 +236,14 @@ const EventError = Panic<'EVENT', 'INVALID_KEY'>('EVENT');
  *   }
  * });
  *
- * const eventStore = events([userCreated, userUpdated]);
+ * const eventStore = events(userCreated, userUpdated);
  * // eventStore: EventStore with type-safe add, pull, and list methods
  * ```
  *
  * @example
  * ```ts
  * // event-004: Using the event store to add and retrieve events.
- * const store = events([userCreated, userUpdated]);
+ * const store = events(userCreated, userUpdated);
  *
  * // Add events with type safety
  * store.add('user.created', { id: '123', name: 'John' });
@@ -265,7 +265,7 @@ const EventError = Panic<'EVENT', 'INVALID_KEY'>('EVENT');
  * @example
  * ```ts
  * // event-005: Error handling when adding events with invalid keys.
- * const store = events([userCreated]);
+ * const store = events(userCreated);
  *
  * try {
  *   store.add('invalid.key', { id: '123', name: 'John' });
@@ -280,13 +280,12 @@ const EventError = Panic<'EVENT', 'INVALID_KEY'>('EVENT');
  * @public
  */
 const events = <K extends string, E extends Event<K, Any>[], R = EventListToRecord<E>>(
-  events: E,
+  ...events: E
 ): EventStore<R> => {
   const store: Any[] = [];
   const eventMap = new Map<string, Event<Any, Any>>();
 
-  for (const key in events) {
-    const ev = events[key];
+  for (const ev of events) {
     eventMap.set(ev.key, ev);
   }
 

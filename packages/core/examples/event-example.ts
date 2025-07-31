@@ -75,7 +75,7 @@ function eventStoreCreation() {
   });
 
   // Create event store with multiple event types
-  const eventStore = events([userCreated, userUpdated]);
+  const eventStore = events(userCreated, userUpdated);
 
   // Demonstrate available keys
   console.log('Available event keys:', eventStore.keys);
@@ -103,7 +103,7 @@ function eventStoreUsage() {
     },
   });
 
-  const store = events([userCreated, userUpdated]);
+  const store = events(userCreated, userUpdated);
 
   // Add events with type safety
   store.add('user.created', { id: '123', name: 'John' });
@@ -139,7 +139,7 @@ function eventStoreErrorHandling() {
     },
   });
 
-  const store = events([userCreated]);
+  const store = events(userCreated);
 
   try {
     // @ts-expect-error - invalid key
