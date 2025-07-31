@@ -393,7 +393,11 @@ const traceable = <Tag extends string, T, Meta extends Record<string, Any> = Tra
  *
  * @public
  */
-const isTraceable = (element: Any): boolean => !!element && '~trace' in element;
+const isTraceable = (element: Any): boolean =>
+  !!element &&
+  // Only objects and functions can be traceable.
+  (typeof element === 'object' || typeof element === 'function') &&
+  '~trace' in element;
 
 /**
  * Check if an element is traced which means it has been wrapped by the trace function.
@@ -417,7 +421,11 @@ const isTraceable = (element: Any): boolean => !!element && '~trace' in element;
  * @public
  */
 const isTraced = (element: Any): boolean =>
-  isTraceable(element) && !!(element as Any)['~trace'] && (element as Any)['~trace'].traced;
+  isTraceable(element) &&
+  // Only functions can be traced.
+  typeof element === 'function' &&
+  !!(element as Any)['~trace'] &&
+  (element as Any)['~trace'].traced;
 
 /**
  * Global tracer for emitting and subscribing to trace events.
