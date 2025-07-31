@@ -90,7 +90,7 @@ describe('Event', () => {
         },
       });
 
-      const eventList = events([userCreated, userUpdated]);
+      const eventList = events(userCreated, userUpdated);
 
       expect(eventList).toBeDefined();
       expect(eventList.keys).toEqual(['user.created', 'user.updated']);
@@ -108,7 +108,7 @@ describe('Event', () => {
         },
       });
 
-      const eventList = events([userCreated]);
+      const eventList = events(userCreated);
 
       eventList.add('user.created', { id: '123', name: 'John' });
 
@@ -128,7 +128,7 @@ describe('Event', () => {
         },
       });
 
-      const eventStore = events([userCreated]);
+      const eventStore = events(userCreated);
 
       eventStore.add('user.created', { id: '123', name: 'John' });
       eventStore.add('user.created', { id: '456', name: 'Jane' });
@@ -150,7 +150,7 @@ describe('Event', () => {
         },
       });
 
-      const eventStore = events([userCreated]);
+      const eventStore = events(userCreated);
 
       eventStore.add('user.created', { id: '123', name: 'John' });
       eventStore.add('user.created', { id: '456', name: 'Jane' });
@@ -171,7 +171,7 @@ describe('Event', () => {
         },
       });
 
-      const eventStore = events([userCreated]);
+      const eventStore = events(userCreated);
 
       eventStore.add('user.created', { id: '123', name: 'John' });
       await setTimeout(20);
@@ -193,7 +193,7 @@ describe('Event', () => {
         },
       });
 
-      const eventStore = events([userCreated]);
+      const eventStore = events(userCreated);
 
       eventStore.add('user.created', { id: '123', name: 'John' });
       await setTimeout(20);
@@ -219,7 +219,7 @@ describe('Event', () => {
         },
       });
 
-      const eventStore = events([userCreated]);
+      const eventStore = events(userCreated);
 
       expect(() => {
         // @ts-expect-error - invalid key.
@@ -232,14 +232,14 @@ describe('Event', () => {
     it('should provide correct type inference for all public elements', () => {
       // Test event function
       expectTypeOf(event).toBeFunction();
-      expectTypeOf(event).parameter(0).toMatchTypeOf<{
+      expectTypeOf(event).parameter(0).toEqualTypeOf<{
         key: string;
         value: Record<string, Value<Any, Any>>;
       }>();
 
       // Test events function
       expectTypeOf(events).toBeFunction();
-      expectTypeOf(events).parameter(0).toBeArray();
+      expectTypeOf(events).parameter(0).toBeObject();
 
       // Test EventError
       expectTypeOf(EventError).toBeObject();
@@ -277,7 +277,7 @@ describe('Event', () => {
         },
       });
 
-      const eventList = events([userCreated]);
+      const eventList = events(userCreated);
 
       expectTypeOf(eventList.keys).toBeArray();
       expectTypeOf(eventList.add).toBeFunction();
@@ -377,7 +377,7 @@ describe('Event', () => {
         },
       });
 
-      const eventList = events([userCreated, userUpdated]);
+      const eventList = events(userCreated, userUpdated);
 
       expect(eventList.keys).toEqual(['user.created', 'user.updated']);
       expect(typeof eventList.add).toBe('function');
@@ -404,7 +404,7 @@ describe('Event', () => {
         },
       });
 
-      const eventList = events([userCreated, userUpdated]);
+      const eventList = events(userCreated, userUpdated);
 
       // Add events with type safety
       eventList.add('user.created', { id: '123', name: 'John' });
@@ -433,7 +433,7 @@ describe('Event', () => {
         },
       });
 
-      const eventList = events([userCreated]);
+      const eventList = events(userCreated);
 
       expect(() => {
         // @ts-expect-error - invalid key.
