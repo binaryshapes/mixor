@@ -201,4 +201,5 @@ const isValue = (value: unknown): value is Value<Any, Any> =>
 const isValueRule = (value: unknown): value is ValueRule<Any, Any> =>
   isTraceable(value) && traceInfo(value as ValueRule<Any, Any>).tag === 'ValueRule';
 
+export type { Value, ValueRule };
 export { isValue, isValueRule, rule, value };
