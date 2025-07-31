@@ -298,7 +298,7 @@ Before running tests, **always review the targets in the `vitest.config.ts` file
 cd packages/core
 
 # Run tests for specific project with typechecking and coverage.
-pnpm test:project -- nameOfModule
+pnpm test-project -- nameOfModule
 ```
 
 ### Command Options Explained
@@ -450,7 +450,7 @@ describe('Type safety', () => {
 - **Use toEqualTypeOf instead of toMatchTypeOf** - `toMatchTypeOf` is deprecated by Vitest, use `toEqualTypeOf` for strict type equality.
 - **Use Result type for typechecking when applicable** - When testing functions that return `Result<T, E>`, use `Result<T, E>` directly in type assertions.
 - **Check vitest.config.ts first** - Always review available test projects before running tests.
-- **Use correct test command** - `pnpm test:project -- nameOfModule` for specific module testing.
+- **Use correct test command** - `pnpm test-project -- nameOfModule` for specific module testing.
 - **Maintain perfect synchronization** - Tests must match documentation and example files exactly.
 - **Separate typechecking from runtime tests** - Type safety section for types, other sections for behavior.
 - **Comprehensive type safety testing** - Test all @public elements with `expectTypeOf`.
