@@ -1,17 +1,17 @@
 import { EventError, event, events } from '../src/event';
 import { ok } from '../src/result';
-import { value } from '../src/value';
+import { rule, value } from '../src/value';
 
 /**
  * event-001: Basic event creation with Value types for validation.
  */
 function eventBasicCreation() {
   console.log('\nevent-001: Basic event creation with Value types for validation.');
-  const userCreated = event('User created event', {
+  const userCreated = event({
     key: 'user.created',
     value: {
-      id: value('id', (id: string) => ok(id)),
-      name: value('name', (name: string) => ok(name)),
+      id: value(rule((id: string) => ok(id))),
+      name: value(rule((name: string) => ok(name))),
     },
   });
 
@@ -30,13 +30,13 @@ function eventBasicCreation() {
  */
 function eventComplexCreation() {
   console.log('\nevent-002: Event creation with complex Value schema for validation.');
-  const userUpdated = event('User updated event', {
+  const userUpdated = event({
     key: 'user.updated',
     value: {
-      id: value('id', (id: string) => ok(id)),
-      name: value('name', (name: string) => ok(name)),
-      email: value('email', (email: string) => ok(email)),
-      age: value('age', (age: number) => ok(age)),
+      id: value(rule((id: string) => ok(id))),
+      name: value(rule((name: string) => ok(name))),
+      email: value(rule((email: string) => ok(email))),
+      age: value(rule((age: number) => ok(age))),
     },
   });
 
@@ -57,20 +57,20 @@ function eventComplexCreation() {
  */
 function eventStoreCreation() {
   console.log('\nevent-003: Creating an event store with multiple event types.');
-  const userCreated = event('User created', {
+  const userCreated = event({
     key: 'user.created',
     value: {
-      id: value('id', (id: string) => ok(id)),
-      name: value('name', (name: string) => ok(name)),
+      id: value(rule((id: string) => ok(id))),
+      name: value(rule((name: string) => ok(name))),
     },
   });
 
-  const userUpdated = event('User updated', {
+  const userUpdated = event({
     key: 'user.updated',
     value: {
-      id: value('id', (id: string) => ok(id)),
-      name: value('name', (name: string) => ok(name)),
-      email: value('email', (email: string) => ok(email)),
+      id: value(rule((id: string) => ok(id))),
+      name: value(rule((name: string) => ok(name))),
+      email: value(rule((email: string) => ok(email))),
     },
   });
 
@@ -86,20 +86,20 @@ function eventStoreCreation() {
  */
 function eventStoreUsage() {
   console.log('\nevent-004: Using the event store to add and retrieve events.');
-  const userCreated = event('User created', {
+  const userCreated = event({
     key: 'user.created',
     value: {
-      id: value('id', (id: string) => ok(id)),
-      name: value('name', (name: string) => ok(name)),
+      id: value(rule((id: string) => ok(id))),
+      name: value(rule((name: string) => ok(name))),
     },
   });
 
-  const userUpdated = event('User updated', {
+  const userUpdated = event({
     key: 'user.updated',
     value: {
-      id: value('id', (id: string) => ok(id)),
-      name: value('name', (name: string) => ok(name)),
-      email: value('email', (email: string) => ok(email)),
+      id: value(rule((id: string) => ok(id))),
+      name: value(rule((name: string) => ok(name))),
+      email: value(rule((email: string) => ok(email))),
     },
   });
 
@@ -131,11 +131,11 @@ function eventStoreUsage() {
  */
 function eventStoreErrorHandling() {
   console.log('\nevent-005: Error handling when adding events with invalid keys.');
-  const userCreated = event('User created', {
+  const userCreated = event({
     key: 'user.created',
     value: {
-      id: value('id', (id: string) => ok(id)),
-      name: value('name', (name: string) => ok(name)),
+      id: value(rule((id: string) => ok(id))),
+      name: value(rule((name: string) => ok(name))),
     },
   });
 
