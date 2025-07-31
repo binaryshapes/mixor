@@ -6,10 +6,30 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Element, element, isElement } from './element';
 import type { Any } from './generics';
-import { hash } from './hash';
+import { pipe } from './pipe';
 import { type Result } from './result';
+import { type Traceable, type TraceableMeta, isTraceable, traceInfo, traceable } from './trace';
+
+/**
+ * Defines the shape of a value function. Must return a result with known error type.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ *
+ * @internal
+ */
+type ValueFunction<T, E> = (value: T) => Result<T, E>;
+
+/**
+ * Extended metadata for value validation.
+ *
+ * @internal
+ */
+type ValueMeta = TraceableMeta<{
+  /** Example of valid input. */
+  example: string;
+}>;
 
 /**
  * A function to apply to a value to validate it.
@@ -19,221 +39,166 @@ import { type Result } from './result';
  * @param value - The value to validate.
  * @returns A result containing the validated value or an error.
  *
- * @see {@link Value} for the value wrapper that uses this function.
- * @see {@link Result} for the result type returned by validation.
- *
  * @internal
  */
-type ValueFunction<T, E> = (value: T) => Result<T, E>;
-
-/**
- * A value wrapper that provides individual field validation.
- *
- * @typeParam T - The type of the value to validate.
- * @typeParam E - The type of the error.
- *
- * @see {@link ValueFunction} for the validation function type.
- * @see {@link Result} for the result type returned by validation.
- * @see {@link Element} for the base element type.
- *
- * @public
- */
-type Value<T, E> = Element<
-  'Value',
+type ValueRule<T, E> = Traceable<
+  'ValueRule',
   {
-    /**
-     * Validates a single value using the provided validation function.
-     *
-     * @param input - The value to validate.
-     * @returns A result containing the validated value or an error.
-     *
-     * @see {@link ValueFunction} for the validation function type.
-     * @public
-     */
-    (input: T): Result<T, E>;
-    /**
-     * The validation function used by this value wrapper.
-     *
-     * @readonly
-     * @see {@link ValueFunction} for the validation function type.
-     * @public
-     */
-    readonly validator: ValueFunction<T, E>;
+    (value: T): Result<T, E>;
   }
 >;
 
 /**
- * Interface for the value function overloads.
+ * Base value type that can be either a validator or a builder.
  *
- * @see {@link Value} for the value wrapper type.
- * @see {@link ValueFunction} for the validation function type.
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
  *
  * @internal
  */
-interface ValueDefinition {
-  /**
-   * Creates a value wrapper for individual field validation.
-   *
-   * @param validator - The validation function to wrap.
-   * @returns A value wrapper that can validate individual values.
-   *
-   * @see {@link Value} for the value wrapper type.
-   * @public
-   */
-  <T, E>(validator: ValueFunction<T, E>): Value<T, E>;
-
-  /**
-   * Creates a value wrapper for individual field validation with documentation.
-   *
-   * @param doc - Documentation of the value being validated.
-   * @param validator - The validation function to wrap.
-   * @returns A value wrapper that can validate individual values.
-   *
-   * @see {@link Value} for the value wrapper type.
-   * @public
-   */
-  <T, E>(doc: string, validator: ValueFunction<T, E>): Value<T, E>;
-}
+type Value<T, E> = Traceable<
+  'Value',
+  {
+    (input: T, mode?: 'strict' | 'all'): Result<T, E>;
+  },
+  ValueMeta
+>;
 
 /**
- * Creates a value wrapper for individual field validation.
+ * Create a value rule for validation.
  *
- * @param args - The arguments to create the value wrapper. Can be either a validation function or
- * a doc string followed by a validation function.
- * @returns A value wrapper that can validate individual values.
- *
- * @see {@link Value} for the value wrapper type.
- * @see {@link ValueFunction} for the validation function type.
- * @see {@link isValue} for checking if a value is a value wrapper.
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ * @param rule - The validation function to create.
+ * @returns A new traceable value rule.
  *
  * @example
  * ```ts
- * // value-001: Basic value validation.
- * const nameValue = value((name: string) =>
- *   name.length > 0 ? ok(name) : err('EMPTY_NAME')
+ * // value-001: Basic rule creation for string validation.
+ * const EmailNotEmpty = rule((email: string) =>
+ *   email.length > 0 ? ok(email) : err('EMPTY_EMAIL')
  * );
- * // nameValue: Value<string, 'EMPTY_NAME'>.
- * const result = nameValue('John'); // ok('John').
+ * const result = EmailNotEmpty('test@example.com');
+ * // result: Ok('test@example.com').
  * ```
  *
  * @example
  * ```ts
- * // value-002: Value validation with documentation.
- * const ageValue = value(
- *   'User age must be at least 18 years old',
- *   (age: number) => age >= 18 ? ok(age) : err('INVALID_AGE')
+ * // value-002: Rule with custom error handling.
+ * const EmailShouldBeCorporate = rule((email: string) =>
+ *   email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE')
  * );
- * // ageValue: Value<number, 'INVALID_AGE'>.
- * const result = ageValue(21); // ok(21).
- * ```
- *
- * @example
- * ```ts
- * // value-003: Complex value validation with multiple checks.
- * const emailValue = value(
- *   'Email address validation',
- *   (email: string) => {
- *     if (!email.includes('@')) return err('INVALID_EMAIL');
- *     if (email.length < 5) return err('EMAIL_TOO_SHORT');
- *     return ok(email);
- *   }
- * );
- * // emailValue: Value<string, 'INVALID_EMAIL' | 'EMAIL_TOO_SHORT'>.
- * const validEmail = emailValue('user@example.com'); // ok('user@example.com').
- * const invalidEmail = emailValue('invalid'); // err('INVALID_EMAIL').
- * ```
- *
- * @example
- * ```ts
- * // value-004: Value validation with type safety and bounds.
- * const ageValue = value(
- *   'Age validation with bounds',
- *   (age: number) => {
- *     if (age < 0) return err('NEGATIVE_AGE');
- *     if (age > 150) return err('AGE_TOO_HIGH');
- *     return ok(age);
- *   }
- * );
- * // ageValue: Value<number, 'NEGATIVE_AGE' | 'AGE_TOO_HIGH'>.
- * const result = ageValue(25); // ok(25).
- * // const error = ageValue('25'); // TypeScript error.
- * ```
- *
- * @example
- * ```ts
- * // value-005: Value validation with custom error types.
- * const emailValue = value(
- *   'Email format validation',
- *   (email: string) => {
- *     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
- *     return emailRegex.test(email) ? ok(email) : err('INVALID_EMAIL_FORMAT');
- *   }
- * );
- * // emailValue: Value<string, 'INVALID_EMAIL_FORMAT'>.
- * const validEmail = emailValue('user@example.com'); // ok('user@example.com').
- * const invalidEmail = emailValue('invalid-email'); // err('INVALID_EMAIL_FORMAT').
+ * const result = EmailShouldBeCorporate('user@company.com');
+ * // result: Ok('user@company.com').
  * ```
  *
  * @public
  */
-const value: ValueDefinition = <T, E>(
-  ...args: [ValueFunction<T, E>] | [string, ValueFunction<T, E>] | [(input: T) => Result<T, E>]
-): Value<T, E> => {
-  const doc = typeof args[0] === 'string' ? args[0] : undefined;
-  const validator = typeof args[0] === 'function' ? args[0] : (args[1] as ValueFunction<T, E>);
-  const valueWrapper = (input: T): Result<T, E> => validator(input);
-
-  // Create the value element with metadata using the element function.
-  const valueObject = Object.assign(valueWrapper, {
-    validator,
-  });
-
-  return element(valueObject, {
-    hash: hash(doc, validator),
-    tag: 'Value',
-    doc,
-  }) as Value<T, E>;
-};
+const rule = <T, E>(rule: ValueFunction<T, E>) => traceable('ValueRule', rule) as ValueRule<T, E>;
 
 /**
- * Guard check to determine if the given value is a value wrapper.
+ * Creates a value validator that combines multiple rules for field validation.
+ * Combines rules using function composition for validation.
+ *
+ * @param rules - The validation rules to apply to the value.
+ * @returns A new traceable value validator.
+ *
+ * @example
+ * ```ts
+ * // value-003: Basic value validation with multiple rules.
+ * const EmailNotEmpty = rule((email: string) =>
+ *   email.length > 0 ? ok(email) : err('EMPTY_EMAIL')
+ * );
+ * const EmailShouldBeCorporate = rule((email: string) =>
+ *   email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE')
+ * );
+ *
+ * const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate);
+ * const result = UserEmail('john@company.com');
+ * // result: Ok('john@company.com').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // value-004: Value validation with error handling.
+ * const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate);
+ * const result = UserEmail('');
+ * if (isOk(result)) {
+ *   // unwrap(result): validated email.
+ * } else {
+ *   // unwrap(result): 'EMPTY_EMAIL'.
+ * }
+ * ```
+ *
+ * @example
+ * ```ts
+ * // value-005: Rule with metadata for better tracing.
+ * const EmailNotEmpty = rule((email: string) =>
+ *   email.length > 0 ? ok(email) : err('EMPTY_EMAIL')
+ * ).meta({
+ *   name: 'EmailNotEmpty',
+ *   description: 'Validates that email is not empty',
+ *   scope: 'UserValidation'
+ * });
+ * const result = EmailNotEmpty('test@example.com');
+ * // result: Ok('test@example.com').
+ * ```
+ *
+ * @example
+ * ```ts
+ * // value-006: Value validator with metadata for tracing.
+ * const EmailNotEmpty = rule((email: string) =>
+ *   email.length > 0 ? ok(email) : err('EMPTY_EMAIL')
+ * ).meta({
+ *   name: 'EmailNotEmpty',
+ *   description: 'Validates that email is not empty',
+ *   scope: 'UserValidation'
+ * });
+ * const EmailShouldBeCorporate = rule((email: string) =>
+ *   email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE')
+ * ).meta({
+ *   name: 'EmailShouldBeCorporate',
+ *   description: 'Validates that email is corporate',
+ *   scope: 'UserValidation'
+ * });
+ *
+ * const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate).meta({
+ *   name: 'UserEmail',
+ *   description: 'Complete email validation for users',
+ *   scope: 'UserValidation',
+ *   example: 'john@company.com'
+ * });
+ * const result = UserEmail('john@company.com');
+ * // result: Ok('john@company.com').
+ * ```
+ *
+ * @public
+ */
+const value = <T, E>(...rules: ValueRule<T, E>[]) =>
+  traceable('Value', (value: T, mode: 'strict' | 'all' = 'all') =>
+    pipe(mode, ...(rules as [ValueRule<Any, Any>]))(value),
+  ) as Value<T, E>;
+
+/**
+ * Guard check to determine if the given value is a value validator.
  *
  * @param value - The value to check.
- * @returns True if the value is a value wrapper, false otherwise.
- *
- * @see {@link Value} for the value wrapper type.
- * @see {@link value} for creating value wrappers.
- *
- * @example
- * ```ts
- * // value-006: Check if a value is a value wrapper.
- * const ageValue = value((age: number) => age >= 18 ? ok(age) : err('INVALID_AGE'));
- * const isAgeValue = isValue(ageValue); // true.
- * ```
- *
- * @example
- * ```ts
- * // value-007: Check if a regular function is not a value wrapper.
- * const regularFunction = (age: number) => age >= 18 ? ok(age) : err('INVALID_AGE');
- * const isValueWrapper = isValue(regularFunction); // false.
- * ```
- *
- * @example
- * ```ts
- * // value-008: Check if other types are not value wrappers.
- * const string = 'hello';
- * const number = 42;
- * const object = { age: 18 };
- *
- * const isStringValue = isValue(string); // false.
- * const isNumberValue = isValue(number); // false.
- * const isObjectValue = isValue(object); // false.
- * ```
+ * @returns True if the value is a value validator, false otherwise.
  *
  * @public
  */
 const isValue = (value: unknown): value is Value<Any, Any> =>
-  typeof value === 'function' && isElement(value, 'Value');
+  isTraceable(value) && traceInfo(value as Value<Any, Any>).tag === 'Value';
 
-export type { Value };
-export { value, isValue };
+/**
+ * Guard check to determine if the given value is a value rule.
+ *
+ * @param value - The value to check.
+ * @returns True if the value is a value rule, false otherwise.
+ *
+ * @public
+ */
+const isValueRule = (value: unknown): value is ValueRule<Any, Any> =>
+  isTraceable(value) && traceInfo(value as ValueRule<Any, Any>).tag === 'ValueRule';
+
+export { isValue, isValueRule, rule, value };

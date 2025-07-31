@@ -1,159 +1,148 @@
-import { err, isErr, isOk, ok, unwrap } from '../src/result';
-import { isValue, value } from '../src/value';
+import { err, isOk, ok } from '../src/result';
+import { traceInfo, tracer } from '../src/trace';
+import { rule, value } from '../src/value';
+
+tracer.on('perf', (event) => {
+  console.log('NEW PERFORMANCE EVENT -----> ', event);
+});
 
 /**
- * value-001: Basic value validation.
+ * value-001: Basic rule creation for string validation.
  */
-function valueBasicValidation() {
-  console.log('\nvalue-001: Basic value validation.');
-  const nameValue = value((name: string) => (name.length > 0 ? ok(name) : err('EMPTY_NAME')));
-  // nameValue: Value<string, 'EMPTY_NAME'>
-  const result = nameValue('John');
+function valueBasicRuleExample() {
+  console.log('\nvalue-001: Basic rule creation for string validation.');
 
-  if (isOk(result)) {
-    console.log('Success:', unwrap(result));
-  } else {
-    console.log('Error:', unwrap(result));
-  }
-}
-
-/**
- * value-002: Value validation with documentation.
- */
-function valueValidationWithDocumentation() {
-  console.log('\nvalue-002: Value validation with documentation.');
-  const ageValue = value('User age must be at least 18 years old', (age: number) =>
-    age >= 18 ? ok(age) : err('INVALID_AGE'),
+  const EmailNotEmpty = rule((email: string) =>
+    email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
   );
-  // ageValue: Value<number, 'INVALID_AGE'>
-  const result = ageValue(21);
+
+  const result = EmailNotEmpty('test@example.com');
+  console.log('Result:', result);
+  console.log('Result type:', typeof result);
+}
+
+/**
+ * value-002: Rule with custom error handling.
+ */
+function valueRuleErrorHandlingExample() {
+  console.log('\nvalue-002: Rule with custom error handling.');
+
+  const EmailShouldBeCorporate = rule((email: string) =>
+    email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE'),
+  );
+
+  const result = EmailShouldBeCorporate('user@company.com');
+  console.log('Result:', result);
+  console.log('Result type:', typeof result);
+}
+
+/**
+ * value-003: Basic value validation with multiple rules.
+ */
+function valueBasicValidationExample() {
+  console.log('\nvalue-003: Basic value validation with multiple rules.');
+
+  const EmailNotEmpty = rule((email: string) =>
+    email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
+  );
+  const EmailShouldBeCorporate = rule((email: string) =>
+    email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE'),
+  );
+
+  const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate);
+  const result = UserEmail('john@company.com');
+  console.log('Result:', result);
+  console.log('Result type:', typeof result);
+}
+
+/**
+ * value-004: Value validation with error handling.
+ */
+function valueErrorHandlingExample() {
+  console.log('\nvalue-004: Value validation with error handling.');
+
+  const EmailNotEmpty = rule((email: string) =>
+    email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
+  );
+  const EmailShouldBeCorporate = rule((email: string) =>
+    email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE'),
+  );
+
+  const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate);
+  const result = UserEmail('');
 
   if (isOk(result)) {
-    console.log('Success:', unwrap(result));
+    console.log('Valid email:', result.value);
   } else {
-    console.log('Error:', unwrap(result));
+    console.log('Error:', result.error);
   }
 }
 
 /**
- * value-003: Complex value validation with multiple checks.
+ * value-005: Rule with metadata for better tracing.
  */
-function valueComplexValidation() {
-  console.log('\nvalue-003: Complex value validation with multiple checks.');
-  const emailValue = value('Email address validation', (email: string) => {
-    if (!email.includes('@')) return err('INVALID_EMAIL');
-    if (email.length < 5) return err('EMAIL_TOO_SHORT');
-    return ok(email);
+function valueRuleWithMetadataExample() {
+  console.log('\nvalue-005: Rule with metadata for better tracing.');
+
+  const EmailNotEmpty = rule((email: string) =>
+    email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
+  ).meta({
+    name: 'EmailNotEmpty',
+    description: 'Validates that email is not empty',
+    scope: 'UserValidation',
   });
-  // emailValue: Value<string, 'INVALID_EMAIL' | 'EMAIL_TOO_SHORT'>
 
-  const validEmail = emailValue('user@example.com');
-  const invalidEmail = emailValue('invalid');
+  const result = EmailNotEmpty('test@example.com');
+  console.log('Result:', result);
+  console.log('Result type:', typeof result);
 
-  if (isOk(validEmail)) {
-    console.log('Valid email:', unwrap(validEmail));
-  } else {
-    console.log('Email error:', unwrap(validEmail));
-  }
-
-  if (isErr(invalidEmail)) {
-    console.log('Invalid email error:', unwrap(invalidEmail));
-  }
+  // Show trace info
+  const info = traceInfo(EmailNotEmpty);
+  console.log('Rule metadata:', info.meta);
 }
 
 /**
- * value-004: Value validation with type safety and bounds.
+ * value-006: Value validator with metadata for tracing.
  */
-function valueTypeSafetyAndBounds() {
-  console.log('\nvalue-004: Value validation with type safety and bounds.');
-  const ageValue = value('Age validation with bounds', (age: number) => {
-    if (age < 0) return err('NEGATIVE_AGE');
-    if (age > 150) return err('AGE_TOO_HIGH');
-    return ok(age);
+function valueValidatorWithMetadataExample() {
+  console.log('\nvalue-006: Value validator with metadata for tracing.');
+
+  const EmailNotEmpty = rule((email: string) =>
+    email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
+  ).meta({
+    name: 'EmailNotEmpty',
+    description: 'Validates that email is not empty',
+    scope: 'UserValidation',
   });
-  // ageValue: Value<number, 'NEGATIVE_AGE' | 'AGE_TOO_HIGH'>
 
-  const result = ageValue(25);
-
-  if (isOk(result)) {
-    console.log('Valid age:', unwrap(result));
-  } else {
-    console.log('Age error:', unwrap(result));
-  }
-}
-
-/**
- * value-005: Value validation with custom error types.
- */
-function valueCustomErrorTypes() {
-  console.log('\nvalue-005: Value validation with custom error types.');
-  const emailValue = value('Email format validation', (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email) ? ok(email) : err('INVALID_EMAIL_FORMAT');
+  const EmailShouldBeCorporate = rule((email: string) =>
+    email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE'),
+  ).meta({
+    name: 'EmailShouldBeCorporate',
+    description: 'Validates that email is corporate',
+    scope: 'UserValidation',
   });
-  // emailValue: Value<string, 'INVALID_EMAIL_FORMAT'>
 
-  const validEmail = emailValue('user@example.com');
-  const invalidEmail = emailValue('invalid-email');
+  const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate).meta({
+    name: 'UserEmail',
+    description: 'Complete email validation for users',
+    scope: 'UserValidation',
+    example: 'john@company.com',
+  });
 
-  if (isOk(validEmail)) {
-    console.log('Valid email format:', unwrap(validEmail));
-  } else {
-    console.log('Email format error:', unwrap(validEmail));
-  }
+  const result = UserEmail('john@company.com');
+  console.log('Result:', result);
+  console.log('Result type:', typeof result);
 
-  if (isErr(invalidEmail)) {
-    console.log('Invalid email format error:', unwrap(invalidEmail));
-  }
+  // Show trace info for the value validator
+  const info = traceInfo(UserEmail);
+  console.log('Value validator metadata:', info.meta);
 }
 
-/**
- * value-006: Check if a value is a value wrapper.
- */
-function valueCheckIsValueWrapper() {
-  console.log('\nvalue-006: Check if a value is a value wrapper.');
-  const ageValue = value((age: number) => (age >= 18 ? ok(age) : err('INVALID_AGE')));
-  // ageValue: Value<number, 'INVALID_AGE'>
-  const isAgeValue = isValue(ageValue);
-
-  console.log('Is age value wrapper:', isAgeValue);
-}
-
-/**
- * value-007: Check if a regular function is not a value wrapper.
- */
-function valueCheckRegularFunction() {
-  console.log('\nvalue-007: Check if a regular function is not a value wrapper.');
-  const regularFunction = (age: number) => (age >= 18 ? ok(age) : err('INVALID_AGE'));
-  const isValueWrapper = isValue(regularFunction);
-
-  console.log('Is regular function a value wrapper:', isValueWrapper);
-}
-
-/**
- * value-008: Check if other types are not value wrappers.
- */
-function valueCheckOtherTypes() {
-  console.log('\nvalue-008: Check if other types are not value wrappers.');
-  const string = 'hello';
-  const number = 42;
-  const object = { age: 18 };
-
-  const isStringValue = isValue(string);
-  const isNumberValue = isValue(number);
-  const isObjectValue = isValue(object);
-
-  console.log('Is string a value wrapper:', isStringValue);
-  console.log('Is number a value wrapper:', isNumberValue);
-  console.log('Is object a value wrapper:', isObjectValue);
-}
-
-// Execute all examples
-valueBasicValidation();
-valueValidationWithDocumentation();
-valueComplexValidation();
-valueTypeSafetyAndBounds();
-valueCustomErrorTypes();
-valueCheckIsValueWrapper();
-valueCheckRegularFunction();
-valueCheckOtherTypes();
+// Run individual examples
+valueBasicRuleExample();
+valueRuleErrorHandlingExample();
+valueBasicValidationExample();
+valueErrorHandlingExample();
+valueRuleWithMetadataExample();
+valueValidatorWithMetadataExample();
