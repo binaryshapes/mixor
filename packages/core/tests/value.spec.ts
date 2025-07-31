@@ -1,192 +1,248 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { type Result, err, isErr, isOk, ok, unwrap } from '../src/result';
-import { type Value, isValue, value } from '../src/value';
+import { isValue, isValueRule, rule, value } from '../src/value';
 
 describe('Value', () => {
+  // Shared test utilities
+  const createTestHelpers = () => ({
+    createEmailRule: () =>
+      rule((email: string) => (email.length > 0 ? ok(email) : err('EMPTY_EMAIL'))),
+    createCorporateEmailRule: () =>
+      rule((email: string) => (email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE'))),
+    createEmailLengthRule: () =>
+      rule((email: string) => (email.length <= 50 ? ok(email) : err('EMAIL_TOO_LONG'))),
+  });
+
   describe('Basic functionality', () => {
-    it('should create a value wrapper with a validation function', () => {
-      const nameValue = value((name: string) => (name.length > 0 ? ok(name) : err('EMPTY_NAME')));
+    const helpers = createTestHelpers();
 
-      expect(typeof nameValue).toBe('function');
-      expect(nameValue.validator).toBeDefined();
-      expect(typeof nameValue.validator).toBe('function');
+    it('should create value rules correctly', () => {
+      const EmailNotEmpty = helpers.createEmailRule();
+      const result = EmailNotEmpty('test@example.com');
+
+      expect(isOk(result)).toBe(true);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe('test@example.com');
+      }
     });
 
-    it('should validate values correctly', () => {
-      const ageValue = value((age: number) => (age >= 18 ? ok(age) : err('INVALID_AGE')));
+    it('should handle rule errors correctly', () => {
+      const EmailNotEmpty = helpers.createEmailRule();
+      const result = EmailNotEmpty('');
 
-      const validResult = ageValue(21);
-      const invalidResult = ageValue(15);
-
-      expect(isOk(validResult)).toBe(true);
-      expect(unwrap(validResult)).toBe(21);
-
-      expect(isErr(invalidResult)).toBe(true);
-      expect(unwrap(invalidResult)).toBe('INVALID_AGE');
+      expect(isErr(result)).toBe(true);
+      if (isErr(result)) {
+        expect(unwrap(result)).toBe('EMPTY_EMAIL');
+      }
     });
 
-    it('should provide access to the validator function', () => {
-      const validator = (age: number) => (age >= 18 ? ok(age) : err('INVALID_AGE'));
-      const ageValue = value(validator);
+    it('should create value validators with multiple rules', () => {
+      const EmailNotEmpty = helpers.createEmailRule();
+      const EmailShouldBeCorporate = helpers.createCorporateEmailRule();
 
-      expect(ageValue.validator).toBe(validator);
+      const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate);
+      const result = UserEmail('john@company.com');
+
+      expect(isOk(result)).toBe(true);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe('john@company.com');
+      }
     });
 
-    it('should work with documentation', () => {
-      const ageValue = value('User age must be at least 18 years old', (age: number) =>
-        age >= 18 ? ok(age) : err('INVALID_AGE'),
-      );
+    it('should handle validation errors with multiple rules', () => {
+      const EmailNotEmpty = helpers.createEmailRule();
+      const EmailShouldBeCorporate = helpers.createCorporateEmailRule();
 
-      expect(typeof ageValue).toBe('function');
-      expect(ageValue.validator).toBeDefined();
+      const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate);
+      const result = UserEmail('');
+
+      expect(isErr(result)).toBe(true);
+      if (isErr(result)) {
+        expect(unwrap(result)).toContain('EMPTY_EMAIL');
+      }
     });
 
-    it('should handle complex validation logic', () => {
-      const emailValue = value('Email address validation', (email: string) => {
-        if (!email.includes('@')) return err('INVALID_EMAIL');
-        if (email.length < 5) return err('EMAIL_TOO_SHORT');
-        return ok(email);
-      });
+    it('should work with single rule', () => {
+      const EmailNotEmpty = helpers.createEmailRule();
+      const UserEmail = value(EmailNotEmpty);
+      const result = UserEmail('test@example.com');
 
-      const validEmail = emailValue('user@example.com');
-      const invalidEmail = emailValue('invalid');
+      expect(isOk(result)).toBe(true);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe('test@example.com');
+      }
+    });
 
-      expect(isOk(validEmail)).toBe(true);
-      expect(unwrap(validEmail)).toBe('user@example.com');
+    it('should work with multiple rules', () => {
+      const EmailNotEmpty = helpers.createEmailRule();
+      const EmailShouldBeCorporate = helpers.createCorporateEmailRule();
+      const EmailLength = helpers.createEmailLengthRule();
 
-      expect(isErr(invalidEmail)).toBe(true);
-      expect(unwrap(invalidEmail)).toBe('INVALID_EMAIL');
+      const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate, EmailLength);
+      const result = UserEmail('user@company.com');
+
+      expect(isOk(result)).toBe(true);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe('user@company.com');
+      }
+    });
+
+    it('should identify value rules correctly', () => {
+      const EmailNotEmpty = helpers.createEmailRule();
+      expect(isValueRule(EmailNotEmpty)).toBe(true);
+    });
+
+    it('should identify value validators correctly', () => {
+      const EmailNotEmpty = helpers.createEmailRule();
+      const UserEmail = value(EmailNotEmpty);
+      expect(isValue(UserEmail)).toBe(true);
     });
   });
 
   describe('Type safety', () => {
     it('should provide correct type inference for all public elements', () => {
-      // Test value function
+      // Test all @public functions
+      expectTypeOf(rule).toBeFunction();
       expectTypeOf(value).toBeFunction();
-      expectTypeOf(value((name: string) => ok(name))).toBeFunction();
-
-      // Test isValue function
       expectTypeOf(isValue).toBeFunction();
-      expectTypeOf(isValue({})).toBeBoolean();
+      expectTypeOf(isValueRule).toBeFunction();
 
-      // Test Value type
-      const testValue: Value<string, string> = value((name: string) => ok(name));
-      expectTypeOf(testValue).toBeFunction();
-      expectTypeOf(testValue.validator).toBeFunction();
+      // Test function signatures
+      expectTypeOf(rule<string, 'EMPTY_EMAIL'>).toBeFunction();
+      expectTypeOf(value<string, 'EMPTY_EMAIL'>).toBeFunction();
     });
 
     it('should validate generic type constraints', () => {
-      // Test generic value function
-      expectTypeOf(value).toBeFunction();
-      expectTypeOf(value((name: string) => ok(name))).toBeFunction();
+      // Test generic functions with type constraints
+      const EmailNotEmpty = rule((email: string) =>
+        email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
+      );
+      expectTypeOf(EmailNotEmpty).toBeFunction();
+      expectTypeOf(EmailNotEmpty('test')).toEqualTypeOf<Result<string, 'EMPTY_EMAIL'>>();
 
-      // Test with different types
-      const numberValue = value((num: number) => (num > 0 ? ok(num) : err('NEGATIVE')));
-      expectTypeOf(numberValue).toBeFunction();
-      expectTypeOf(numberValue(5)).toEqualTypeOf<Result<number, 'NEGATIVE'>>();
+      const UserEmail = value(EmailNotEmpty);
+      expectTypeOf(UserEmail).toBeFunction();
+      expectTypeOf(UserEmail('test')).toEqualTypeOf<Result<string, 'EMPTY_EMAIL'>>();
     });
 
-    it('should validate union and intersection types', () => {
-      // Test union error types
-      const nameValue = value((name: string) => (name.length > 0 ? ok(name) : err('EMPTY_NAME')));
+    it('should validate Result types correctly', () => {
+      // Test Result type inference
+      const EmailNotEmpty = rule((email: string) =>
+        email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
+      );
+      const result = EmailNotEmpty('test@example.com');
+      expectTypeOf(result).toEqualTypeOf<Result<string, 'EMPTY_EMAIL'>>();
 
-      expectTypeOf(nameValue).toBeFunction();
-      expectTypeOf(nameValue('test')).toEqualTypeOf<Result<string, 'EMPTY_NAME'>>();
+      const UserEmail = value(EmailNotEmpty);
+      const validationResult = UserEmail('test@example.com');
+      expectTypeOf(validationResult).toEqualTypeOf<Result<string, 'EMPTY_EMAIL'>>();
     });
   });
 
   describe('Code examples', () => {
-    it('should run example value-001: Basic value validation', () => {
-      const nameValue = value((name: string) => (name.length > 0 ? ok(name) : err('EMPTY_NAME')));
-      const result = nameValue('John');
-
-      expect(isOk(result)).toBe(true);
-      expect(unwrap(result)).toBe('John');
-    });
-
-    it('should run example value-002: Value validation with documentation', () => {
-      const ageValue = value('User age must be at least 18 years old', (age: number) =>
-        age >= 18 ? ok(age) : err('INVALID_AGE'),
+    it('should run example value-001: Basic rule creation for string validation', () => {
+      const EmailNotEmpty = rule((email: string) =>
+        email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
       );
-      const result = ageValue(21);
 
+      const result = EmailNotEmpty('test@example.com');
       expect(isOk(result)).toBe(true);
-      expect(unwrap(result)).toBe(21);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe('test@example.com');
+      }
     });
 
-    it('should run example value-003: Complex value validation with multiple checks', () => {
-      const emailValue = value('Email address validation', (email: string) => {
-        if (!email.includes('@')) return err('INVALID_EMAIL');
-        if (email.length < 5) return err('EMAIL_TOO_SHORT');
-        return ok(email);
-      });
+    it('should run example value-002: Rule with custom error handling', () => {
+      const EmailShouldBeCorporate = rule((email: string) =>
+        email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE'),
+      );
 
-      const validEmail = emailValue('user@example.com');
-      const invalidEmail = emailValue('invalid');
-
-      expect(isOk(validEmail)).toBe(true);
-      expect(unwrap(validEmail)).toBe('user@example.com');
-
-      expect(isErr(invalidEmail)).toBe(true);
-      expect(unwrap(invalidEmail)).toBe('INVALID_EMAIL');
-    });
-
-    it('should run example value-004: Value validation with type safety and bounds', () => {
-      const ageValue = value('Age validation with bounds', (age: number) => {
-        if (age < 0) return err('NEGATIVE_AGE');
-        if (age > 150) return err('AGE_TOO_HIGH');
-        return ok(age);
-      });
-
-      const result = ageValue(25);
-
+      const result = EmailShouldBeCorporate('user@company.com');
       expect(isOk(result)).toBe(true);
-      expect(unwrap(result)).toBe(25);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe('user@company.com');
+      }
     });
 
-    it('should run example value-005: Value validation with custom error types', () => {
-      const emailValue = value('Email format validation', (email: string) => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email) ? ok(email) : err('INVALID_EMAIL_FORMAT');
+    it('should run example value-003: Basic value validation with multiple rules', () => {
+      const EmailNotEmpty = rule((email: string) =>
+        email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
+      );
+      const EmailShouldBeCorporate = rule((email: string) =>
+        email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE'),
+      );
+
+      const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate);
+      const result = UserEmail('john@company.com');
+      expect(isOk(result)).toBe(true);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe('john@company.com');
+      }
+    });
+
+    it('should run example value-004: Value validation with error handling', () => {
+      const EmailNotEmpty = rule((email: string) =>
+        email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
+      );
+      const EmailShouldBeCorporate = rule((email: string) =>
+        email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE'),
+      );
+
+      const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate);
+      const result = UserEmail('');
+
+      expect(isErr(result)).toBe(true);
+      if (isErr(result)) {
+        expect(unwrap(result)).toContain('EMPTY_EMAIL');
+      }
+    });
+
+    it('should run example value-005: Rule with metadata for better tracing', () => {
+      const EmailNotEmpty = rule((email: string) =>
+        email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
+      ).meta({
+        name: 'EmailNotEmpty',
+        description: 'Validates that email is not empty',
+        scope: 'UserValidation',
       });
 
-      const validEmail = emailValue('user@example.com');
-      const invalidEmail = emailValue('invalid-email');
-
-      expect(isOk(validEmail)).toBe(true);
-      expect(unwrap(validEmail)).toBe('user@example.com');
-
-      expect(isErr(invalidEmail)).toBe(true);
-      expect(unwrap(invalidEmail)).toBe('INVALID_EMAIL_FORMAT');
+      const result = EmailNotEmpty('test@example.com');
+      expect(isOk(result)).toBe(true);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe('test@example.com');
+      }
     });
 
-    it('should run example value-006: Check if a value is a value wrapper', () => {
-      const ageValue = value((age: number) => (age >= 18 ? ok(age) : err('INVALID_AGE')));
-      const isAgeValue = isValue(ageValue);
+    it('should run example value-006: Value validator with metadata for tracing', () => {
+      const EmailNotEmpty = rule((email: string) =>
+        email.length > 0 ? ok(email) : err('EMPTY_EMAIL'),
+      ).meta({
+        name: 'EmailNotEmpty',
+        description: 'Validates that email is not empty',
+        scope: 'UserValidation',
+      });
 
-      expect(isAgeValue).toBe(true);
-    });
+      const EmailShouldBeCorporate = rule((email: string) =>
+        email.includes('@company.com') ? ok(email) : err('NOT_CORPORATE'),
+      ).meta({
+        name: 'EmailShouldBeCorporate',
+        description: 'Validates that email is corporate',
+        scope: 'UserValidation',
+      });
 
-    it('should run example value-007: Check if a regular function is not a value wrapper', () => {
-      const regularFunction = (age: number) => (age >= 18 ? ok(age) : err('INVALID_AGE'));
-      const isValueWrapper = isValue(regularFunction);
+      const UserEmail = value(EmailNotEmpty, EmailShouldBeCorporate).meta({
+        name: 'UserEmail',
+        description: 'Complete email validation for users',
+        scope: 'UserValidation',
+        example: 'john@company.com',
+      });
 
-      expect(isValueWrapper).toBe(false);
-    });
-
-    it('should run example value-008: Check if other types are not value wrappers', () => {
-      const string = 'hello';
-      const number = 42;
-      const object = { age: 18 };
-
-      const isStringValue = isValue(string);
-      const isNumberValue = isValue(number);
-      const isObjectValue = isValue(object);
-
-      expect(isStringValue).toBe(false);
-      expect(isNumberValue).toBe(false);
-      expect(isObjectValue).toBe(false);
+      const result = UserEmail('john@company.com');
+      expect(isOk(result)).toBe(true);
+      if (isOk(result)) {
+        expect(unwrap(result)).toBe('john@company.com');
+      }
     });
   });
 });
