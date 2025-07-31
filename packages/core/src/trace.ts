@@ -69,7 +69,11 @@ type TraceableMeta<Meta extends Record<string, Any> = object> = Prettify<
  *
  * @public
  */
-type Traceable<Tag extends string, Type, Meta extends Record<string, Any> = never> = Type & {
+type Traceable<
+  Tag extends string,
+  Type,
+  Meta extends Record<string, Any> = TraceableMeta,
+> = Type & {
   /**
    * Set the metadata for the traceable element.
    *
