@@ -6,11 +6,20 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Element, element } from './element';
 import type { Any, Prettify } from './generics';
-import { hash } from './hash';
 import { Panic } from './panic';
+import { type Traceable, type TraceableMeta, traceable } from './trace';
 import type { Value } from './value';
+
+/**
+ * Extended metadata for event validation.
+ *
+ * @internal
+ */
+type EventMeta = TraceableMeta<{
+  /** Example of valid event data. */
+  example: string;
+}>;
 
 /**
  * Type for an event data structure containing key and value.
@@ -28,18 +37,19 @@ type EventData<K, T> = Prettify<{
 
 /**
  * Type for an event constructor function that creates typed events.
- * Extends the Element type to provide event-specific functionality.
+ * Extends the Traceable type to provide event-specific functionality.
  *
  * @typeParam K - The event key type.
  * @typeParam T - The event value type.
  *
  * @internal
  */
-type Event<K, T> = Element<
+type Event<K, T> = Traceable<
   'Event',
   EventData<K, T> & {
     (value: T): EventData<K, T>;
-  }
+  },
+  EventMeta
 >;
 
 /**
@@ -72,18 +82,17 @@ type EventValue<T extends Record<Any, Value<Any, Any>>> = Prettify<{
  * The function takes a record of Value wrappers and returns an event constructor
  * that accepts the actual value types (extracted from the Value wrappers).
  *
- * @param doc - The documentation string describing the event.
  * @param def - The event definition containing key and value schema with Value wrappers.
  * @returns A typed event constructor function that accepts actual values.
  *
  * @example
  * ```ts
  * // event-001: Basic event creation with Value types for validation.
- * const userCreated = event('User created event', {
+ * const userCreated = event({
  *   key: 'user.created',
  *   value: {
- *     id: value('id', (id: string) => ok(id)),
- *     name: value('name', (name: string) => ok(name))
+ *     id: value(rule((id: string) => ok(id))),
+ *     name: value(rule((name: string) => ok(name)))
  *   }
  * });
  * const eventData = userCreated({ id: '123', name: 'John' });
@@ -93,13 +102,13 @@ type EventValue<T extends Record<Any, Value<Any, Any>>> = Prettify<{
  * @example
  * ```ts
  * // event-002: Event creation with complex Value schema for validation.
- * const userUpdated = event('User updated event', {
+ * const userUpdated = event({
  *   key: 'user.updated',
  *   value: {
- *     id: value('id', (id: string) => ok(id)),
- *     name: value('name', (name: string) => ok(name)),
- *     email: value('email', (email: string) => ok(email)),
- *     age: value('age', (age: number) => ok(age))
+ *     id: value(rule((id: string) => ok(id))),
+ *     name: value(rule((name: string) => ok(name))),
+ *     email: value(rule((email: string) => ok(email))),
+ *     age: value(rule((age: number) => ok(age)))
  *   }
  * });
  * const eventData = userUpdated({
@@ -114,7 +123,6 @@ type EventValue<T extends Record<Any, Value<Any, Any>>> = Prettify<{
  * @public
  */
 const event = <K extends string, V extends Record<string, Value<Any, Any>>>(
-  doc: string,
   def: Omit<EventData<K, V>, 'timestamp'>,
 ): Event<K, EventValue<V>> => {
   const constructor = (value: EventValue<V>) => ({
@@ -125,11 +133,7 @@ const event = <K extends string, V extends Record<string, Value<Any, Any>>>(
 
   constructor.key = def.key;
 
-  return element(constructor, {
-    tag: 'Event',
-    hash: hash(constructor),
-    doc,
-  }) as Event<K, EventValue<V>>;
+  return traceable('Event', constructor) as Event<K, EventValue<V>>;
 };
 
 /**
@@ -215,20 +219,20 @@ const EventError = Panic<'EVENT', 'INVALID_KEY'>('EVENT');
  * @example
  * ```ts
  * // event-003: Creating an event store with multiple event types.
- * const userCreated = event('User created', {
+ * const userCreated = event({
  *   key: 'user.created',
  *   value: {
- *     id: value('id', (id: string) => ok(id)),
- *     name: value('name', (name: string) => ok(name))
+ *     id: value(rule((id: string) => ok(id))),
+ *     name: value(rule((name: string) => ok(name)))
  *   }
  * });
  *
- * const userUpdated = event('User updated', {
+ * const userUpdated = event({
  *   key: 'user.updated',
  *   value: {
- *     id: value('id', (id: string) => ok(id)),
- *     name: value('name', (name: string) => ok(name)),
- *     email: value('email', (email: string) => ok(email))
+ *     id: value(rule((id: string) => ok(id))),
+ *     name: value(rule((name: string) => ok(name))),
+ *     email: value(rule((email: string) => ok(email)))
  *   }
  * });
  *
