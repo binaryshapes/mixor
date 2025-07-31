@@ -68,7 +68,7 @@ function traceCheckIfElementIsTraceable() {
   console.log('\ntrace-004: Check if element is traceable.');
 
   const fn = () => 'test';
-  const tracedFn = traceable('test', fn);
+  const tracedFn = traceable('test', () => 'test');
 
   const isTraceableResult = isTraceable(tracedFn);
   console.log('Is traceable:', isTraceableResult);
@@ -83,9 +83,8 @@ function traceCheckIfElementIsTraceable() {
 function traceCheckIfElementIsTraced() {
   console.log('\ntrace-005: Check if element is traced.');
 
-  const fn = () => 'test';
-  const traceableFn = traceable('test', fn);
-  const tracedFn = traceableFn.trace();
+  const traceableFn = traceable('test', () => 'test');
+  const tracedFn = traceable('test', () => 'test').trace();
 
   const isTracedResult = isTraced(tracedFn);
   console.log('Is traced:', isTracedResult);
@@ -156,7 +155,7 @@ function traceSubscribeToTraceEventsOnce() {
     console.log(`First function took ${data.durationMs}ms`);
   });
 
-  const fn = traceable('test', (x: number) => x * 2);
+  const fn = traceable('test', (x: number) => x * 2).trace();
   fn(5); // This will trigger the once listener
   fn(10); // This will NOT trigger the once listener
 

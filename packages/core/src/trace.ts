@@ -10,8 +10,8 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 
 import { config } from './_config';
+import { hash } from './_hash';
 import type { Any, Prettify } from './generics';
-import { hash } from './hash';
 import { Panic } from './panic';
 
 /**
@@ -161,11 +161,7 @@ const parseObject = (obj: Any): Any => {
  */
 function trace<T extends Traceable<Any, Any, Any>>(fn: T): T {
   if (typeof fn !== 'function') {
-    throw new TraceableError('NOT_FUNCTION', 'Cannot auto-trace non-function elements');
-  }
-
-  if (!isTraceable(fn)) {
-    throw new TraceableError('NOT_TRACEABLE', 'Cannot auto-trace non-traceable elements');
+    throw new TraceableError('NOT_FUNCTION', 'Cannot trace non-function elements');
   }
 
   if ((fn as Any)['~trace'].traced) {
@@ -345,9 +341,6 @@ const traceable = <Tag extends string, T, Meta extends Record<string, Any> = Tra
   // Generates the meta property.
   Object.defineProperty(element, 'meta', {
     value: (meta: TraceableMeta<Any>) => {
-      if (!isTraceable(element)) {
-        throw new TraceableError('NOT_TRACEABLE', 'Element is not traceable');
-      }
       // Override the metadata.
       (element as Any)['~trace'].meta = meta;
 
@@ -385,7 +378,7 @@ const traceable = <Tag extends string, T, Meta extends Record<string, Any> = Tra
  * ```ts
  * // trace-004: Check if element is traceable.
  * const fn = () => 'test';
- * const tracedFn = traceable('test', fn);
+ * const tracedFn = traceable('test', () => 'test');
  *
  * const isTraceable = isTraceable(tracedFn);
  * // isTraceable: true.
@@ -407,9 +400,8 @@ const isTraceable = (element: Any): boolean => !!element && '~trace' in element;
  * @example
  * ```ts
  * // trace-005: Check if element is traced.
- * const fn = () => 'test';
- * const traceableFn = traceable('test', fn);
- * const tracedFn = traceableFn.trace();
+ * const traceableFn = traceable('test', () => 'test');
+ * const tracedFn = traceable('test', () => 'test').trace();
  *
  * const isTraced = isTraced(tracedFn);
  * // isTraced: true.
@@ -481,7 +473,7 @@ const isTraced = (element: Any): boolean =>
  *   console.log(`First function took ${data.durationMs}ms`);
  * });
  *
- * const fn = traceable('test', (x: number) => x * 2);
+ * const fn = traceable('test', (x: number) => x * 2).trace();
  * fn(5); // This will trigger the once listener.
  * fn(10); // This will NOT trigger the once listener.
  * ```
