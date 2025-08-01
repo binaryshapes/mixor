@@ -1,6 +1,6 @@
-import { getElementMeta } from '../src/element';
 import { err, isErr, isOk, ok, unwrap } from '../src/result';
-import { isSpec, rule, spec } from '../src/specification';
+import { condition, spec } from '../src/specification';
+import { traceInfo } from '../src/trace';
 
 // Test data types.
 type User = {
@@ -39,15 +39,27 @@ const invalidUser: User = {
 function specBasicSpecification() {
   console.log('\nspec-001: Basic specification with automatic type inference.');
 
-  const adminSpec = spec<User>()
-    .when((u) => u.role === 'Admin')
-    .rule('should have management permission', (u) =>
+  const adminSpec = spec(
+    condition((u: User) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN'))).meta({
+      scope: 'user',
+      name: 'isAdmin',
+      description: 'A user must be an admin',
+    }),
+    condition((u: User) =>
       u.permissions.includes('manage_users') ? ok(u) : err('NO_PERMISSION'),
-    )
-    .rule('should have corporate email', (u) =>
+    ).meta({
+      scope: 'user',
+      name: 'hasManageUsersPermission',
+      description: 'A user must have the manage users permission',
+    }),
+    condition((u: User) =>
       u.email.endsWith('@company.com') ? ok(u) : err('NO_CORPORATE_EMAIL'),
-    )
-    .build();
+    ).meta({
+      scope: 'user',
+      name: 'hasCorporateEmail',
+      description: 'A user must have a corporate email',
+    }),
+  );
 
   // Usage in any context.
   const result = adminSpec.satisfy(validUser);
@@ -59,22 +71,22 @@ function specBasicSpecification() {
 }
 
 /**
- * spec-002: Complex specification with multiple rules and error accumulation.
+ * spec-002: Complex specification with multiple conditions and error accumulation.
  */
 function specComplexSpecification() {
-  console.log('\nspec-002: Complex specification with multiple rules and error accumulation.');
+  console.log('\nspec-002: Complex specification with multiple conditions and error accumulation.');
 
-  const userValidationSpec = spec<User>()
-    .when((u) => u.role === 'Admin')
-    .rule('should have valid email', (u) => (u.email.includes('@') ? ok(u) : err('INVALID_EMAIL')))
-    .rule('should have valid age', (u) => (u.age >= 18 ? ok(u) : err('INVALID_AGE')))
-    .rule('should have valid name', (u) => (u.name.trim().length > 0 ? ok(u) : err('EMPTY_NAME')))
-    .rule('should have admin permissions', (u) =>
+  const userValidationSpec = spec(
+    condition((u: User) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN'))),
+    condition((u: User) => (u.email.includes('@') ? ok(u) : err('INVALID_EMAIL'))),
+    condition((u: User) => (u.age >= 18 ? ok(u) : err('INVALID_AGE'))),
+    condition((u: User) => (u.name.trim().length > 0 ? ok(u) : err('EMPTY_NAME'))),
+    condition((u: User) =>
       u.permissions.includes('manage_users') ? ok(u) : err('NO_ADMIN_PERMISSIONS'),
-    )
-    .build();
+    ),
+  );
 
-  // Type is automatically inferred as: Specification<User, "INVALID_EMAIL" | "INVALID_AGE" | "EMPTY_NAME" | "NO_ADMIN_PERMISSIONS">
+  // Type is automatically inferred as: Specification<User, "NOT_ADMIN" | "INVALID_EMAIL" | "INVALID_AGE" | "EMPTY_NAME" | "NO_ADMIN_PERMISSIONS">
   const result = userValidationSpec.satisfy(validUser);
   console.log('Valid user result:', unwrap(result));
 
@@ -83,105 +95,16 @@ function specComplexSpecification() {
 }
 
 /**
- * spec-003: Basic rule creation without documentation.
- */
-function specBasicRuleCreation() {
-  console.log('\nspec-003: Basic rule creation without documentation.');
-
-  const hasPermission = rule((user: User) =>
-    user.permissions.includes('manage_users') ? ok(user) : err('NO_PERMISSION'),
-  );
-
-  const result = hasPermission(validUser);
-  console.log('Result:', unwrap(result));
-  // ok(user) or err('NO_PERMISSION').
-}
-
-/**
- * spec-004: Rule creation with documentation.
- */
-function specRuleCreationWithDocumentation() {
-  console.log('\nspec-004: Rule creation with documentation.');
-
-  const hasPermission = rule('User must have management permission', (user: User) =>
-    user.permissions.includes('manage_users') ? ok(user) : err('NO_PERMISSION'),
-  );
-
-  const metadata = getElementMeta(hasPermission);
-  console.log('Rule documentation:', metadata?._doc); // 'User must have management permission'.
-}
-
-/**
- * spec-005: Checking if a value is a specification.
- */
-function specCheckingIfValueIsSpecification() {
-  console.log('\nspec-005: Checking if a value is a specification.');
-
-  const adminSpec = spec<User>()
-    .rule('admin permission', (u) =>
-      u.permissions.includes('manage_users') ? ok(u) : err('NO_PERMISSION'),
-    )
-    .build();
-
-  const isValidSpec = isSpec(adminSpec); // true.
-  const isNotSpec = isSpec({}); // false.
-
-  console.log('Is valid spec:', isValidSpec);
-  console.log('Is not spec:', isNotSpec);
-}
-
-/**
- * spec-006: Accessing element metadata.
- */
-function specAccessingElementMetadata() {
-  console.log('\nspec-006: Accessing element metadata.');
-
-  const hasPermission = rule('User must have management permission', (user: User) =>
-    user.permissions.includes('manage_users') ? ok(user) : err('NO_PERMISSION'),
-  );
-
-  const metadata = getElementMeta(hasPermission);
-  console.log('Element ID:', metadata?._id);
-  console.log('Element Tag:', metadata?._tag);
-  console.log('Element Hash:', metadata?._hash);
-  console.log('Element Doc:', metadata?._doc);
-  // All metadata is now accessible through getElementMeta function.
-}
-
-/**
- * spec-007: Negating a specification with custom error.
- */
-function specNegatingASpecificationWithCustomError() {
-  console.log('\nspec-008: Negating a specification with custom error.');
-
-  const adminSpec = spec<User>()
-    .rule('must be admin', (u) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN')))
-    .build();
-
-  const notAdminSpec = adminSpec.not('USER_MUST_NOT_BE_ADMIN');
-  const result = notAdminSpec.satisfy(validUser);
-  if (isErr(result)) {
-    console.log('Error result:', unwrap(result)); // 'USER_MUST_NOT_BE_ADMIN'.
-  } else {
-    console.log('Success result:', unwrap(result)); // user object (when user is not admin).
-  }
-}
-
-/**
- * spec-009: Combining specifications with AND logic.
+ * spec-003: Combining specifications with AND logic.
  */
 function specCombiningSpecificationsWithAndLogic() {
-  console.log('\nspec-009: Combining specifications with AND logic.');
+  console.log('\nspec-003: Combining specifications with AND logic.');
 
-  const adminSpec = spec<User>()
-    .rule('must be admin', (u) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN')))
-    .build();
+  const adminSpec = spec(condition((u: User) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN'))));
 
-  const emailSpec = spec<User>()
-    .rule('must have corporate email', (u) =>
-      u.email.endsWith('@company.com') ? ok(u) : err('INVALID_EMAIL'),
-    )
-    .build();
+  const emailSpec = spec(
+    condition((u: User) => (u.email.endsWith('@company.com') ? ok(u) : err('INVALID_EMAIL'))),
+  );
 
   const combinedSpec = adminSpec.and(emailSpec);
   const result = combinedSpec.satisfy(validUser);
@@ -193,18 +116,14 @@ function specCombiningSpecificationsWithAndLogic() {
 }
 
 /**
- * spec-010: Combining specifications with OR logic.
+ * spec-004: Combining specifications with OR logic.
  */
 function specCombiningSpecificationsWithOrLogic() {
-  console.log('\nspec-010: Combining specifications with OR logic.');
+  console.log('\nspec-004: Combining specifications with OR logic.');
 
-  const adminSpec = spec<User>()
-    .rule('must be admin', (u) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN')))
-    .build();
+  const adminSpec = spec(condition((u: User) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN'))));
 
-  const userSpec = spec<User>()
-    .rule('must be user', (u) => (u.role === 'User' ? ok(u) : err('NOT_USER')))
-    .build();
+  const userSpec = spec(condition((u: User) => (u.role === 'User' ? ok(u) : err('NOT_USER'))));
 
   const combinedSpec = adminSpec.or(userSpec);
   const result = combinedSpec.satisfy(validUser);
@@ -215,13 +134,48 @@ function specCombiningSpecificationsWithOrLogic() {
   }
 }
 
+/**
+ * spec-005: Negating a specification with custom error.
+ */
+function specNegatingASpecificationWithCustomError() {
+  console.log('\nspec-005: Negating a specification with custom error.');
+
+  const adminSpec = spec(condition((u: User) => (u.role === 'Admin' ? ok(u) : err('NOT_ADMIN'))));
+
+  const notAdminSpec = adminSpec.not('USER_MUST_NOT_BE_ADMIN');
+  const result = notAdminSpec.satisfy(validUser);
+  if (isErr(result)) {
+    console.log('Error result:', unwrap(result)); // 'USER_MUST_NOT_BE_ADMIN'.
+  } else {
+    console.log('Success result:', unwrap(result)); // user object (when user is not admin).
+  }
+}
+
+/**
+ * spec-006: Condition with metadata.
+ */
+function specConditionWithMetadata() {
+  console.log('\nspec-006: Condition with metadata.');
+
+  const hasPermission = condition((user: User) =>
+    user.permissions.includes('manage_users') ? ok(user) : err('NO_PERMISSION'),
+  ).meta({
+    scope: 'user',
+    name: 'hasManageUsersPermission',
+    description: 'A user must have the manage users permission',
+  });
+
+  const metadata = traceInfo(hasPermission);
+  console.log('Element ID:', metadata?.id);
+  console.log('Element Tag:', metadata?.tag);
+  console.log('Element Hash:', metadata?.hash);
+  // All metadata is now accessible through traceInfo function.
+}
+
 // Execute all examples
 specBasicSpecification();
 specComplexSpecification();
-specBasicRuleCreation();
-specRuleCreationWithDocumentation();
-specCheckingIfValueIsSpecification();
-specAccessingElementMetadata();
-specNegatingASpecificationWithCustomError();
 specCombiningSpecificationsWithAndLogic();
 specCombiningSpecificationsWithOrLogic();
+specNegatingASpecificationWithCustomError();
+specConditionWithMetadata();
