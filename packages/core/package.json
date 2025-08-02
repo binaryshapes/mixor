@@ -42,16 +42,17 @@
     "publish-local": "pnpm build && pnpm publish --registry=http://localhost:4873 --no-git-checks --force",
     "unpublish-local": "npm unpublish --registry=http://localhost:4873/ --force",
     "republish-local": "pnpm unpublish-local && pnpm publish-local",
-    "example": "node --watch --import tsx --conditions development --env-file .env"
+    "dev": "node --watch --import tsx --conditions development"
   },
   "devDependencies": {
     "@nuxo/tsup": "^1.0.0",
     "@nuxo/vitest": "^1.0.0",
-    "@vitest/coverage-v8": "^3.1.4",
-    "@vitest/ui": "^3.1.4",
+    "@vitest/coverage-v8": "~3.2.4",
+    "@vitest/ui": "~3.2.4",
     "rimraf": "^6.0.1",
     "tslib": "^2.8.1",
     "tsup": "^8.5.0",
-    "vitest": "^3.1.4"
+    "tsx": "^4.19.4",
+    "vitest": "~3.2.4"
   }
 }
