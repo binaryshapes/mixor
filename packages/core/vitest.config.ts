@@ -18,6 +18,7 @@ export default defineVitestConfig({
     project('result'),
     project('schema'),
     project('specification'),
+    project('trace'),
     project('value'),
   ],
 });
