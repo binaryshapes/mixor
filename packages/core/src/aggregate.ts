@@ -6,15 +6,13 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { element } from './element';
 import type { EventStore } from './event';
 import type { Any, Prettify } from './generics';
-import { hash } from './hash';
 import { Panic } from './panic';
-import type { Result } from './result';
-import { isErr, ok } from './result';
+import { type Result, isErr, ok } from './result';
 import type { InferSchema, Schema, SchemaErrors, SchemaValues } from './schema';
 import { type Specification, isSpec } from './specification';
+import type { Value } from './value';
 
 /**
  * Configuration for creating an aggregate with schema validation, event handling,
@@ -29,41 +27,90 @@ import { type Specification, isSpec } from './specification';
  */
 type AggregateConfig<
   T,
-  E extends EventStore<Any>,
-  S extends Record<string, Specification<SchemaValues<T>>>,
+  E extends EventStore<Any> | undefined,
+  S extends Record<string, Specification<SchemaValues<T>>> | undefined,
   M,
 > = {
   /** Schema for validating the aggregate's data structure. */
   schema: Schema<T>;
   /** Event store for handling domain events. */
-  events: E;
+  events?: E;
   /** Business rule specifications for validation. */
-  specs: S;
+  specs?: S;
   /** Custom methods that define aggregate behavior. */
   methods: M;
 };
+
+/**
+ * Conditional type that provides event methods only when events are defined.
+ *
+ * @typeParam E - The event store type.
+ *
+ * @internal
+ */
+type EventMethods<E> =
+  E extends EventStore<Any>
+    ? {
+        /** Emits an event to the event store. */
+        emit: E['add'];
+        /** Retrieves and removes all events from the event store. */
+        pullEvents: E['pull'];
+        /** Retrieves all events from the event store without removing them. */
+        getEvents: E['list'];
+      }
+    : never;
+
+/**
+ * Maps aggregate methods considering the validation mode to ensure correct error types.
+ *
+ * @typeParam M - The methods type.
+ * @typeParam Mode - The validation mode ('strict' | 'all').
+ *
+ * @internal
+ */
+type AggregateMethods<M, Mode> =
+  M extends Record<string, (...args: Any[]) => Result<Any, Any>>
+    ? {
+        [K in keyof M]: M[K] extends (...args: infer Args) => Result<infer Success, infer RR>
+          ? (...args: Args) => Result<
+              Success,
+              // Hack to remove array of errors in strict mode.
+              Mode extends 'strict' ? Exclude<RR, Array<Any>> : Extract<RR, Array<Any>>
+            >
+          : M[K];
+      }
+    : M;
 
 /**
  * The resulting aggregate instance that combines the validated data structure,
  * custom methods, and event handling capabilities.
  *
  * @typeParam C - The aggregate configuration type.
+ * @typeParam Mode - The validation mode ('strict' | 'all').
  *
  * @internal
  */
-type AggregateInstance<C extends AggregateConfig<Any, Any, Any, Any>> = Prettify<
+type AggregateInstance<C extends AggregateConfig<Any, Any, Any, Any>, Mode> = Prettify<
   Readonly<InferSchema<C['schema']>> &
-    ReturnType<C['methods']> & {
-      /** Retrieves all events from the event store without removing them. */
-      getEvents: AggregateState<C>['getEvents'];
-      /** Retrieves and removes all events from the event store. */
-      pullEvents: AggregateState<C>['pullEvents'];
+    // This overrides the methods to ensure the correct error type is returned.
+    AggregateMethods<ReturnType<C['methods']>, Mode> &
+    EventMethods<C['events']> & {
       /** Gets the current state as a readonly object. */
-      getState: AggregateState<C>['getState'];
-      /** Emits an event to the event store. */
-      emit: AggregateState<C>['emit'];
+      getState: AggregateState<C, Mode>['getState'];
     }
 >;
+
+/**
+ * Helper type to extract the error type for a specific field based on the mode.
+ *
+ * @typeParam T - The schema fields type.
+ * @typeParam K - The specific field key.
+ * @typeParam Mode - The validation mode ('strict' | 'all').
+ *
+ * @internal
+ */
+type SchemaFieldError<T, K extends keyof T, Mode> =
+  T[K] extends Value<Any, infer E> ? (Mode extends 'all' ? E[] : E) : never;
 
 /**
  * Internal state manager that provides access to schema validation, event handling,
@@ -72,34 +119,24 @@ type AggregateInstance<C extends AggregateConfig<Any, Any, Any, Any>> = Prettify
  * @typeParam C - The aggregate configuration type.
  * @typeParam T - The inferred schema fields type.
  * @typeParam E - The inferred event store type.
- * @typeParam SE - The inferred specification error type.
+ * @typeParam S - The inferred specifications type.
  *
  * @internal
  */
 type AggregateState<
   C extends AggregateConfig<Any, Any, Any, Any>,
+  Mode,
   T = C['schema'] extends Schema<infer F> ? F : never,
-  E extends EventStore<Any> = C['events'],
-  SE = C['specs'] extends Record<string, Specification<Any>> ? SpecError<C['specs']> : never,
+  E extends EventStore<Any> | undefined = C['events'],
 > = {
-  /** Emits an event to the event store. */
-  emit: E extends EventStore<Any> ? E['add'] : never;
-  /** Retrieves and removes all events from the event store. */
-  pullEvents: E extends EventStore<Any> ? E['pull'] : never;
-  /** Retrieves all events from the event store without removing them. */
-  getEvents: E extends EventStore<Any> ? E['list'] : never;
-
   /** Sets a field value with schema validation. */
-  set<K extends keyof SchemaValues<T> & keyof SchemaErrors<T>>(
+  set<K extends keyof T & keyof SchemaValues<T> & keyof SchemaErrors<T, Mode>>(
     key: K,
     value: SchemaValues<T>[K],
-  ): Result<SchemaValues<T>, SchemaErrors<T>[K]>;
+  ): Result<SchemaValues<T>, SchemaFieldError<T, K, Mode>>;
   /** Gets a readonly current state of the aggregate. */
   getState(): Readonly<SchemaValues<T>>;
-
-  /** Validates the current state against all business rule specifications. */
-  validateSpecs(): Result<SchemaValues<T>, SE>;
-};
+} & EventMethods<E>;
 
 /**
  * Extracts the error type from a specification by inferring the error type
@@ -126,7 +163,6 @@ interface AggregateMethod {
    * @typeParam E - The method error type.
    */
   <T extends unknown[] = [], R = Any, E = Any>(
-    doc: string,
     fn: (...args: T) => Result<R, E>,
   ): (...args: T) => Result<R, E>;
 
@@ -140,7 +176,6 @@ interface AggregateMethod {
    * @typeParam AfterSpec - The specification to validate after method execution.
    */
   <T extends unknown[] = [], R = Any, E = Any, BeforeSpec = undefined, AfterSpec = undefined>(
-    doc: string,
     fn: (...args: T) => Result<R, E>,
     specs?: {
       before?: BeforeSpec;
@@ -149,11 +184,12 @@ interface AggregateMethod {
   ): (...args: T) => Result<R, E | SpecError<BeforeSpec> | SpecError<AfterSpec>>;
 }
 
-const createAggregateState = <C extends AggregateConfig<Any, Any, Any, Any>>(
+const createAggregateState = <C extends AggregateConfig<Any, Any, Any, Any>, Mode>(
   config: C,
   initialState: InferSchema<C['schema']>,
-): AggregateState<C> => {
-  const { schema, events, specs } = config;
+  mode: Mode,
+): AggregateState<C, Mode> => {
+  const { schema, events } = config;
   // Use direct reference instead of copying.
   let state = { ...(initialState as Any) };
 
@@ -163,7 +199,7 @@ const createAggregateState = <C extends AggregateConfig<Any, Any, Any, Any>>(
     set: <K extends keyof typeof state>(key: K, value: (typeof state)[K]) => {
       const fieldSchema = schema[key];
       if (fieldSchema && typeof fieldSchema === 'function') {
-        const validationResult = fieldSchema(value);
+        const validationResult = fieldSchema(value, mode);
         if (isErr(validationResult)) {
           return validationResult;
         }
@@ -186,43 +222,35 @@ const createAggregateState = <C extends AggregateConfig<Any, Any, Any, Any>>(
       }
     : {};
 
-  // If specs are provided, we can use them to validate the state.
-  const specManager = specs
-    ? {
-        validateSpecs() {
-          for (const spec of specs) {
-            const res = spec.satisfy(state);
-            if (isErr(res)) return res;
-          }
-          return ok(state);
-        },
-      }
-    : {};
-
   return {
     ...valueStateManager,
     ...eventManager,
-    ...specManager,
-  } as unknown as AggregateState<C>;
+  } as unknown as AggregateState<C, Mode>;
 };
 
-const createAggregateMethodLogic = <C extends AggregateConfig<Any, Any, Any, Any>>(
-  stateManager: AggregateState<C>,
+/**
+ * Creates the logic for an aggregate method.
+ * Which basically is a wrapper around the method to apply the specifications (if provided).
+ *
+ * @typeParam C - The aggregate configuration type.
+ * @typeParam Mode - The validation mode ('strict' | 'all').
+ * @param stateManager - The state manager.
+ * @param specs - The specifications.
+ * @returns The aggregate method logic.
+ *
+ * @internal
+ */
+const createAggregateMethodLogic = <C extends AggregateConfig<Any, Any, Any, Any>, Mode>(
+  stateManager: AggregateState<C, Mode>,
   specs?: C['specs'],
 ) => {
   // If no specs are provided, we can create a simple method logic.
   if (!specs) {
     return <T extends unknown[] = [], R = Any, E = Any>(
-      doc: string,
-      fn: (...args: T) => Result<R, E>,
-    ): ((...args: T) => Result<R, E>) => {
-      const aggregateMethod = (...args: T) => fn(...args);
-      return element(aggregateMethod, {
-        tag: 'Method',
-        hash: hash(doc, fn),
-        doc,
-      });
-    };
+        fn: (...args: T) => Result<R, E>,
+      ): ((...args: T) => Result<R, E>) =>
+      (...args: T) =>
+        fn(...args);
   }
 
   // If specs are provided, we can create a method logic with specs.
@@ -233,7 +261,6 @@ const createAggregateMethodLogic = <C extends AggregateConfig<Any, Any, Any, Any
     BeforeSpec = undefined,
     AfterSpec = undefined,
   >(
-    doc: string,
     fn: (...args: T) => Result<R, E>,
     specs?: { before?: BeforeSpec; after?: AfterSpec },
   ) => {
@@ -256,92 +283,13 @@ const createAggregateMethodLogic = <C extends AggregateConfig<Any, Any, Any, Any
       return fnResult;
     };
 
-    return element(aggregateMethod, {
-      tag: 'Method',
-      hash: hash(doc, fn, specs),
-      doc,
-    });
+    return aggregateMethod;
   };
 };
 
 /**
- * Interface for the aggregate constructor function with overloads.
- * Supports both documented and non-documented aggregate creation.
- *
- * @internal
- */
-interface AggregateConstructor {
-  /**
-   * Creates an aggregate without documentation.
-   *
-   * @typeParam T - The schema type.
-   * @typeParam E - The event type.
-   * @typeParam S - The specifications type.
-   * @typeParam M - The methods type.
-   * @param config - The aggregate configuration.
-   * @returns A function that creates aggregate instances.
-   */
-  <
-    T,
-    E extends EventStore<Any>,
-    S extends Record<string, Specification<SchemaValues<T>>>,
-    M extends (options: {
-      self: AggregateState<AggregateConfig<T, E, S, M>>;
-      fn: AggregateMethod;
-      specs: S;
-    }) => Record<string, (...args: Any[]) => Any>,
-  >(
-    config: AggregateConfig<T, E, S, M>,
-  ): (
-    input: InferSchema<Schema<T>>,
-    options?: { checkSpecs?: boolean },
-  ) => Result<AggregateInstance<AggregateConfig<T, E, S, M>>, SchemaErrors<T> | SpecError<S>>;
-
-  /**
-   * Creates an aggregate with documentation.
-   *
-   * @typeParam T - The schema type.
-   * @typeParam E - The event type.
-   * @typeParam S - The specifications type.
-   * @typeParam M - The methods type.
-   * @param doc - The documentation string for the aggregate.
-   * @param config - The aggregate configuration.
-   * @returns A function that creates aggregate instances.
-   */
-  <
-    T,
-    E extends EventStore<Any>,
-    S extends Record<string, Specification<SchemaValues<T>>>,
-    M extends (options: {
-      self: AggregateState<AggregateConfig<T, E, S, M>>;
-      fn: AggregateMethod;
-      specs: S;
-    }) => Record<string, (...args: Any[]) => Any>,
-  >(
-    doc: string,
-    config: AggregateConfig<T, E, S, M>,
-  ): (
-    input: InferSchema<Schema<T>>,
-    options?: { checkSpecs?: boolean },
-  ) => Result<AggregateInstance<AggregateConfig<T, E, S, M>>, SchemaErrors<T> | SpecError<S>>;
-}
-
-/**
  * Panic error for the aggregate module. Used when aggregate operations fail
  * due to invalid configuration or unexpected errors.
- *
- * @example
- * ```ts
- * // aggregate-004: Handling aggregate configuration errors.
- * try {
- *   const invalidAggregate = aggregate(null as any);
- * } catch (error) {
- *   if (error instanceof AggregateError) {
- *     // error.code: 'INVALID_CONFIGURATION'.
- *     // error.message: 'Invalid aggregate configuration.'.
- *   }
- * }
- * ```
  *
  * @public
  */
@@ -356,170 +304,60 @@ const AggregateError = Panic<
  * and custom methods. Aggregates are domain objects that encapsulate business logic and
  * maintain consistency through validation rules.
  *
- * @param docOrConfig - Documentation string or aggregate configuration.
- * @param configParam - Aggregate configuration (when documentation is provided).
+ * @param config - Aggregate configuration with schema, events, specifications, and methods.
  * @returns A function that creates aggregate instances with validation and event handling.
- *
- * @example
- * ```ts
- * // aggregate-001: Basic aggregate creation with schema validation.
- * const userAggregate = aggregate({
- *   schema: {
- *     id: string,
- *     name: string,
- *     email: string
- *   },
- *   events: eventStore(),
- *   specs: {},
- *   methods: ({ self, fn }) => ({
- *     updateName: fn('Update user name', (name: string) => {
- *       return self.set('name', name);
- *     })
- *   })
- * });
- *
- * const result = userAggregate({
- *   id: 'user-1',
- *   name: 'John Doe',
- *   email: 'john@example.com'
- * });
- * // result: aggregate instance with validation and methods.
- * ```
- *
- * @example
- * ```ts
- * // aggregate-002: Aggregate with business rule specifications.
- * const orderAggregate = aggregate({
- *   schema: {
- *     id: string,
- *     total: number,
- *     status: string
- *   },
- *   events: eventStore(),
- *   specs: {
- *     positiveTotal: spec('Total must be positive', (state) =>
- *       state.total > 0 ? ok(state) : err('Total must be positive')
- *     )
- *   },
- *   methods: ({ self, fn, specs }) => ({
- *     updateTotal: fn('Update order total', (total: number) => {
- *       const setResult = self.set('total', total);
- *       if (isErr(setResult)) return setResult;
- *       return specs.positiveTotal.satisfy(self.getState());
- *     })
- *   })
- * });
- *
- * const result = orderAggregate({
- *   id: 'order-1',
- *   total: 100,
- *   status: 'pending'
- * });
- * // result: aggregate instance with business rule validation.
- * ```
- *
- * @example
- * ```ts
- * // aggregate-003: Aggregate with event handling and documentation.
- * const productAggregate = aggregate(
- *   'Product aggregate with inventory management',
- *   {
- *     schema: {
- *       id: string,
- *       name: string,
- *       stock: number
- *     },
- *     events: eventStore(),
- *     specs: {
- *       nonNegativeStock: spec('Stock cannot be negative', (state) =>
- *         state.stock >= 0 ? ok(state) : err('Stock cannot be negative')
- *       )
- *     },
- *     methods: ({ self, fn, specs }) => ({
- *       reduceStock: fn('Reduce product stock', (quantity: number) => {
- *         const newStock = self.getState().stock - quantity;
- *         const setResult = self.set('stock', newStock);
- *         if (isErr(setResult)) return setResult;
- *
- *         const validationResult = specs.nonNegativeStock.satisfy(self.getState());
- *         if (isErr(validationResult)) return validationResult;
- *
- *         self.emit({ type: 'stock_reduced', quantity });
- *         return ok(self.getState());
- *       })
- *     })
- *   }
- * );
- *
- * const result = productAggregate({
- *   id: 'prod-1',
- *   name: 'Widget',
- *   stock: 50
- * });
- * // result: aggregate instance with event emission and validation.
- * ```
  *
  * @public
  */
-const aggregate: AggregateConstructor = <
+const aggregate = <
   T,
-  E extends EventStore<Any>,
-  S extends Record<string, Specification<SchemaValues<T>>>,
   M extends (options: {
-    self: AggregateState<AggregateConfig<T, E, S, M>>;
+    self: AggregateState<AggregateConfig<T, E, S, M>, 'strict' | 'all'>;
     fn: AggregateMethod;
-    specs: S;
+    specs?: S;
   }) => Record<string, (...args: Any[]) => Any>,
+  EE = undefined,
+  S extends Record<string, Specification<SchemaValues<T>>> | undefined = undefined,
+  E extends EventStore<Any> | undefined = EventStore<EE>,
 >(
-  docOrConfig: string | AggregateConfig<T, E, S, M>,
-  configParam?: AggregateConfig<T, E, S, M>,
+  config: AggregateConfig<T, E, S, M>,
 ) => {
-  // Determine if first parameter is documentation or config.
-  const isDocumented = typeof docOrConfig === 'string';
-  const doc = isDocumented ? docOrConfig : undefined;
-  const actualConfig =
-    isDocumented && configParam ? configParam : (docOrConfig as AggregateConfig<T, E, S, M>);
-
   // If the configuration is invalid, throw an error.
-  if (!actualConfig) {
+  if (!config) {
     throw new AggregateError('INVALID_CONFIGURATION', 'Invalid aggregate configuration.');
   }
 
-  return (
-    input: InferSchema<typeof actualConfig.schema>,
-    options?: { checkSpecs?: boolean },
-  ): Result<AggregateInstance<AggregateConfig<T, E, S, M>>, SchemaErrors<T> | SpecError<S>> => {
+  return <Mode extends 'strict' | 'all'>(
+    input: InferSchema<typeof config.schema>,
+    mode?: Mode,
+  ): Result<
+    AggregateInstance<AggregateConfig<T, E, S, M>, Mode>,
+    SchemaErrors<T, Mode> | SpecError<S>
+  > => {
     // If the input is not valid, return the error.
-    const validationResult = actualConfig.schema(input as Any);
+    const validationResult = config.schema(input as Any, mode as Any);
     if (isErr(validationResult)) {
       return validationResult as Any;
     }
 
     // Create the state manager with the validated state.
-    const state = createAggregateState<typeof actualConfig>(
-      actualConfig,
+    const state = createAggregateState<typeof config, Mode>(
+      config,
       validationResult.value as Any,
+      mode ?? ('all' as Any),
     );
 
-    // If checkSpecs is enabled and specifications exist, validate all specs.
-    if (options?.checkSpecs && actualConfig.specs) {
-      const specValidationResult = state.validateSpecs();
-      if (specValidationResult && isErr(specValidationResult)) {
-        return specValidationResult;
-      }
-    }
-
     // If methods are provided, we can create the aggregate methods.
-    const methods = actualConfig.methods
-      ? actualConfig.methods({
-          self: state,
-          fn: createAggregateMethodLogic(state, actualConfig.specs),
-          specs: actualConfig.specs,
+    const methods = config.methods
+      ? config.methods({
+          self: state as Any,
+          fn: createAggregateMethodLogic<typeof config, Mode>(state, config.specs),
+          specs: config.specs,
         })
       : {};
 
     // Create instance with methods.
-    const instance = actualConfig.events
+    const instance = config.events
       ? {
           ...methods,
           getEvents: state.getEvents,
@@ -543,18 +381,7 @@ const aggregate: AggregateConstructor = <
       });
     });
 
-    return ok(
-      element(instance, {
-        tag: 'Aggregate',
-        hash: hash(
-          actualConfig.schema,
-          actualConfig.events,
-          actualConfig.specs,
-          actualConfig.methods,
-        ),
-        doc,
-      }),
-    ) as Any;
+    return ok(instance) as Any;
   };
 };
 
