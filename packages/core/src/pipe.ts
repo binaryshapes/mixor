@@ -6,10 +6,9 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import type { ApplyErrorMode, ErrorMode } from './_err';
 import type { Any } from './generics';
 import { type Result, err, isOk, ok } from './result';
-
-// TODO: Enhance pipe result all mode to accumulate errors typing (must be array of errors).
 
 /**
  * Represents a pipe function which takes any arguments and returns any value.
@@ -33,18 +32,6 @@ type PipeFunction<A extends Any[], B> = (...a: A) => B;
  * @internal
  */
 type PipeResultFunction<A extends Any[], B, E> = (...a: A) => Result<B, E>;
-
-/**
- * Mode for handling errors in pipe with Result functions.
- *
- * - `'strict'`: Stop execution at the first error encountered. This is more performant
- * for early validation scenarios where you want to fail fast.
- * - `'all'`: Continue execution through all functions and accumulate all errors.
- * This is useful for validation scenarios where you want to report all issues at once.
- *
- * @internal
- */
-type PipeMode = 'strict' | 'all';
 
 /**
  * Overloads for pipe function with regular functions.
@@ -134,54 +121,54 @@ interface Pipe {
  * @internal
  */
 interface PipeResult {
-  <A extends Any[], B, E>(
-    mode: PipeMode,
+  <M extends ErrorMode, A extends Any[], B, E>(
+    mode: M,
     f1: (...a: A) => Result<B, E>,
-  ): PipeResultFunction<A, B, E>;
-  <A extends Any[], B, C, E1, E2>(
-    mode: PipeMode,
+  ): PipeResultFunction<A, B, ApplyErrorMode<E, M>>;
+  <M extends ErrorMode, A extends Any[], B, C, E1, E2>(
+    mode: M,
     f1: (...a: A) => Result<B, E1>,
     f2: (b: B) => Result<C, E2>,
-  ): PipeResultFunction<A, C, E1 | E2>;
-  <A extends Any[], B, C, D, E1, E2, E3>(
-    mode: PipeMode,
-    f1: (...a: A) => Result<B, E1>,
-    f2: (b: B) => Result<C, E2>,
-    f3: (c: C) => Result<D, E3>,
-  ): PipeResultFunction<A, D, E1 | E2 | E3>;
-  <A extends Any[], B, C, D, E, E1, E2, E3, E4>(
-    mode: PipeMode,
+  ): PipeResultFunction<A, C, ApplyErrorMode<E1 | E2, M>>;
+  <M extends ErrorMode, A extends Any[], B, C, D, E1, E2, E3>(
+    mode: M,
     f1: (...a: A) => Result<B, E1>,
     f2: (b: B) => Result<C, E2>,
     f3: (c: C) => Result<D, E3>,
-    f4: (d: D) => Result<E, E4>,
-  ): PipeResultFunction<A, E, E1 | E2 | E3 | E4>;
-  <A extends Any[], B, C, D, E, E1, E2, E3, E4, E5>(
-    mode: PipeMode,
+  ): PipeResultFunction<A, D, ApplyErrorMode<E1 | E2 | E3, M>>;
+  <M extends ErrorMode, A extends Any[], B, C, D, E, E1, E2, E3, E4>(
+    mode: M,
     f1: (...a: A) => Result<B, E1>,
     f2: (b: B) => Result<C, E2>,
     f3: (c: C) => Result<D, E3>,
     f4: (d: D) => Result<E, E4>,
-  ): PipeResultFunction<A, E, E1 | E2 | E3 | E4 | E5>;
-  <A extends Any[], B, C, D, E, F, E1, E2, E3, E4, E5, E6>(
-    mode: PipeMode,
+  ): PipeResultFunction<A, E, ApplyErrorMode<E1 | E2 | E3 | E4, M>>;
+  <M extends ErrorMode, A extends Any[], B, C, D, E, E1, E2, E3, E4, E5>(
+    mode: M,
+    f1: (...a: A) => Result<B, E1>,
+    f2: (b: B) => Result<C, E2>,
+    f3: (c: C) => Result<D, E3>,
+    f4: (d: D) => Result<E, E4>,
+  ): PipeResultFunction<A, E, ApplyErrorMode<E1 | E2 | E3 | E4 | E5, M>>;
+  <M extends ErrorMode, A extends Any[], B, C, D, E, F, E1, E2, E3, E4, E5, E6>(
+    mode: M,
     f1: (...a: A) => Result<B, E1>,
     f2: (b: B) => Result<C, E2>,
     f3: (c: C) => Result<D, E3>,
     f4: (d: D) => Result<E, E4>,
     f5: (e: E) => Result<F, E5>,
-  ): PipeResultFunction<A, E, E1 | E2 | E3 | E4 | E5 | E6>;
-  <A extends Any[], B, C, D, E, F, G, E1, E2, E3, E4, E5, E6, E7>(
-    mode: PipeMode,
+  ): PipeResultFunction<A, E, ApplyErrorMode<E1 | E2 | E3 | E4 | E5 | E6, M>>;
+  <M extends ErrorMode, A extends Any[], B, C, D, E, F, G, E1, E2, E3, E4, E5, E6, E7>(
+    mode: M,
     f1: (...a: A) => Result<B, E1>,
     f2: (b: B) => Result<C, E2>,
     f3: (c: C) => Result<D, E3>,
     f4: (d: D) => Result<E, E4>,
     f5: (e: E) => Result<F, E5>,
     f6: (f: F) => Result<G, E6>,
-  ): PipeResultFunction<A, E, E1 | E2 | E3 | E4 | E5 | E6 | E7>;
-  <A extends Any[], B, C, D, E, F, G, H, E1, E2, E3, E4, E5, E6, E7, E8>(
-    mode: PipeMode,
+  ): PipeResultFunction<A, E, ApplyErrorMode<E1 | E2 | E3 | E4 | E5 | E6 | E7, M>>;
+  <M extends ErrorMode, A extends Any[], B, C, D, E, F, G, H, E1, E2, E3, E4, E5, E6, E7, E8>(
+    mode: M,
     f1: (...a: A) => Result<B, E1>,
     f2: (b: B) => Result<C, E2>,
     f3: (c: C) => Result<D, E3>,
@@ -189,9 +176,29 @@ interface PipeResult {
     f5: (e: E) => Result<F, E5>,
     f6: (f: F) => Result<G, E6>,
     f7: (g: G) => Result<H, E7>,
-  ): PipeResultFunction<A, E, E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8>;
-  <A extends Any[], B, C, D, E, F, G, H, I, E1, E2, E3, E4, E5, E6, E7, E8, E9>(
-    mode: PipeMode,
+  ): PipeResultFunction<A, E, ApplyErrorMode<E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8, M>>;
+  <
+    M extends ErrorMode,
+    A extends Any[],
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    E1,
+    E2,
+    E3,
+    E4,
+    E5,
+    E6,
+    E7,
+    E8,
+    E9,
+  >(
+    mode: M,
     f1: (...a: A) => Result<B, E1>,
     f2: (b: B) => Result<C, E2>,
     f3: (c: C) => Result<D, E3>,
@@ -200,9 +207,31 @@ interface PipeResult {
     f6: (f: F) => Result<G, E6>,
     f7: (g: G) => Result<H, E7>,
     f8: (h: H) => Result<I, E8>,
-  ): PipeResultFunction<A, E, E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9>;
-  <A extends Any[], B, C, D, E, F, G, H, I, J, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10>(
-    mode: PipeMode,
+  ): PipeResultFunction<A, E, ApplyErrorMode<E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9, M>>;
+  <
+    M extends ErrorMode,
+    A extends Any[],
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    E1,
+    E2,
+    E3,
+    E4,
+    E5,
+    E6,
+    E7,
+    E8,
+    E9,
+    E10,
+  >(
+    mode: M,
     f1: (...a: A) => Result<B, E1>,
     f2: (b: B) => Result<C, E2>,
     f3: (c: C) => Result<D, E3>,
@@ -212,9 +241,33 @@ interface PipeResult {
     f7: (g: G) => Result<H, E7>,
     f8: (h: H) => Result<I, E8>,
     f9: (i: I) => Result<J, E9>,
-  ): PipeResultFunction<A, E, E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9 | E10>;
-  <A extends Any[], B, C, D, E, F, G, H, I, J, K, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11>(
-    mode: PipeMode,
+  ): PipeResultFunction<A, E, ApplyErrorMode<E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9 | E10, M>>;
+  <
+    M extends ErrorMode,
+    A extends Any[],
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    E1,
+    E2,
+    E3,
+    E4,
+    E5,
+    E6,
+    E7,
+    E8,
+    E9,
+    E10,
+    E11,
+  >(
+    mode: M,
     f1: (...a: A) => Result<B, E1>,
     f2: (b: B) => Result<C, E2>,
     f3: (c: C) => Result<D, E3>,
@@ -225,7 +278,11 @@ interface PipeResult {
     f8: (h: H) => Result<I, E8>,
     f9: (i: I) => Result<J, E9>,
     f10: (j: J) => Result<K, E10>,
-  ): PipeResultFunction<A, E, E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9 | E10 | E11>;
+  ): PipeResultFunction<
+    A,
+    E,
+    ApplyErrorMode<E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8 | E9 | E10 | E11, M>
+  >;
 }
 
 /**
