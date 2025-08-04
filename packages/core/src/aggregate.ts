@@ -6,6 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import type { ErrorMode } from './_err';
 import type { EventStore } from './event';
 import type { Any, Prettify } from './generics';
 import { Panic } from './panic';
@@ -62,13 +63,14 @@ type EventMethods<E> =
 
 /**
  * Maps aggregate methods considering the validation mode to ensure correct error types.
+ * Uses the centralized error mode concept from {@link ErrorMode}.
  *
  * @typeParam M - The methods type.
- * @typeParam Mode - The validation mode ('strict' | 'all').
+ * @typeParam Mode - The validation mode.
  *
  * @internal
  */
-type AggregateMethods<M, Mode> =
+type AggregateMethods<M, Mode extends ErrorMode> =
   M extends Record<string, (...args: Any[]) => Result<Any, Any>>
     ? {
         [K in keyof M]: M[K] extends (...args: infer Args) => Result<infer Success, infer RR>
@@ -84,13 +86,17 @@ type AggregateMethods<M, Mode> =
 /**
  * The resulting aggregate instance that combines the validated data structure,
  * custom methods, and event handling capabilities.
+ * Uses the centralized error mode concept from {@link ErrorMode}.
  *
  * @typeParam C - The aggregate configuration type.
- * @typeParam Mode - The validation mode ('strict' | 'all').
+ * @typeParam Mode - The validation mode.
  *
  * @internal
  */
-type AggregateInstance<C extends AggregateConfig<Any, Any, Any, Any>, Mode> = Prettify<
+type AggregateInstance<
+  C extends AggregateConfig<Any, Any, Any, Any>,
+  Mode extends ErrorMode,
+> = Prettify<
   Readonly<InferSchema<C['schema']>> &
     // This overrides the methods to ensure the correct error type is returned.
     AggregateMethods<ReturnType<C['methods']>, Mode> &
@@ -115,8 +121,10 @@ type SchemaFieldError<T, K extends keyof T, Mode> =
 /**
  * Internal state manager that provides access to schema validation, event handling,
  * and business rule validation capabilities.
+ * Uses the centralized error mode concept from {@link ErrorMode}.
  *
  * @typeParam C - The aggregate configuration type.
+ * @typeParam Mode - The validation mode.
  * @typeParam T - The inferred schema fields type.
  * @typeParam E - The inferred event store type.
  * @typeParam S - The inferred specifications type.
@@ -125,7 +133,7 @@ type SchemaFieldError<T, K extends keyof T, Mode> =
  */
 type AggregateState<
   C extends AggregateConfig<Any, Any, Any, Any>,
-  Mode,
+  Mode extends ErrorMode,
   T = C['schema'] extends Schema<infer F> ? F : never,
   E extends EventStore<Any> | undefined = C['events'],
 > = {
@@ -184,7 +192,10 @@ interface AggregateMethod {
   ): (...args: T) => Result<R, E | SpecError<BeforeSpec> | SpecError<AfterSpec>>;
 }
 
-const createAggregateState = <C extends AggregateConfig<Any, Any, Any, Any>, Mode>(
+const createAggregateState = <
+  C extends AggregateConfig<Any, Any, Any, Any>,
+  Mode extends ErrorMode,
+>(
   config: C,
   initialState: InferSchema<C['schema']>,
   mode: Mode,
@@ -240,7 +251,10 @@ const createAggregateState = <C extends AggregateConfig<Any, Any, Any, Any>, Mod
  *
  * @internal
  */
-const createAggregateMethodLogic = <C extends AggregateConfig<Any, Any, Any, Any>, Mode>(
+const createAggregateMethodLogic = <
+  C extends AggregateConfig<Any, Any, Any, Any>,
+  Mode extends ErrorMode,
+>(
   stateManager: AggregateState<C, Mode>,
   specs?: C['specs'],
 ) => {
@@ -327,7 +341,7 @@ const aggregate = <
     throw new AggregateError('INVALID_CONFIGURATION', 'Invalid aggregate configuration.');
   }
 
-  return <Mode extends 'strict' | 'all'>(
+  return <Mode extends ErrorMode>(
     input: InferSchema<typeof config.schema>,
     mode?: Mode,
   ): Result<
