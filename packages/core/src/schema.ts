@@ -81,45 +81,23 @@ type EnsureAllValues<T> = Prettify<{
  *
  * @typeParam F - The schema fields.
  * @typeParam V - The schema values.
- * @typeParam E - The schema errors.
  *
  * @internal
  */
 type SchemaFunction<F, V = SchemaValues<F>> = {
   /**
-   * Validates the schema with the given value in strict mode.
+   * Validates the schema with the given value and optional error mode.
    *
    * @remarks
-   * It stops at the first error and returns the error.
+   * - `'strict'`: Stops at the first error and returns the error.
+   * - `'all'`: Collects all errors and returns an object with the details of each field error.
+   * - Default: Uses 'all' mode if no mode is specified.
    *
    * @param value - The value to validate.
-   * @param mode - The mode to validate the schema.
+   * @param mode - The error mode to use for validation.
    * @returns A result containing the validated value or an error.
    */
-  (value: V, mode: 'strict'): Result<V, SchemaErrors<F, 'strict'>>;
-
-  /**
-   * Validates the schema with the given value.
-   *
-   * @remarks
-   * It collects all errors and returns an object with the details of each field error.
-   *
-   * @param value - The value to validate.
-   * @param mode - The mode to validate the schema.
-   * @returns A result containing the validated value or an error.
-   */
-  (value: V, mode: 'all'): Result<V, SchemaErrors<F, 'all'>>;
-
-  /**
-   * Validates the schema with the given value.
-   *
-   * @remarks
-   * It collects all errors and returns an object with the details of each field error.
-   *
-   * @param value - The value to validate.
-   * @returns A result containing the validated value or an error.
-   */
-  (value: V): Result<V, SchemaErrors<F, 'all'>>;
+  <Mode extends ErrorMode = 'all'>(value: V, mode?: Mode): Result<V, SchemaErrors<F, Mode>>;
 };
 
 /**
