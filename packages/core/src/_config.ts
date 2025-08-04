@@ -29,6 +29,13 @@ const config = {
     process.env.MIXOR_SHOW_TRACE_FUNCTION_VALUES === 'false'
       ? Boolean(process.env.MIXOR_SHOW_TRACE_FUNCTION_VALUES)
       : true,
+
+  /**
+   * The maximum number of listeners for the tracer.
+   */
+  tracerMaxListeners: process.env.MIXOR_TRACER_MAX_LISTENERS
+    ? Number(process.env.MIXOR_TRACER_MAX_LISTENERS)
+    : 100,
 };
 
 export { config };
