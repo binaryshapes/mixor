@@ -55,7 +55,7 @@ describe('schema', () => {
       const result = UserSchema({ name: '', age: -5 }, 'strict');
       expect(isOk(result)).toBe(false);
       expect(unwrap(result)).toEqual({
-        name: ['EMPTY_NAME'],
+        name: 'EMPTY_NAME',
       });
     });
 
@@ -247,7 +247,7 @@ describe('schema', () => {
       const strictError = UserSchema(invalidData, 'strict');
       expect(isOk(strictError)).toBe(false);
       expect(unwrap(strictError)).toEqual({
-        name: ['EMPTY_NAME'],
+        name: 'EMPTY_NAME',
       });
     });
 

@@ -6,6 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import type { ApplyErrorMode, ErrorMode } from './_err';
 import type { Any, Prettify } from './generics';
 import { Panic } from './panic';
 import { type Result, err, isOk, ok } from './result';
@@ -51,12 +52,14 @@ type SchemaValues<S> = Prettify<{
 
 /**
  * The type of the errors of the schema.
+ * Uses the centralized error mode concept from {@link ErrorMode}.
  * @typeParam S - The schema fields.
+ * @typeParam Mode - The error mode.
  *
  * @internal
  */
-type SchemaErrors<S, Mode extends 'strict' | 'all' = 'all'> = Prettify<{
-  [K in keyof S]: S[K] extends Value<Any, infer E> ? (Mode extends 'all' ? E[] : E) : never;
+type SchemaErrors<S, Mode extends ErrorMode> = Prettify<{
+  [K in keyof S]: S[K] extends Value<Any, infer E> ? ApplyErrorMode<E, Mode> : never;
 }>;
 
 /**
@@ -74,8 +77,7 @@ type EnsureAllValues<T> = Prettify<{
 /**
  * This function ensures to executes all value validators defined in the schema.
  * The result is a record of the values and errors.
- * The errors are collected in the case of the 'all' mode, and the first error is returned
- * in the case of the 'strict' mode.
+ * Uses the centralized error mode concept from {@link ErrorMode}.
  *
  * @typeParam F - The schema fields.
  * @typeParam V - The schema values.
@@ -249,7 +251,7 @@ const schema = <F extends Record<string, Any>>(fields: EnsureAllValues<F>): Sche
 
       for (const fieldName of Object.keys(fields)) {
         const fieldFn = (fields as Record<string, Any>)[fieldName];
-        const fieldResult = fieldFn(value[fieldName as keyof typeof value]);
+        const fieldResult = fieldFn(value[fieldName as keyof typeof value], mode);
 
         if (isOk(fieldResult)) {
           result[fieldName] = fieldResult.value;
@@ -265,7 +267,7 @@ const schema = <F extends Record<string, Any>>(fields: EnsureAllValues<F>): Sche
       const { result, errors, hasErrors } = Object.keys(fields).reduce(
         (acc, fieldName) => {
           const fieldFn = (fields as Record<string, Any>)[fieldName];
-          const fieldResult = fieldFn(value[fieldName as keyof typeof value]);
+          const fieldResult = fieldFn(value[fieldName as keyof typeof value], mode);
 
           if (isOk(fieldResult)) {
             acc.result[fieldName] = fieldResult.value;
