@@ -6,6 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import type { ErrorMode } from './_err';
 import type { Any } from './generics';
 import { Panic } from './panic';
 import { pipe } from './pipe';
@@ -70,49 +71,11 @@ class BuilderError extends Panic<
 
 /**
  * Mode for handling errors in builder validation.
- *
- * - 'strict': Stop at first error (like flow) - more performant for early validation
- * - 'all': Continue execution and accumulate all errors - useful for collecting all validation issues
- *
- * @example
- * ```ts
- * // Strict mode (default) - stops at first error.
- * const userBuilder = builder({
- *   validateName: (name: string) => (name.length > 0 ? ok(name) : err('INVALID_NAME')),
- *   validateAge: (age: number) => (age >= 0 ? ok(age) : err('INVALID_AGE')),
- *   validateEmail: (email: string) => (email.includes('@') ? ok(email) : err('INVALID_EMAIL')),
- * });
- *
- * const strictValidator = userBuilder
- *   .validateName('')
- *   .validateAge(-5)
- *   .validateEmail('invalid')
- *   .build('strict');
- *
- * const strictResult = strictValidator(''); // err('INVALID_NAME') - stops at first error
- * ```
- *
- * @example
- * ```ts
- * // All mode - collects all errors.
- * const userBuilder = builder({
- *   validateName: (name: string) => (name.length > 0 ? ok(name) : err('INVALID_NAME')),
- *   validateAge: (age: number) => (age >= 0 ? ok(age) : err('INVALID_AGE')),
- *   validateEmail: (email: string) => (email.includes('@') ? ok(email) : err('INVALID_EMAIL')),
- * });
- *
- * const allValidator = userBuilder
- *   .validateName('')
- *   .validateAge(-5)
- *   .validateEmail('invalid')
- *   .build('all');
- *
- * const allResult = allValidator(''); // err(['INVALID_NAME', 'INVALID_AGE', 'INVALID_EMAIL'])
- * ```
+ * Uses the centralized error mode concept from {@link ErrorMode}.
  *
  * @public
  */
-type BuilderMode = 'strict' | 'all';
+type BuilderMode = ErrorMode;
 
 /**
  * Describes the signature of a function that can be used in the builder.
