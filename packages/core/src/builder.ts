@@ -70,14 +70,6 @@ class BuilderError extends Panic<
 >('BUILDER') {}
 
 /**
- * Mode for handling errors in builder validation.
- * Uses the centralized error mode concept from {@link ErrorMode}.
- *
- * @public
- */
-type BuilderMode = ErrorMode;
-
-/**
  * Describes the signature of a function that can be used in the builder.
  *
  * Builder functions can have two signatures:
@@ -216,7 +208,7 @@ type Builder<
       ? () => Builder<Input, O, ErrorUnion | E, Used | K, Functions, Repeatable>
       : never;
 } & {
-  build(mode?: BuilderMode): (input: Input) => Result<Output, ErrorUnion>;
+  build(mode?: ErrorMode): (input: Input) => Result<Output, ErrorUnion>;
 };
 
 /**
@@ -363,7 +355,7 @@ function builder<
     get(_, prop: string) {
       if (prop === 'build') {
         // Processing only the used functions and returning a pipe.
-        return (mode: BuilderMode = 'strict') => {
+        return (mode: ErrorMode = 'strict') => {
           const fns = steps.map(({ key, args }) => {
             const originalFn = functions[key];
             if (!originalFn) {
