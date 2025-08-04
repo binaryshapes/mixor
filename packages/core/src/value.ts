@@ -6,6 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import type { ErrorMode } from './_err';
 import type { Any } from './generics';
 import { pipe } from './pipe';
 import { type Result } from './result';
@@ -50,6 +51,7 @@ type ValueRule<T, E> = Traceable<
 
 /**
  * Base value type that can be either a validator or a builder.
+ * Uses the centralized error mode concept from {@link ErrorMode}.
  *
  * @typeParam T - The type of the value to validate.
  * @typeParam E - The type of the error.
@@ -59,7 +61,7 @@ type ValueRule<T, E> = Traceable<
 type Value<T, E> = Traceable<
   'Value',
   {
-    (input: T, mode?: 'strict' | 'all'): Result<T, E>;
+    (input: T, mode?: ErrorMode): Result<T, E>;
   },
   ValueMeta
 >;
@@ -175,7 +177,7 @@ const rule = <T, E>(rule: ValueFunction<T, E>) => traceable('ValueRule', rule) a
  * @public
  */
 const value = <T, E>(...rules: ValueRule<T, E>[]) =>
-  traceable('Value', (value: T, mode: 'strict' | 'all' = 'all') =>
+  traceable('Value', (value: T, mode: ErrorMode = 'all') =>
     pipe(mode, ...(rules as [ValueRule<Any, Any>]))(value),
   ) as Value<T, E>;
 
