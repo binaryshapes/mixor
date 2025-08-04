@@ -291,16 +291,16 @@ describe('Pipe', () => {
         expectTypeOf(pipeline).toBeFunction();
         expectTypeOf(pipeline).parameter(0).toBeString();
         expectTypeOf(pipeline).returns.toEqualTypeOf<
-          Result<string, 'NOT_STRING' | 'TOO_SHORT' | 'NO_UPPERCASE'>
+          Result<string, ('NOT_STRING' | 'TOO_SHORT' | 'NO_UPPERCASE')[]>
         >();
         expectTypeOf(r1).toEqualTypeOf<
-          Result<string, 'NOT_STRING' | 'TOO_SHORT' | 'NO_UPPERCASE'>
+          Result<string, ('NOT_STRING' | 'TOO_SHORT' | 'NO_UPPERCASE')[]>
         >();
         expectTypeOf(r2).toEqualTypeOf<
-          Result<string, 'NOT_STRING' | 'TOO_SHORT' | 'NO_UPPERCASE'>
+          Result<string, ('NOT_STRING' | 'TOO_SHORT' | 'NO_UPPERCASE')[]>
         >();
         expectTypeOf(r3).toEqualTypeOf<
-          Result<string, 'NOT_STRING' | 'TOO_SHORT' | 'NO_UPPERCASE'>
+          Result<string, ('NOT_STRING' | 'TOO_SHORT' | 'NO_UPPERCASE')[]>
         >();
       });
 
@@ -359,12 +359,12 @@ describe('Pipe', () => {
         expectTypeOf(pipeline).toBeFunction();
         expectTypeOf(pipeline).parameter(0).toBeString();
         expectTypeOf(pipeline).returns.toEqualTypeOf<
-          Result<string, 'NOT_STRING' | 'EMPTY' | 'NO_NUMBER'>
+          Result<string, ('NOT_STRING' | 'EMPTY' | 'NO_NUMBER')[]>
         >();
-        expectTypeOf(r1).toEqualTypeOf<Result<string, 'NOT_STRING' | 'EMPTY' | 'NO_NUMBER'>>();
-        expectTypeOf(r2).toEqualTypeOf<Result<string, 'NOT_STRING' | 'EMPTY' | 'NO_NUMBER'>>();
-        expectTypeOf(r3).toEqualTypeOf<Result<string, 'NOT_STRING' | 'EMPTY' | 'NO_NUMBER'>>();
-        expectTypeOf(r4).toEqualTypeOf<Result<string, 'NOT_STRING' | 'EMPTY' | 'NO_NUMBER'>>();
+        expectTypeOf(r1).toEqualTypeOf<Result<string, ('NOT_STRING' | 'EMPTY' | 'NO_NUMBER')[]>>();
+        expectTypeOf(r2).toEqualTypeOf<Result<string, ('NOT_STRING' | 'EMPTY' | 'NO_NUMBER')[]>>();
+        expectTypeOf(r3).toEqualTypeOf<Result<string, ('NOT_STRING' | 'EMPTY' | 'NO_NUMBER')[]>>();
+        expectTypeOf(r4).toEqualTypeOf<Result<string, ('NOT_STRING' | 'EMPTY' | 'NO_NUMBER')[]>>();
       });
     });
   });
@@ -444,19 +444,19 @@ describe('Pipe', () => {
       expectTypeOf(resultPipeAll).toBeFunction();
       expectTypeOf(resultPipeAll).parameter(0).toEqualTypeOf<{ name: string; age: number }>();
       expectTypeOf(resultPipeAll).returns.toEqualTypeOf<
-        Result<{ name: string; age: number }, 'INVALID_AGE' | 'INVALID_NAME'>
+        Result<{ name: string; age: number }, ('INVALID_AGE' | 'INVALID_NAME')[]>
       >();
       expectTypeOf(rpa1).toEqualTypeOf<
-        Result<{ name: string; age: number }, 'INVALID_AGE' | 'INVALID_NAME'>
+        Result<{ name: string; age: number }, ('INVALID_AGE' | 'INVALID_NAME')[]>
       >();
       expectTypeOf(rpa2).toEqualTypeOf<
-        Result<{ name: string; age: number }, 'INVALID_AGE' | 'INVALID_NAME'>
+        Result<{ name: string; age: number }, ('INVALID_AGE' | 'INVALID_NAME')[]>
       >();
       expectTypeOf(rpa3).toEqualTypeOf<
-        Result<{ name: string; age: number }, 'INVALID_AGE' | 'INVALID_NAME'>
+        Result<{ name: string; age: number }, ('INVALID_AGE' | 'INVALID_NAME')[]>
       >();
       expectTypeOf(rpa4).toEqualTypeOf<
-        Result<{ name: string; age: number }, 'INVALID_AGE' | 'INVALID_NAME'>
+        Result<{ name: string; age: number }, ('INVALID_AGE' | 'INVALID_NAME')[]>
       >();
     });
 
@@ -484,19 +484,19 @@ describe('Pipe', () => {
       expectTypeOf(resultPipeAllWithArgs).parameter(0).toBeString();
       expectTypeOf(resultPipeAllWithArgs).parameter(1).toBeNumber();
       expectTypeOf(resultPipeAllWithArgs).returns.toEqualTypeOf<
-        Result<{ name: string; age: number }, 'INVALID_AGE' | 'INVALID_NAME'>
+        Result<{ name: string; age: number }, ('INVALID_AGE' | 'INVALID_NAME')[]>
       >();
       expectTypeOf(rpa5).toEqualTypeOf<
-        Result<{ name: string; age: number }, 'INVALID_AGE' | 'INVALID_NAME'>
+        Result<{ name: string; age: number }, ('INVALID_AGE' | 'INVALID_NAME')[]>
       >();
       expectTypeOf(rpa6).toEqualTypeOf<
-        Result<{ name: string; age: number }, 'INVALID_AGE' | 'INVALID_NAME'>
+        Result<{ name: string; age: number }, ('INVALID_AGE' | 'INVALID_NAME')[]>
       >();
       expectTypeOf(rpa7).toEqualTypeOf<
-        Result<{ name: string; age: number }, 'INVALID_AGE' | 'INVALID_NAME'>
+        Result<{ name: string; age: number }, ('INVALID_AGE' | 'INVALID_NAME')[]>
       >();
       expectTypeOf(rpa8).toEqualTypeOf<
-        Result<{ name: string; age: number }, 'INVALID_AGE' | 'INVALID_NAME'>
+        Result<{ name: string; age: number }, ('INVALID_AGE' | 'INVALID_NAME')[]>
       >();
     });
   });
