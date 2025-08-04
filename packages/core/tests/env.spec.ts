@@ -3,7 +3,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import { EnvError, env } from '../src/env';
 import { type Result, err, isOk, ok, unwrap } from '../src/result';
 import { schema } from '../src/schema';
-import { value } from '../src/value';
+import { rule, value } from '../src/value';
 
 // Shared test utilities.
 const createTestHelpers = () => ({
@@ -19,18 +19,24 @@ const createTestHelpers = () => ({
   // Create test schemas.
   createRedisSchema: () =>
     schema({
-      REDIS_HOST: value((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_HOST'))),
-      REDIS_PORT: value((value: number) => {
-        // Force coercion to number.
-        const port = Number(value);
-        return !isNaN(port) && port > 0 ? ok(port) : err('INVALID_PORT');
-      }),
+      REDIS_HOST: value(
+        rule((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_HOST'))),
+      ),
+      REDIS_PORT: value(
+        rule((value: number) => {
+          // Force coercion to number.
+          const port = Number(value);
+          return !isNaN(port) && port > 0 ? ok(port) : err('INVALID_PORT');
+        }),
+      ),
     }),
 
   createConfigSchema: () =>
     schema({
-      DATABASE_URL: value((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_URL'))),
-      API_KEY: value((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_KEY'))),
+      DATABASE_URL: value(
+        rule((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_URL'))),
+      ),
+      API_KEY: value(rule((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_KEY')))),
     }),
 });
 
@@ -174,9 +180,9 @@ describe('env', () => {
 
     it('should handle complex schema types', () => {
       const complexSchema = schema({
-        STRING_FIELD: value((value: string) => ok(value)),
-        NUMBER_FIELD: value((value: string) => ok(value)),
-        BOOLEAN_FIELD: value((value: string) => ok(value)),
+        STRING_FIELD: value(rule((value: string) => ok(value))),
+        NUMBER_FIELD: value(rule((value: string) => ok(value))),
+        BOOLEAN_FIELD: value(rule((value: string) => ok(value))),
       });
 
       const config = env(complexSchema);
@@ -198,13 +204,15 @@ describe('env', () => {
         // env-001: Basic environment variable validation with schema.
         const redisConfig = env(
           schema({
-            REDIS_HOST: value((value: string) =>
-              value.length > 0 ? ok(value) : err('EMPTY_HOST'),
+            REDIS_HOST: value(
+              rule((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_HOST'))),
             ),
-            REDIS_PORT: value((value: string) => {
-              const port = parseInt(value);
-              return !isNaN(port) && port > 0 ? ok(value) : err('INVALID_PORT');
-            }),
+            REDIS_PORT: value(
+              rule((value: string) => {
+                const port = parseInt(value);
+                return !isNaN(port) && port > 0 ? ok(value) : err('INVALID_PORT');
+              }),
+            ),
           }),
         );
 
@@ -229,10 +237,12 @@ describe('env', () => {
         // env-002: Error handling for missing environment variables.
         const config = env(
           schema({
-            DATABASE_URL: value((value: string) =>
-              value.length > 0 ? ok(value) : err('EMPTY_URL'),
+            DATABASE_URL: value(
+              rule((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_URL'))),
             ),
-            API_KEY: value((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_KEY'))),
+            API_KEY: value(
+              rule((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_KEY'))),
+            ),
           }),
         );
 
