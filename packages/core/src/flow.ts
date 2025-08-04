@@ -6,8 +6,8 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import { hash } from './_hash';
 import type { Any, MergeUnion, Prettify, PrimitiveTypeExtended } from './generics';
-import { hash } from './hash';
 import { type Result, isErr, isOk, ok, unwrap } from './result';
 
 /**
