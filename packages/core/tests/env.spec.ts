@@ -55,8 +55,8 @@ describe('env', () => {
             REDIS_PORT: number;
           },
           {
-            REDIS_HOST: 'EMPTY_HOST'[];
-            REDIS_PORT: 'INVALID_PORT'[];
+            REDIS_HOST: 'EMPTY_HOST' | 'EMPTY_HOST'[];
+            REDIS_PORT: 'INVALID_PORT' | 'INVALID_PORT'[];
           }
         >
       >();
@@ -70,7 +70,7 @@ describe('env', () => {
 
       try {
         const redisConfig = env(helpers.createRedisSchema());
-        const result = redisConfig();
+        const result = redisConfig('all');
 
         expect(unwrap(result)).toEqual({
           REDIS_HOST: 'localhost',
@@ -95,8 +95,8 @@ describe('env', () => {
           throw new Error('Expected error result');
         } else {
           expect(unwrap(result)).toEqual({
-            REDIS_HOST: 'EMPTY_HOST',
-            REDIS_PORT: 'INVALID_PORT',
+            REDIS_HOST: ['EMPTY_HOST'],
+            REDIS_PORT: ['INVALID_PORT'],
           });
         }
       } finally {
@@ -191,6 +191,42 @@ describe('env', () => {
       expectTypeOf(config).toBeFunction();
       expectTypeOf(config).returns.toEqualTypeOf<ReturnType<typeof config>>();
     });
+
+    it('should infer correctly the type for strict mode error', () => {
+      const redisConfig = env(helpers.createRedisSchema());
+      const result = redisConfig('strict');
+
+      expectTypeOf(result).toEqualTypeOf<
+        Result<
+          {
+            REDIS_HOST: string;
+            REDIS_PORT: number;
+          },
+          {
+            REDIS_HOST: 'EMPTY_HOST';
+            REDIS_PORT: 'INVALID_PORT';
+          }
+        >
+      >();
+    });
+
+    it('should infer correctly the type for all mode error', () => {
+      const redisConfig = env(helpers.createRedisSchema());
+      const result = redisConfig('all');
+
+      expectTypeOf(result).toEqualTypeOf<
+        Result<
+          {
+            REDIS_HOST: string;
+            REDIS_PORT: number;
+          },
+          {
+            REDIS_HOST: 'EMPTY_HOST'[];
+            REDIS_PORT: 'INVALID_PORT'[];
+          }
+        >
+      >();
+    });
   });
 
   describe('Code examples', () => {
@@ -224,7 +260,18 @@ describe('env', () => {
 
         // Typechecking.
         expectTypeOf(redisConfig).toBeFunction();
-        expectTypeOf(result).toEqualTypeOf<ReturnType<typeof redisConfig>>();
+        expectTypeOf(result).toEqualTypeOf<
+          Result<
+            {
+              REDIS_HOST: string;
+              REDIS_PORT: string;
+            },
+            {
+              REDIS_HOST: 'EMPTY_HOST'[];
+              REDIS_PORT: 'INVALID_PORT'[];
+            }
+          >
+        >();
       } finally {
         cleanup();
       }
@@ -275,7 +322,7 @@ describe('env', () => {
           throw new Error('Expected error result');
         } else {
           expect(unwrap(result)).toEqual({
-            REDIS_HOST: 'EMPTY_HOST',
+            REDIS_HOST: ['EMPTY_HOST'],
           });
         }
       } finally {
@@ -308,7 +355,7 @@ describe('env', () => {
 
       try {
         const redisConfig = env(helpers.createRedisSchema());
-        const result = redisConfig();
+        const result = redisConfig('strict');
 
         expect(unwrap(result)).toEqual({
           REDIS_HOST: 'localhost',

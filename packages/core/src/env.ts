@@ -6,6 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import type { ErrorMode } from './_err';
 import type { Any } from './generics';
 import { Panic } from './panic';
 import type { Schema } from './schema';
@@ -54,10 +55,11 @@ function getEnvSource(): Record<string, string | undefined> {
 /**
  * Loads and validates environment variables based on a schema.
  * Compatible with Node.js 20+, Bun, and Deno.
+ * Uses the centralized error mode concept from {@link ErrorMode}.
  *
  * @typeParam F - The schema fields type.
  * @param schema - The schema to validate the environment variables against.
- * @returns The validated environment variables.
+ * @returns A function that validates environment variables with optional error mode.
  *
  * @example
  * ```ts
@@ -91,15 +93,33 @@ function getEnvSource(): Record<string, string | undefined> {
  * // "Missing environment variables: DATABASE_URL, API_KEY. Please check your .env file."
  * ```
  *
+ * @example
+ * ```ts
+ * // env-003: Using different error modes for validation.
+ * const config = env(schema({
+ *   DATABASE_URL: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_URL')),
+ *   API_KEY: value((value: string) => value.length > 0 ? ok(value) : err('EMPTY_KEY')),
+ *   PORT: value((value: number) => value > 0 ? ok(value) : err('INVALID_PORT')),
+ * }));
+ *
+ * // Strict mode - stops at first error
+ * const strictResult = config('strict');
+ * // err({ DATABASE_URL: ['EMPTY_URL'] }) - stops at first error
+ *
+ * // All mode - collects all errors
+ * const allResult = config('all');
+ * // err({ DATABASE_URL: ['EMPTY_URL'], API_KEY: ['EMPTY_KEY'], PORT: ['INVALID_PORT'] })
+ * ```
+ *
  * @public
  */
 function env<F>(schema: Schema<F>) {
-  return () => {
+  return <Mode extends ErrorMode = 'all'>(mode?: Mode) => {
     const rawEnv = getEnvSource();
 
     // This filter is to avoid including the schema metadata fields.
     const fields = Object.keys(schema).filter(
-      (key) => key !== '_tag' && key !== '_hash' && key !== '_doc',
+      (key) => !['~trace', 'meta', 'parent', 'trace'].includes(key),
     );
 
     // Filtering only the schema fields.
@@ -118,7 +138,7 @@ function env<F>(schema: Schema<F>) {
       );
     }
 
-    return schema(input as Any);
+    return schema(input as Any, mode);
   };
 }
 
