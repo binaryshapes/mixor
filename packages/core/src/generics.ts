@@ -261,6 +261,16 @@ type MergeUnion<T> =
           [K in UnionKeys<T>]: T extends Any ? (K extends keyof T ? T[K] : never) : never;
         };
 
+/**
+ * Flattens an array type.
+ *
+ * @typeParam T - The type to flatten.
+ * @returns The flattened type.
+ *
+ * @public
+ */
+type FlatArray<T> = T extends Array<infer U> ? U : T;
+
 export type {
   // General purpose types.
   Any,
@@ -278,4 +288,5 @@ export type {
   Equal,
   IfReadonly,
   PreserveReadonly,
+  FlatArray,
 };
