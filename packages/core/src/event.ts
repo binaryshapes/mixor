@@ -16,9 +16,9 @@ import type { Value } from './value';
  *
  * @internal
  */
-type EventMeta = TraceableMeta<{
+type EventMeta<T> = TraceableMeta<{
   /** Example of valid event data. */
-  example: string;
+  example: T;
 }>;
 
 /**
@@ -49,7 +49,7 @@ type Event<K, T> = Traceable<
   EventData<K, T> & {
     (value: T): EventData<K, T>;
   },
-  EventMeta
+  EventMeta<T>
 >;
 
 /**
