@@ -157,7 +157,7 @@ function isResult(result: unknown): result is Result<unknown, unknown> {
  *
  * @public
  */
-const unwrap = <T>(result: Result<T, unknown>) => (isOk(result) ? result.value : result.error);
+const unwrap = <T, E>(result: Result<T, E>) => (isOk(result) ? result.value : result.error);
 
 export type { Err, Ok, Result };
 export { err, isErr, isOk, isResult, ok, unwrap };
