@@ -11,6 +11,7 @@ import { EventEmitter } from 'node:events';
 
 import { config } from './_config';
 import { hash } from './_hash';
+import type { Infer } from './_infer';
 import type { Any, Prettify } from './generics';
 import { Panic } from './panic';
 
@@ -74,6 +75,9 @@ type Traceable<
   Type,
   Meta extends Record<string, Any> = TraceableMeta,
 > = Type & {
+  /** The type of the traced element. */
+  Type: Infer<Type, Tag>;
+
   /**
    * Set the metadata for the traceable element.
    *
@@ -367,6 +371,13 @@ const traceable = <Tag extends string, T, Meta extends Record<string, Any> = Tra
     },
     writable: false,
     enumerable: config.showTraceMeta,
+  });
+
+  // Defining the type of the element as a getter.
+  Object.defineProperty(element, 'Type', {
+    get: () => element as T,
+    enumerable: false,
+    configurable: false,
   });
 
   return element as Traceable<Tag, T, Meta>;
