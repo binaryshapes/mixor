@@ -193,6 +193,11 @@ describe('env', () => {
     });
 
     it('should infer correctly the type for strict mode error', () => {
+      const cleanup = helpers.mockEnv({
+        REDIS_HOST: 'localhost',
+        REDIS_PORT: '6379',
+      });
+
       const redisConfig = env(helpers.createRedisSchema());
       const result = redisConfig('strict');
 
@@ -208,9 +213,16 @@ describe('env', () => {
           }
         >
       >();
+
+      cleanup();
     });
 
     it('should infer correctly the type for all mode error', () => {
+      const cleanup = helpers.mockEnv({
+        REDIS_HOST: 'localhost',
+        REDIS_PORT: '6379',
+      });
+
       const redisConfig = env(helpers.createRedisSchema());
       const result = redisConfig('all');
 
@@ -226,6 +238,8 @@ describe('env', () => {
           }
         >
       >();
+
+      cleanup();
     });
   });
 
