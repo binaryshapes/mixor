@@ -328,10 +328,10 @@ const aggregate = <
   M extends (options: {
     self: AggregateState<AggregateConfig<T, E, S, M>, 'strict' | 'all'>;
     fn: AggregateMethod;
-    specs?: S;
+    specs: S;
   }) => Record<string, (...args: Any[]) => Any>,
   EE = undefined,
-  S extends Record<string, Specification<SchemaValues<T>>> | undefined = undefined,
+  S extends Record<string, Specification<SchemaValues<T>>> | undefined = never,
   E extends EventStore<Any> | undefined = EventStore<EE>,
 >(
   config: AggregateConfig<T, E, S, M>,
@@ -366,7 +366,7 @@ const aggregate = <
       ? config.methods({
           self: state as Any,
           fn: createAggregateMethodLogic<typeof config, Mode>(state, config.specs),
-          specs: config.specs,
+          specs: config.specs as S,
         })
       : {};
 
