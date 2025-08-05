@@ -26,12 +26,13 @@ const SchemaError = Panic<
 
 /**
  * Extended metadata for schema validation.
+ * @typeParam T - The type of the schema object.
  *
  * @internal
  */
-type SchemaMeta = TraceableMeta<{
+type SchemaMeta<T> = TraceableMeta<{
   /** Example of valid schema object. */
-  example: string;
+  example: SchemaValues<T>;
 }>;
 
 /**
@@ -108,9 +109,13 @@ type SchemaFunction<F, V = SchemaValues<F>> = {
  *
  * @public
  */
-type Schema<F> = Traceable<'Schema', SchemaFunction<F>, SchemaMeta> & {
-  [K in keyof F]: F[K] extends Value<Any, Any> ? F[K] : never;
-};
+type Schema<F> = Traceable<
+  'Schema',
+  SchemaFunction<F> & {
+    [K in keyof F]: F[K] extends Value<Any, Any> ? F[K] : never;
+  },
+  SchemaMeta<F>
+>;
 
 /**
  * Creates a schema from a set of fields.
