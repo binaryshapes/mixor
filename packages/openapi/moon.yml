@@ -1,0 +1,20 @@
+id: '@mixor/openapi'
+language: typescript
+type: library
+tags:
+  - tsup
+  - vitest
+
+project:
+  name: Mixor OpenAPI library
+  description: Mixor OpenAPI implementation
+  owner: binaryshapes
+  maintainers:
+    - Carlos Cosming
+  metadata:
+    license: MIT
+    public: true
+    repository:
+      type: git
+      url: https://github.com/binaryshapes/mixor
+      directory: packages/openapi
