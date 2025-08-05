@@ -88,7 +88,7 @@ describe('schema', () => {
         name: 'UserSchema',
         description: 'User validation schema with name and email',
         scope: 'UserValidation',
-        example: '{ "name": "John Doe", "email": "john@example.com" }',
+        example: { name: 'John Doe', email: 'john@example.com' },
       });
 
       expect(UserSchema['~trace'].meta.name).toBe('UserSchema');
@@ -96,9 +96,10 @@ describe('schema', () => {
         'User validation schema with name and email',
       );
       expect(UserSchema['~trace'].meta.scope).toBe('UserValidation');
-      expect(UserSchema['~trace'].meta.example).toBe(
-        '{ "name": "John Doe", "email": "john@example.com" }',
-      );
+      expect(UserSchema['~trace'].meta.example).toEqual({
+        name: 'John Doe',
+        email: 'john@example.com',
+      });
     });
 
     it('should throw error for non-value fields', () => {
@@ -211,7 +212,7 @@ describe('schema', () => {
         name: 'UserSchema',
         description: 'User validation schema with name and email',
         scope: 'UserValidation',
-        example: '{ "name": "John Doe", "email": "john@example.com" }',
+        example: { name: 'John Doe', email: 'john@example.com' },
       });
 
       expect(UserSchema['~trace'].meta.name).toBe('UserSchema');
@@ -219,9 +220,10 @@ describe('schema', () => {
         'User validation schema with name and email',
       );
       expect(UserSchema['~trace'].meta.scope).toBe('UserValidation');
-      expect(UserSchema['~trace'].meta.example).toBe(
-        '{ "name": "John Doe", "email": "john@example.com" }',
-      );
+      expect(UserSchema['~trace'].meta.example).toEqual({
+        name: 'John Doe',
+        email: 'john@example.com',
+      });
       expect(UserSchema['~trace'].tag).toBe('Schema');
     });
 
