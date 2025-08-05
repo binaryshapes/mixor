@@ -119,7 +119,7 @@ function env<F>(schema: Schema<F>) {
 
     // This filter is to avoid including the schema metadata fields.
     const fields = Object.keys(schema).filter(
-      (key) => !['~trace', 'meta', 'parent', 'trace'].includes(key),
+      (key) => !['~trace', 'meta', 'parent', 'trace', 'Type'].includes(key),
     );
 
     // Filtering only the schema fields.
