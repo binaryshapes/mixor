@@ -27,9 +27,9 @@ type ValueFunction<T, E> = (value: T) => Result<T, E>;
  *
  * @internal
  */
-type ValueMeta = TraceableMeta<{
+type ValueMeta<T> = TraceableMeta<{
   /** Example of valid input. */
-  example: string;
+  example: T;
 }>;
 
 /**
@@ -63,7 +63,7 @@ type Value<T, E> = Traceable<
   {
     (input: T, mode?: ErrorMode): Result<T, E>;
   },
-  ValueMeta
+  ValueMeta<T>
 >;
 
 /**
