@@ -27,42 +27,42 @@ type NotString = ResultError<'NOT_STRING', 'isString'>;
  * ```ts
  * // is-string-002: Reject number value.
  * const result = isString(1.23);
- * // result: err('NOT_STRING').
+ * // result: err(NotString).
  * ```
  *
  * @example
  * ```ts
  * // is-string-003: Reject boolean value.
  * const result = isString(true);
- * // result: err('NOT_STRING').
+ * // result: err(NotString).
  * ```
  *
  * @example
  * ```ts
  * // is-string-004: Reject null value.
  * const result = isString(null);
- * // result: err('NOT_STRING').
+ * // result: err(NotString).
  * ```
  *
  * @example
  * ```ts
  * // is-string-005: Reject undefined value.
  * const result = isString(undefined);
- * // result: err('NOT_STRING').
+ * // result: err(NotString).
  * ```
  *
  * @example
  * ```ts
  * // is-string-006: Reject object value.
  * const result = isString({});
- * // result: err('NOT_STRING').
+ * // result: err(NotString).
  * ```
  *
  * @example
  * ```ts
  * // is-string-007: Reject array value.
  * const result = isString([]);
- * // result: err('NOT_STRING').
+ * // result: err(NotString).
  * ```
  *
  * @public
