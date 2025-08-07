@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { type Result, isTraceable, unwrap } from '@mixor/core';
 
-import { coerceString, isString } from '../src/string';
+import { coerceString, hasMaxLength, hasMinLength, isNotEmpty, isString } from '../src/string';
 
 describe('String value', () => {
   describe('isString rule', () => {
@@ -82,6 +82,83 @@ describe('String value', () => {
           code: 'NOT_STRING',
           context: 'isString',
           message: ' is not string',
+        });
+      });
+    });
+
+    describe('isNotEmpty rule', () => {
+      describe('Type safety', () => {
+        it('should provide correct type inference for all public elements', () => {
+          expectTypeOf(isNotEmpty).toBeFunction();
+          expect(isTraceable(isNotEmpty)).toBe(true);
+        });
+      });
+
+      describe('Code examples', () => {
+        it('should run example is-not-empty-001: Validate non-empty string', () => {
+          const result = isNotEmpty('hello');
+          expect(unwrap(result)).toBe('hello');
+        });
+
+        it('should run example is-not-empty-002: Reject empty string', () => {
+          const result = isNotEmpty('');
+          expect(unwrap(result)).toEqual({
+            code: 'IS_EMPTY',
+            context: 'isNotEmpty',
+            message: 'String should not be empty',
+          });
+        });
+      });
+    });
+
+    describe('hasMinLength rule', () => {
+      describe('Type safety', () => {
+        it('should provide correct type inference for all public elements', () => {
+          expectTypeOf(hasMinLength).toBeFunction();
+          expectTypeOf(hasMinLength(5)).toBeFunction();
+          expect(isTraceable(hasMinLength(5))).toBe(true);
+        });
+      });
+
+      describe('Code examples', () => {
+        it('should run example has-min-length-001: Validate string with minimum length', () => {
+          const result = hasMinLength(10)('hello world');
+          expect(unwrap(result)).toBe('hello world');
+        });
+
+        it('should run example has-min-length-002: Reject string with insufficient length', () => {
+          const result = hasMinLength(10)('short');
+          expect(unwrap(result)).toEqual({
+            code: 'TOO_SHORT',
+            context: 'hasMinLength',
+            message: 'String length 5 is less than minimum 10',
+          });
+        });
+      });
+    });
+
+    describe('hasMaxLength rule', () => {
+      describe('Type safety', () => {
+        it('should provide correct type inference for all public elements', () => {
+          expectTypeOf(hasMaxLength).toBeFunction();
+          expectTypeOf(hasMaxLength(10)).toBeFunction();
+          expect(isTraceable(hasMaxLength(10))).toBe(true);
+        });
+      });
+
+      describe('Code examples', () => {
+        it('should run example has-max-length-001: Validate string with maximum length', () => {
+          const result = hasMaxLength(10)('short');
+          expect(unwrap(result)).toBe('short');
+        });
+
+        it('should run example has-max-length-002: Reject string exceeding maximum length', () => {
+          const result = hasMaxLength(10)('too long string');
+          expect(unwrap(result)).toEqual({
+            code: 'TOO_LONG',
+            context: 'hasMaxLength',
+            message: 'String length 15 exceeds maximum 10',
+          });
         });
       });
     });
