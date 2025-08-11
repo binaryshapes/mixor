@@ -1,0 +1,315 @@
+---
+description: Synchronice code, documentation, examples and tests in a standarized way
+alwaysApply: false
+---
+
+# Code Management Standards
+
+## Overview
+
+Streamlined approach to managing code, documentation, examples, and tests that reduces maintenance overhead while maintaining quality and consistency.
+
+## Core Workflow
+
+### Step 1: Code Development
+
+- **Write code first** - Focus on implementation without documentation overhead
+- **Use TSDoc for API documentation** - Document all @public elements clearly
+- **NO @example tags** - Examples are managed separately
+
+### Step 2: Examples Management
+
+- **Examples in dedicated files** - `examples/module.ts` for each module
+- **Independent functions** - Each example wrapped in named, non-exported function
+- **Real usage scenarios** - Show success and error cases
+- **Executable examples** - Can run with `pnpm dev examples/module.ts`
+- **Simple and focused** - Avoid complex logic, demonstrate one concept per example
+- **Module isolation** - Don't use other modules in examples
+
+### Step 3: Documentation Synchronization
+
+- **Auto-sync examples to TSDoc** - Generate @example tags automatically
+- **Unique codes required** - Format: `module-sequential_number` (e.g., `component-001`)
+- **Examples placement rules**:
+  - ✅ **REQUIRED**: Functions, classes, constructors, factory functions
+  - ❌ **FORBIDDEN**: Types, interfaces, enums, constants, simple values
+- **Order preservation** - Examples appear in same order as code
+- **Console.log rules**:
+  - ✅ **ALLOWED in examples/ files**: Use console.log to see outputs when running examples
+  - ❌ **FORBIDDEN in @example tags**: Replace console.log with comments showing expected output
+
+### Step 4: Test Generation
+
+- **Tests from examples** - Each example function becomes a test case
+- **Separate basic tests** - Core API behavior and edge cases
+- **Comprehensive typechecking** - Test all @public elements with `expectTypeOf`
+- **No overlap** - Basic tests focus on different aspects than examples
+
+## File Structure
+
+```text
+examples/
+  component.ts         # Examples for component module
+  event.ts             # Examples for event module
+tests/
+  component.spec.ts    # Tests for component module
+src/
+  component.ts         # Source code with TSDoc
+```
+
+## Example Function Structure
+
+```typescript
+// examples/component.ts
+import { componentFunction } from '../src/component';
+
+/**
+ * component-001: Basic usage demonstration.
+ */
+function componentBasicUsage() {
+  console.log('Running basic usage example...');
+  const result = componentFunction('input');
+  console.log('Result:', result);
+  // output: success result
+}
+
+/**
+ * component-002: Error handling demonstration.
+ */
+function componentErrorHandling() {
+  console.log('Running error handling example...');
+  const errorResult = componentFunction('invalid');
+  if (isErr(errorResult)) {
+    console.log('Error caught:', unwrap(errorResult));
+  }
+  // output: error message
+}
+
+// Execute all examples
+componentBasicUsage();
+componentErrorHandling();
+```
+
+## Example Transformation: From Examples File to Documentation
+
+### Step 1: Example in examples/component.ts
+
+```typescript
+/**
+ * component-001: Basic usage demonstration.
+ */
+function componentBasicUsage() {
+  console.log('Running basic usage example...');
+  const result = componentFunction('input');
+  console.log('Result:', result);
+  // output: success result
+}
+```
+
+### Step 2: Generated @example tag in src/component.ts
+
+```typescript
+/**
+ * Main component factory function.
+ *
+ * @param input - The input to process.
+ * @returns The processed result.
+ *
+ * @example
+ * ```ts
+ * // component-001: Basic usage demonstration.
+ * const result = componentFunction('input');
+ * // output: success result
+ * ```
+ *
+ * @public
+ */
+function componentFunction(input: string): string {
+  // Implementation...
+}
+```
+
+### Key Transformations
+
+- **console.log statements removed** - Not needed in documentation
+- **Expected output preserved** - `// output: <expected>` comments kept
+- **Code logic maintained** - Core functionality unchanged
+- **Unique code preserved** - `component-001` identifier maintained
+- **Description preserved** - "Basic usage demonstration" kept exactly
+
+## Documentation Standards
+
+### TSDoc Requirements
+
+- **Module documentation** - `@packageDocumentation` at file top
+- **Document all @public elements** - Functions, classes, interfaces, types
+- **Mark internal elements** - Use `@internal` for non-exported elements
+- **Clear descriptions** - Explain what it does, not how it works
+- **Type parameters** - Use `@typeParam` for generics
+- **Parameters and returns** - Use `@param` and `@returns`
+- **Error documentation** - Use `@throws` with `@link` to error types
+- **Tag positioning** - `@packageDocumentation`, `@public`, `@internal` at end
+
+### Example Generation Rules
+
+- **Unique codes** - Every example must have `module-sequential_number`
+- **Exact descriptions** - Match between example files and TSDoc
+- **Code preservation** - Examples in TSDoc match example files exactly
+- **Module agnostic** - Don't assume other modules
+
+### Documentation Example
+
+```typescript
+/**
+ * Validates user input and returns a result.
+ *
+ * @param input - The user input to validate.
+ * @returns Validation result with success or error.
+ *
+ * @example
+ * ```ts
+ * // validation-001: Basic input validation.
+ * const result = validateUserInput('test@example.com');
+ * if (isOk(result)) {
+ *   // unwrap(result): validated email.
+ * } else {
+ *   // unwrap(result): validation error.
+ * }
+ * ```
+ *
+ * @throws A {@link ValidationError} if input is invalid. {@link ValidationError}
+ *
+ * @public
+ */
+function validateUserInput(input: string): Result<string, ValidationError> {
+  // Implementation...
+}
+```
+
+## Testing Strategy
+
+### Test Organization
+
+```typescript
+describe('Component', () => {
+  describe('Basic functionality', () => {
+    // Core API behavior - independent of examples
+    it('should handle basic operations', () => {
+      // Test core functionality
+    });
+  });
+
+  describe('Type safety', () => {
+    // Comprehensive typechecking for all @public elements
+    it('should provide correct type inference', () => {
+      expectTypeOf(componentFunction).toBeFunction();
+      expectTypeOf(componentFunction('input')).toBeString();
+    });
+  });
+
+  describe('Code examples', () => {
+    // Tests generated from example files
+    it('should run example component-001: Basic usage demonstration', () => {
+      // Exact copy of example file function
+    });
+  });
+});
+```
+
+### Test Rules
+
+- **Examples become tests** - Each example function becomes a test case
+- **Basic tests separate** - Focus on edge cases and type safety
+- **No duplication** - Basic tests don't overlap with example tests
+- **Type safety mandatory** - Test all @public elements with `expectTypeOf`
+
+## Synchronization Process
+
+### Example Sync
+
+1. **Read example files** - Parse `examples/module.ts`
+2. **Generate TSDoc** - Create @example tags with unique codes
+3. **Update documentation** - Insert examples into appropriate @public elements
+4. **Maintain consistency** - Ensure codes and descriptions match exactly
+
+### Test Generation
+
+1. **Parse examples** - Extract example functions from example files
+2. **Generate test cases** - Create tests for each example
+3. **Add basic tests** - Include core functionality and type safety tests
+4. **Ensure no overlap** - Basic tests focus on different aspects
+
+## Quality Standards
+
+### Examples
+
+- **Simple and focused** - One concept per example
+- **Real-world usage** - Practical, common scenarios
+- **Error handling** - Both success and error cases
+- **Executable** - Must run without errors
+- **Console.log allowed** - Use console.log in examples/ files to see outputs
+- **Output documentation** - Include `// output: <expected>` comments for expected results
+
+### Documentation
+
+- **Clear and concise** - Explain what, not how
+- **Consistent format** - Use TSDoc standards throughout
+- **No duplication** - Examples only in example files
+- **Cross-references** - Use @link for related elements
+
+### Tests
+
+- **Comprehensive coverage** - Test all public elements
+- **No duplication** - Basic tests don't overlap with examples
+- **Type safety focus** - Use `expectTypeOf` and `toEqualTypeOf`
+- **Maintainable** - Clear structure and shared utilities
+
+## Workflow
+
+### Adding Features
+
+1. **Write code** - Implement with TSDoc (no @example tags)
+2. **Create examples** - Add to `examples/module.ts` with unique codes
+3. **Auto-sync docs** - Generate @example tags automatically
+4. **Generate tests** - Create tests from examples and add basic tests
+
+### Updating Features
+
+1. **Modify code** - Update implementation and TSDoc
+2. **Update examples** - Modify example files as needed
+3. **Re-sync docs** - Regenerate @example tags automatically
+4. **Update tests** - Regenerate tests from updated examples
+
+### Removing Features
+
+1. **Remove code** - Delete implementation and TSDoc
+2. **Remove examples** - Delete from example files
+3. **Re-sync docs** - Remove @example tags automatically
+4. **Update tests** - Remove corresponding tests
+
+## Naming Conventions
+
+- **Examples**: `examples/module-name.ts` (kebab-case)
+- **Tests**: `tests/module.spec.ts` (singular)
+- **Source**: `src/module.ts` (same as examples)
+
+## Key Principles
+
+1. **Examples first** - Write examples before documentation or tests
+2. **Single source** - Examples only exist in example files
+3. **Automatic sync** - Use tools to maintain consistency
+4. **No duplication** - Each concept documented once
+5. **Comprehensive testing** - Cover examples, basic functionality, and type safety
+6. **Maintainable structure** - Clear workflow for all changes
+
+## Implementation Checklist
+
+- [ ] Create examples directory structure
+- [ ] Set up example sync tool
+- [ ] Set up test generation tool
+- [ ] Establish naming conventions
+- [ ] Write code with TSDoc (no @example tags)
+- [ ] Create examples in dedicated files
+- [ ] Run example sync to update documentation
+- [ ] Generate tests from examples
+- [ ] Add basic functionality tests
