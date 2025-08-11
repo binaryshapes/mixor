@@ -1,5 +1,6 @@
 export * from './aggregate';
 export * from './builder';
+export * from './component';
 export * from './container';
 export * from './criteria';
 export * from './doc';
