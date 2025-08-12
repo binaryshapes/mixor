@@ -176,11 +176,9 @@ type ComponentData<Type, Tag extends ComponentTag> = {
       /** Scope or context where the element is used. */
       readonly scope: string;
     } & (Tag extends 'Value' | 'Rule' | 'Schema' | 'Object'
-      ? Infer<Type, Tag> extends never
-        ? Type
-        : {
-            readonly example: Infer<Type, Tag>;
-          }
+      ? {
+          readonly example: Infer<Type, Tag>;
+        }
       : Record<never, never>)
   > | null;
 };
@@ -193,7 +191,7 @@ type ComponentData<Type, Tag extends ComponentTag> = {
  *
  * @public
  */
-type Component<Type, Tag extends ComponentTag> = Type & {
+type Component<Tag extends ComponentTag, Type> = Type & {
   /**
    * Inferred type of the component.
    */
@@ -594,7 +592,7 @@ const component = <Tag extends ComponentTag, Target extends ComponentType<Tag>>(
     Object.assign(target, InjectableComponentPrototype(target));
   }
 
-  return target as Component<Target, Tag>;
+  return target as Component<Tag, Target>;
 };
 
 /**
