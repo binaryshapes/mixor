@@ -45,6 +45,7 @@ const nonInjectableList = [
   'Aggregate',
   'Builder',
   'Command',
+  'Condition',
   'Criteria',
   'Event',
   'Flow',
