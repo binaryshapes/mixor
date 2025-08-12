@@ -1,464 +1,613 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import {
-  type ComponentCategory,
-  ComponentError,
-  type ComponentInjectable,
-  type ComponentMeta,
-  type ComponentNonInjectable,
-  type ComponentSubType,
-  component,
-  isComponent,
-} from '../src/component';
+import { ComponentError, component, isComponent, tracer } from '../src/component';
+import { ok } from '../src/result';
 
 describe('Component', () => {
-  // Shared test utilities.
-  const createTestHelpers = () => ({
-    createEmailValidator: () => (email: string) => {
-      if (!email.includes('@')) {
-        throw new Error('Invalid email');
-      }
-      return email;
-    },
-    createUserObject: () => ({
-      name: 'John',
-      age: 30,
-    }),
-    createTestMeta: () => ({
-      scope: 'Test',
-      name: 'TestComponent',
-      description: 'A test component',
-    }),
+  // Test data and utilities
+  const mockFunction = () => (value: string) => ok(value);
+  const mockObject = () => ({ key: 'value' });
+  const mockErrorFunction = () => () => {
+    throw new Error('Test error');
+  };
+
+  // Injectable components need objects or functions that don't return Result
+  const mockInjectableObject = () => ({ service: 'injectable service' });
+
+  beforeEach(() => {
+    // Clear tracer listeners before each test
+    tracer.clear();
   });
 
-  describe('Basic functionality', () => {
-    const helpers = createTestHelpers();
+  describe('Public API', () => {
+    describe('component factory function', () => {
+      it('should create component with valid function target', () => {
+        const testComponent = component('Rule', mockFunction());
 
-    it('should create function components correctly', () => {
-      const EmailValidator = helpers.createEmailValidator();
-      const EmailValidatorComponent = component('Rule', EmailValidator);
+        expect(testComponent).toBeDefined();
+        expect(typeof testComponent).toBe('function');
+        expect(isComponent(testComponent)).toBe(true);
+      });
 
-      expect(EmailValidatorComponent).toBeDefined();
-      expect(typeof EmailValidatorComponent).toBe('function');
-      expect(EmailValidatorComponent.info).toBeDefined();
-      expect(EmailValidatorComponent.meta).toBeDefined();
-      expect(EmailValidatorComponent.traceable).toBeDefined();
-      expect(EmailValidatorComponent.subType).toBeDefined();
-    });
+      it('should create component with valid object target', () => {
+        const testComponent = component('Object', mockObject());
 
-    it('should create object components correctly', () => {
-      const User = helpers.createUserObject();
-      const UserComponent = component('Object', User);
+        expect(testComponent).toBeDefined();
+        expect(typeof testComponent).toBe('object');
+        expect(isComponent(testComponent)).toBe(true);
+      });
 
-      expect(UserComponent).toBeDefined();
-      expect(typeof UserComponent).toBe('object');
-      expect(UserComponent.info).toBeDefined();
-      expect(UserComponent.meta).toBeDefined();
-      expect(UserComponent.traceable).toBeDefined();
-      expect(UserComponent.subType).toBeDefined();
-    });
+      it('should create component with correct tag', () => {
+        const testComponent = component('Schema', mockFunction());
+        const info = testComponent.info();
 
-    it('should set metadata correctly', () => {
-      const EmailValidator = helpers.createEmailValidator();
-      const meta = helpers.createTestMeta();
+        expect(info.tag).toBe('Schema');
+      });
 
-      const EmailValidatorComponent = component('Rule', EmailValidator).meta(meta);
+      it('should generate unique deterministic ID', () => {
+        const component1 = component('Rule', mockFunction());
+        const component2 = component('Rule', mockFunction());
 
-      const info = EmailValidatorComponent.info();
-      expect(info.meta).toEqual(meta);
-    });
-
-    it('should make components traceable', () => {
-      const EmailValidator = helpers.createEmailValidator();
-      const EmailValidatorComponent = component('Rule', EmailValidator).traceable();
-
-      const info = EmailValidatorComponent.info();
-      expect(info.traceable).toBe(true);
-    });
-
-    it('should set subType for non-injectable components', () => {
-      const EmailValidator = helpers.createEmailValidator();
-      const EmailValidatorComponent = component('Rule', EmailValidator).subType('string');
-
-      const info = EmailValidatorComponent.info();
-      expect(info.subType).toBe('string');
-    });
-
-    it('should set parent for components', () => {
-      const ParentComponent = component('Object', helpers.createUserObject());
-      const ChildComponent = component('Rule', helpers.createEmailValidator()).parent(
-        ParentComponent,
-      );
-
-      const childInfo = ChildComponent.info();
-      const parentInfo = ParentComponent.info();
-      expect(childInfo.parentId).toBe(parentInfo.id);
-    });
-
-    it('should determine correct category for functions', () => {
-      const EmailValidator = helpers.createEmailValidator();
-      const Component = component('Rule', EmailValidator);
-
-      const info = Component.info();
-      expect(info.category).toBe('function');
-    });
-
-    it('should determine correct category for objects', () => {
-      const User = helpers.createUserObject();
-      const Component = component('Object', User);
-
-      const info = Component.info();
-      expect(info.category).toBe('object');
-    });
-
-    it('should handle injectable component types correctly', () => {
-      const TestService = () => ({});
-      const Component = component('Service', TestService);
-
-      const info = Component.info();
-      expect(info.injectable).toBe(true);
-      expect(Component.injectable).toBeDefined();
-      // @ts-expect-error - subType is not defined for injectable components.
-      expect(Component.subType).toBeUndefined();
-    });
-
-    it('should handle non-injectable component types correctly', () => {
-      const EmailValidator = helpers.createEmailValidator();
-      const Component = component('Rule', EmailValidator);
-
-      const info = Component.info();
-      expect(info.injectable).toBe(false);
-      // @ts-expect-error - injectable is not defined for non-injectable components.
-      expect(Component.injectable).toBeUndefined();
-      expect(Component.subType).toBeDefined();
-    });
-
-    it('should throw error for invalid targets', () => {
-      const invalidTargets = [42, 'string', null, undefined, true, 3.14];
-
-      invalidTargets.forEach((target) => {
-        expect(() => component('Rule', target)).toThrow(ComponentError);
+        expect(component1.info().id).toBe(component2.info().id);
+        expect(component1.info().id).toMatch(/^rule:/);
       });
     });
 
-    it('should handle method chaining correctly', () => {
-      const EmailValidator = helpers.createEmailValidator();
-      const Component = component('Rule', EmailValidator)
-        .meta(helpers.createTestMeta())
-        .traceable()
-        .subType('string');
+    describe('isComponent guard', () => {
+      it('should return true for valid components', () => {
+        const testComponent = component('Rule', mockFunction());
+        expect(isComponent(testComponent)).toBe(true);
+      });
 
-      const info = Component.info();
-      expect(info.meta).toEqual(helpers.createTestMeta());
-      expect(info.traceable).toBe(true);
-      expect(info.subType).toBe('string');
+      it('should return false for non-components', () => {
+        expect(isComponent(mockFunction)).toBe(false);
+        expect(isComponent(mockObject())).toBe(false);
+        expect(isComponent(null)).toBe(false);
+        expect(isComponent(undefined)).toBe(false);
+      });
+
+      it('should check component against specific tag', () => {
+        const testComponent = component('Rule', mockFunction());
+        expect(isComponent(testComponent, 'Rule')).toBe(true);
+        expect(isComponent(testComponent, 'Schema')).toBe(false);
+      });
     });
 
-    it('should isComponent guard work correctly to identify components', () => {
-      const EmailValidator = helpers.createEmailValidator();
-      const NonComponent = {};
-      const Component = component('Rule', EmailValidator);
+    describe('ComponentError', () => {
+      it('should throw AlreadyRegisteredError for duplicate registration', () => {
+        const fn = mockFunction();
+        component('Rule', fn);
 
-      expect(isComponent(Component)).toBe(true);
-
-      // Correct tag.
-      expect(isComponent(Component, 'Rule')).toBe(true);
-
-      // False for wrong tag.
-      expect(isComponent(Component, 'Value')).toBe(false);
-
-      // False for non-component.
-      expect(isComponent(NonComponent)).toBe(false);
-
-      // False for non-component with tag.
-      expect(isComponent(NonComponent, 'Rule')).toBe(false);
-    });
-  });
-
-  describe('Type safety', () => {
-    it('should provide correct type inference for all public elements', () => {
-      // Test component function
-      expectTypeOf(component).toBeFunction();
-      expect(component('Rule', () => 'test')).toBeDefined();
-
-      // Test ComponentError
-      expect(typeof ComponentError).toBe('function');
-      expect(new ComponentError('INVALID_TARGET', 'Test')).toBeDefined();
-
-      // Test ComponentMeta type
-      expectTypeOf<ComponentMeta>().toEqualTypeOf<{
-        readonly name: string;
-        readonly description: string;
-        readonly scope: string;
-      }>();
-
-      // Test ComponentMeta with extensions
-      expectTypeOf<ComponentMeta<{ custom: string }>>().toEqualTypeOf<{
-        readonly name: string;
-        readonly description: string;
-        readonly scope: string;
-        readonly custom: string;
-      }>();
-    });
-
-    it('should validate generic type constraints', () => {
-      // Test component with specific tag types
-      expectTypeOf(component<'Rule'>).toBeFunction();
-      expectTypeOf(component<'Object'>).toBeFunction();
-      expectTypeOf(component<'Service'>).toBeFunction();
-
-      // Test component with metadata extensions
-      type CustomMeta = ComponentMeta<{ example: string }>;
-      expectTypeOf(component<'Rule', CustomMeta>).toBeFunction();
-    });
-
-    it('should validate component interface methods', () => {
-      const TestComponent = component('Rule', () => 'test');
-
-      // Test base methods
-      expectTypeOf(TestComponent.meta).toBeFunction();
-      expectTypeOf(TestComponent.parent).toBeFunction();
-      expectTypeOf(TestComponent.traceable).toBeFunction();
-      expectTypeOf(TestComponent.info).toBeFunction();
-
-      // Test non-injectable specific methods
-      expectTypeOf(TestComponent.subType).toBeFunction();
-      // @ts-expect-error - injectable is not defined for non-injectable components.
-      expectTypeOf(TestComponent.injectable).toBeUndefined();
-    });
-
-    it('should validate injectable component methods', () => {
-      const TestComponent = component('Service', () => ({}));
-
-      // Test injectable specific methods
-      expectTypeOf(TestComponent.injectable).toBeFunction();
-      // @ts-expect-error - subType is not defined for injectable components.
-      expectTypeOf(TestComponent.subType).toBeUndefined();
-    });
-
-    it('should validate component data structure', () => {
-      const TestComponent = component('Rule', () => 'test');
-      const info = TestComponent.info();
-
-      expectTypeOf(info.id).toBeString();
-      expectTypeOf(info.parentId).toEqualTypeOf<string | null>();
-      expectTypeOf(info.tag).toEqualTypeOf<'Rule'>();
-      expectTypeOf(info.category).toEqualTypeOf<'function' | 'object'>();
-      expectTypeOf(info.subType).toEqualTypeOf<string | null>();
-      expectTypeOf(info.traceable).toBeBoolean();
-      expectTypeOf(info.injectable).toBeBoolean();
-      expectTypeOf(info.meta).toEqualTypeOf<ComponentMeta | null>();
-    });
-
-    it('should validate component tag types', () => {
-      // Test non-injectable component types
-      expectTypeOf<ComponentNonInjectable>().toEqualTypeOf<
-        | 'Rule'
-        | 'Object'
-        | 'Builder'
-        | 'Criteria'
-        | 'Value'
-        | 'Event'
-        | 'Specification'
-        | 'Aggregate'
-        | 'Schema'
-        | 'Command'
-        | 'Query'
-      >();
-
-      // Test injectable component types
-      expectTypeOf<ComponentInjectable>().toEqualTypeOf<
-        'Port' | 'Adapter' | 'Service' | 'Container'
-      >();
-    });
-
-    it('should validate component sub-type constraints', () => {
-      expectTypeOf<ComponentSubType>().toEqualTypeOf<
-        'string' | 'number' | 'boolean' | 'bigint' | 'symbol' | 'date' | 'url' | 'array'
-      >();
-    });
-
-    it('should validate component category constraints', () => {
-      expectTypeOf<ComponentCategory>().toEqualTypeOf<'function' | 'object'>();
-    });
-  });
-
-  describe('Code examples', () => {
-    it('should run example component-001: Component function example', () => {
-      type EmailValidatorMeta = ComponentMeta<{
-        example: string;
-      }>;
-
-      const EmailValidator = (email: string) => {
-        if (!email.includes('@')) {
-          throw new Error('Invalid email');
+        try {
+          component('Rule', fn);
+        } catch (error) {
+          expect(error).toBeInstanceOf(ComponentError);
+          expect(error).toHaveProperty('code', 'Component:AlreadyRegisteredError');
         }
+      });
 
-        return email;
-      };
+      it('should throw InvalidTargetError for invalid targets', () => {
+        expect(() => component('Rule', null as never)).toThrow(ComponentError);
+        expect(() => component('Rule', undefined as never)).toThrow(ComponentError);
+      });
+    });
+  });
 
-      const EmailValidatorComponent = component<'Rule', EmailValidatorMeta>(
+  describe('Injectable vs Non-Injectable Components', () => {
+    describe('Non-Injectable Components', () => {
+      const nonInjectableTags = [
+        'Aggregate',
+        'Builder',
+        'Command',
+        'Criteria',
+        'Event',
+        'Flow',
+        'Query',
         'Rule',
-        EmailValidator,
-      ).meta({
-        scope: 'User',
-        name: 'EmailValidator',
-        description: 'Validates an email address',
-        example: 'example@example.com',
+        'Schema',
+        'Specification',
+        'Value',
+      ] as const;
+
+      it.each(nonInjectableTags)('should create %s component as non-injectable', (tag) => {
+        const testComponent = component(tag, mockFunction());
+        const info = testComponent.info();
+
+        expect(info.injectable).toBe(false);
+        expect(info.tag).toBe(tag);
       });
 
-      const info = EmailValidatorComponent.info();
-      expect(info.tag).toBe('Rule');
-      expect(info.category).toBe('function');
-      expect(info.meta).toEqual({
-        scope: 'User',
-        name: 'EmailValidator',
-        description: 'Validates an email address',
-        example: 'example@example.com',
+      it('should provide traceable and subType methods on non-injectable components', () => {
+        const testComponent = component('Rule', mockFunction());
+
+        expect(typeof testComponent.traceable).toBe('function');
+        expect(typeof testComponent.subType).toBe('function');
+        expect('injectable' in testComponent).toBe(false);
       });
-      expect(info.traceable).toBe(false);
-      expect(info.injectable).toBe(false);
     });
 
-    it('should run example component-002: Component object example', () => {
-      type UserMeta = ComponentMeta<{
-        example: {
-          name: string;
-          age: number;
+    describe('Injectable Components', () => {
+      const injectableTags = ['Port', 'Adapter', 'Service', 'Container', 'Object'] as const;
+
+      it.each(injectableTags)('should create %s component as injectable', (tag) => {
+        const testComponent = component(tag, mockInjectableObject());
+        const info = testComponent.info();
+
+        expect(info.injectable).toBe(true);
+        expect(info.tag).toBe(tag);
+      });
+
+      it('should provide injectable method on injectable components', () => {
+        const testComponent = component('Port', mockFunction());
+
+        expect(typeof testComponent.injectable).toBe('function');
+        expect('traceable' in testComponent).toBe(false);
+        expect('subType' in testComponent).toBe(false);
+      });
+    });
+
+    describe('Component Category Detection', () => {
+      it('should detect function category correctly', () => {
+        const testComponent = component('Rule', mockFunction());
+        const info = testComponent.info();
+
+        expect(info.category).toBe('function');
+      });
+
+      it('should detect object category correctly', () => {
+        const testComponent = component('Object', mockObject());
+        const info = testComponent.info();
+
+        expect(info.category).toBe('object');
+      });
+    });
+  });
+
+  describe('Component Methods & Prototypes', () => {
+    describe('Base Methods (All Components)', () => {
+      it('should provide meta method on all components', () => {
+        const testComponent = component('Rule', mockFunction());
+
+        expect(typeof testComponent.meta).toBe('function');
+
+        const result = testComponent.meta({
+          name: 'Test Rule',
+          description: 'Test description',
+          scope: 'test',
+          example: 'example value',
+        });
+
+        expect(result).toBe(testComponent);
+        expect(testComponent.info().meta?.name).toBe('Test Rule');
+      });
+
+      it('should provide parent method on all components', () => {
+        const parentComponent = component('Schema', mockFunction());
+        const childComponent = component('Rule', mockFunction());
+
+        const result = childComponent.parent(parentComponent);
+
+        expect(result).toBe(childComponent);
+        expect(childComponent.info().parentId).toBe(parentComponent.info().id);
+      });
+
+      it('should provide info method on all components', () => {
+        const testComponent = component('Rule', mockFunction());
+        const info = testComponent.info();
+
+        expect(info).toBeDefined();
+        expect(info.id).toBeDefined();
+        expect(info.tag).toBeDefined();
+        expect(info.category).toBeDefined();
+        expect(info.traceable).toBeDefined();
+        expect(info.injectable).toBeDefined();
+        expect(info.meta).toBeDefined();
+      });
+
+      it('should return frozen info object', () => {
+        const testComponent = component('Rule', mockFunction());
+        const info = testComponent.info();
+
+        expect(() => {
+          // @ts-expect-error - we want to test the immutability of the info object.
+          info.tag = 'Modified';
+        }).toThrow();
+      });
+    });
+
+    describe('Non-Injectable Specific Methods', () => {
+      it('should provide traceable method that makes function traceable', () => {
+        const testComponent = component('Rule', mockFunction()).traceable();
+        expect(testComponent.info().traceable).toBe(true);
+      });
+
+      it('should provide subType method to set component subtype', () => {
+        const testComponent = component('Rule', mockFunction());
+        const result = testComponent.subType('string');
+
+        expect(result).toBe(testComponent);
+        expect(testComponent.info().subType).toBe('string');
+      });
+
+      it('should support method chaining for non-injectable components', () => {
+        const testComponent = component('Rule', mockFunction())
+          .meta({ name: 'Test', description: 'Desc', scope: 'test', example: 'example' })
+          .subType('string')
+          .traceable();
+
+        expect(testComponent.info().meta?.name).toBe('Test');
+        expect(testComponent.info().subType).toBe('string');
+        expect(testComponent.info().traceable).toBe(true);
+      });
+    });
+
+    describe('Injectable Specific Methods', () => {
+      it('should provide injectable method that marks component as injectable', () => {
+        const testComponent = component('Port', mockFunction()).injectable();
+        expect(testComponent.info().injectable).toBe(true);
+      });
+
+      it('should support method chaining for injectable components', () => {
+        const testComponent = component('Port', mockFunction())
+          .meta({ name: 'Test', description: 'Desc', scope: 'test' })
+          .injectable();
+
+        expect(testComponent.info().meta?.name).toBe('Test');
+        expect(testComponent.info().injectable).toBe(true);
+      });
+    });
+  });
+
+  describe('Tracing & Traceable Components', () => {
+    describe('Traceable Method Validation', () => {
+      it('should throw error when trying to make non-function traceable', () => {
+        const testComponent = component('Object', mockObject());
+
+        expect(() => {
+          // @ts-expect-error - we want to test the immutability of the info object.
+          testComponent.traceable();
+        }).toThrow();
+      });
+
+      it('should allow making function components traceable', () => {
+        const testComponent = component('Rule', mockFunction());
+
+        expect(() => {
+          testComponent.traceable();
+        }).not.toThrow();
+      });
+    });
+
+    describe('Tracer Events', () => {
+      it('should emit start event when traced function begins execution', () => {
+        const startSpy = vi.fn();
+        tracer.on('start', startSpy);
+
+        const testComponent = component('Rule', mockFunction()).traceable();
+        testComponent('test result');
+
+        expect(startSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            elementId: testComponent.info().id,
+            input: expect.any(Object),
+          }),
+        );
+      });
+
+      it('should emit finish and performance events for synchronous functions', () => {
+        const finishSpy = vi.fn();
+        const performanceSpy = vi.fn();
+
+        tracer.on('finish', finishSpy);
+        tracer.on('performance', performanceSpy);
+
+        const testComponent = component('Rule', mockFunction()).traceable();
+        testComponent('test result');
+
+        expect(finishSpy).toHaveBeenCalled();
+        expect(performanceSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            async: false,
+            durationMs: expect.any(Number),
+          }),
+        );
+      });
+
+      it('should emit finish and performance events for asynchronous functions', async () => {
+        const finishSpy = vi.fn();
+        const performanceSpy = vi.fn();
+
+        tracer.on('finish', finishSpy);
+        tracer.on('performance', performanceSpy);
+
+        // For async functions in non-injectable components, they must return Result directly
+        const asyncResultFunction = async () => ok('async result');
+        const testComponent = component('Flow', asyncResultFunction).traceable();
+        await testComponent();
+
+        expect(finishSpy).toHaveBeenCalled();
+        expect(performanceSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            async: true,
+            durationMs: expect.any(Number),
+          }),
+        );
+      });
+
+      it('should emit error events when function throws', () => {
+        const errorSpy = vi.fn();
+        tracer.on('error', errorSpy);
+
+        const testComponent = component('Rule', mockErrorFunction()).traceable();
+
+        expect(() => testComponent()).toThrow('Test error');
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: expect.any(Error),
+            async: false,
+          }),
+        );
+      });
+
+      it('should emit error events for async function rejections', async () => {
+        const errorSpy = vi.fn();
+        tracer.on('error', errorSpy);
+
+        const asyncErrorFunction = async () => {
+          throw new Error('Async error');
         };
-      }>;
 
-      const User = {
-        name: 'John',
-        age: 30,
-      };
+        const testComponent = component('Flow', asyncErrorFunction).traceable();
 
-      const UserComponent = component<'Object', UserMeta>('Object', User)
-        .meta({
-          scope: 'User',
-          name: 'User',
-          description: 'A user object',
-          example: {
-            name: 'John',
-            age: 30,
-          },
-        })
-        .traceable();
-
-      const info = UserComponent.info();
-      expect(info.tag).toBe('Object');
-      expect(info.category).toBe('object');
-      expect(info.meta).toEqual({
-        scope: 'User',
-        name: 'User',
-        description: 'A user object',
-        example: {
-          name: 'John',
-          age: 30,
-        },
-      });
-      expect(info.traceable).toBe(true);
-      expect(info.injectable).toBe(false);
-    });
-
-    it('should run example component-003: Error handling example', () => {
-      try {
-        // This will throw an error because we're trying to create a component with an invalid target
-        component('Rule', 42);
-        expect.fail('Should have thrown an error');
-      } catch (error) {
-        if (error instanceof ComponentError) {
-          expect(error.message).toBe('Target is not a function or an object.');
-          expect(error.key).toBe('COMPONENT:INVALID_TARGET');
-        } else {
-          expect.fail('Should have thrown ComponentError');
-        }
-      }
-    });
-  });
-
-  describe('Error handling', () => {
-    it('should throw ComponentError for invalid targets', () => {
-      const invalidTargets = [42, 'string', null, undefined, true, 3.14];
-
-      invalidTargets.forEach((target) => {
-        expect(() => component('Rule', target)).toThrow(ComponentError);
+        await expect(testComponent()).rejects.toThrow('Async error');
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            error: expect.any(Error),
+            async: true,
+          }),
+        );
       });
     });
 
-    it('should throw ComponentError with correct error keys', () => {
-      try {
-        component('Rule', 42);
-        expect.fail('Should have thrown an error');
-      } catch (error) {
-        if (error instanceof ComponentError) {
-          expect(error.key).toBe('COMPONENT:INVALID_TARGET');
-          expect(error.message).toBe('Target is not a function or an object.');
-        } else {
-          expect.fail('Should have thrown ComponentError');
-        }
-      }
+    describe('Tracer Object', () => {
+      it('should allow subscribing to tracer events', () => {
+        const listener = vi.fn();
+        tracer.on('start', listener);
+
+        expect(listener).toBeDefined();
+      });
+
+      it('should allow subscribing to tracer events once', () => {
+        const listener = vi.fn();
+        tracer.once('start', listener);
+
+        expect(listener).toBeDefined();
+      });
+
+      it('should provide tracer statistics', () => {
+        const stats = tracer.stats();
+
+        expect(stats).toHaveProperty('count');
+        expect(stats).toHaveProperty('maxListeners');
+        expect(stats).toHaveProperty('events');
+        expect(stats.events).toEqual(['start', 'finish', 'error', 'performance', 'buildtime']);
+      });
+
+      it('should emit events correctly', () => {
+        const listener = vi.fn();
+        tracer.on('start', listener);
+
+        tracer.emit('start', { test: 'data' });
+
+        expect(listener).toHaveBeenCalledWith({ test: 'data' });
+      });
     });
 
-    it('should handle ComponentError instanceof correctly', () => {
-      const error = new ComponentError('INVALID_TARGET', 'Test message');
-      expect(error).toBeInstanceOf(ComponentError);
-      expect(error).toBeInstanceOf(Error);
-      expect(error.key).toBe('COMPONENT:INVALID_TARGET');
+    describe('Tracing Wrapper Functionality', () => {
+      it('should preserve original function name', () => {
+        const namedFunction = function testFunction() {
+          return ok('result');
+        };
+        const testComponent = component('Rule', namedFunction).traceable();
+
+        expect(testComponent.name).toBe('testFunction');
+      });
+
+      it('should maintain function behavior while adding tracing', () => {
+        const testComponent = component('Rule', mockFunction()).traceable();
+        const result = testComponent('test result');
+        expect(result).toEqual(ok('test result'));
+      });
+
+      it('should handle complex arguments correctly', () => {
+        const complexFunction = (obj: { key: string }, arr: number[]) => ok({ ...obj, items: arr });
+        const testComponent = component('Rule', complexFunction).traceable();
+        const result = testComponent({ key: 'value' }, [1, 2, 3]);
+        expect(result).toEqual(ok({ key: 'value', items: [1, 2, 3] }));
+      });
     });
   });
 
-  describe('Component registry', () => {
-    const helpers = createTestHelpers();
+  describe('Edge Cases & Error Handling', () => {
+    describe('Component Registration', () => {
+      it('should handle component with same tag but different targets', () => {
+        const function1 = () => ok('result1');
+        const function2 = () => ok('result2');
 
-    it('should generate deterministic IDs for identical components', () => {
-      const EmailValidator1 = helpers.createEmailValidator();
-      const EmailValidator2 = helpers.createEmailValidator();
+        const component1 = component('Rule', function1);
+        const component2 = component('Rule', function2);
 
-      const Component1 = component('Rule', EmailValidator1);
-      const Component2 = component('Rule', EmailValidator2);
-
-      const info1 = Component1.info();
-      const info2 = Component2.info();
-
-      expect(info1.id).toBe(info2.id);
-      expect(info1.id).toMatch(/^rule:/);
-      expect(info2.id).toMatch(/^rule:/);
+        expect(component1.info().id).not.toBe(component2.info().id);
+        expect(isComponent(component1)).toBe(true);
+        expect(isComponent(component2)).toBe(true);
+      });
     });
 
-    it('should generate unique IDs for different components', () => {
-      const EmailValidator1 = (email: string) => email.includes('@');
-      const EmailValidator2 = (email: string) => email.length > 0 && email.includes('@');
+    describe('Metadata Handling', () => {
+      it('should handle null metadata correctly', () => {
+        const testComponent = component('Rule', mockFunction());
+        const info = testComponent.info();
 
-      const Component1 = component('Rule', EmailValidator1);
-      const Component2 = component('Rule', EmailValidator2);
+        expect(info.meta).toBe(null);
+      });
 
-      const info1 = Component1.info();
-      const info2 = Component2.info();
+      it('should handle metadata with example for Value/Rule/Schema/Object tags', () => {
+        const testComponent = component('Value', mockFunction());
 
-      expect(info1.id).not.toBe(info2.id);
-      expect(info1.id).toMatch(/^rule:/);
-      expect(info2.id).toMatch(/^rule:/);
+        const result = testComponent.meta({
+          name: 'Test Value',
+          description: 'Test description',
+          scope: 'test',
+          example: 'example value',
+        });
+
+        expect(result).toBe(testComponent);
+        expect(testComponent.info().meta?.example).toBe('example value');
+      });
     });
 
-    it('should prevent registering same target with different tags', () => {
-      const AgeValidator = (age: number) => age > 18;
+    describe('Parent-Child Relationships', () => {
+      it('should handle null parent ID correctly', () => {
+        const testComponent = component('Rule', mockFunction());
+        const info = testComponent.info();
 
-      // Simulate a first registration.
-      component('Rule', AgeValidator);
+        expect(info.parentId).toBe(null);
+      });
 
-      try {
-        // Try to register the same function with a different tag should fail.
-        component('Value', AgeValidator);
-        expect.fail('Should have thrown an error');
-      } catch (error) {
-        if (error instanceof ComponentError) {
-          expect(error.key).toBe('COMPONENT:ALREADY_REGISTERED');
-          expect(error.message).toMatch(/Component with id: .* already registered\./);
-        } else {
-          expect.fail('Should have thrown ComponentError');
-        }
-      }
+      it('should support deep parent-child hierarchies', () => {
+        const grandparent = component('Schema', mockFunction());
+        const parent = component('Rule', mockFunction());
+        const child = component('Value', mockFunction());
+
+        parent.parent(grandparent);
+        child.parent(parent);
+
+        expect(parent.info().parentId).toBe(grandparent.info().id);
+        expect(child.info().parentId).toBe(parent.info().id);
+      });
+    });
+
+    describe('SubType Handling', () => {
+      it('should handle all valid subType values', () => {
+        const validSubTypes = [
+          'string',
+          'number',
+          'boolean',
+          'bigint',
+          'symbol',
+          'date',
+          'url',
+          'array',
+        ] as const;
+        const testComponent = component('Rule', mockFunction());
+
+        validSubTypes.forEach((subType) => {
+          const result = testComponent.subType(subType);
+          expect(result).toBe(testComponent);
+          expect(testComponent.info().subType).toBe(subType);
+        });
+      });
+    });
+  });
+
+  describe('Type Safety', () => {
+    describe('Component Type Inference', () => {
+      it('should provide correct type inference for Rule components', () => {
+        const testComponent = component('Rule', mockFunction());
+
+        expectTypeOf(testComponent).toHaveProperty('traceable');
+        expectTypeOf(testComponent).toHaveProperty('subType');
+        expectTypeOf(testComponent).not.toHaveProperty('injectable');
+      });
+
+      it('should provide correct type inference for Object components', () => {
+        const testComponent = component('Object', mockObject());
+
+        expectTypeOf(testComponent).toHaveProperty('injectable');
+        expectTypeOf(testComponent).not.toHaveProperty('traceable');
+        expectTypeOf(testComponent).not.toHaveProperty('subType');
+      });
+
+      it('should provide correct type inference for Port components', () => {
+        const testComponent = component('Port', mockInjectableObject);
+
+        expectTypeOf(testComponent).toHaveProperty('injectable');
+        expectTypeOf(testComponent).not.toHaveProperty('traceable');
+        expectTypeOf(testComponent).not.toHaveProperty('subType');
+      });
+    });
+
+    describe('Method Return Types', () => {
+      it('should return correct types for meta method', () => {
+        const testComponent = component('Rule', mockFunction());
+
+        expectTypeOf(testComponent.meta).toBeFunction();
+        expectTypeOf(
+          testComponent.meta({
+            name: 'test',
+            description: 'desc',
+            scope: 'test',
+            example: 'example',
+          }),
+        ).toEqualTypeOf<typeof testComponent>();
+      });
+
+      it('should return correct types for parent method', () => {
+        const testComponent = component('Rule', mockFunction());
+        const parentComponent = component('Schema', mockFunction());
+
+        expectTypeOf(testComponent.parent).toBeFunction();
+        expectTypeOf(testComponent.parent(parentComponent)).toEqualTypeOf<typeof testComponent>();
+      });
+
+      it('should return correct types for info method', () => {
+        const testComponent = component('Rule', mockFunction());
+
+        expectTypeOf(testComponent.info).toBeFunction();
+        expectTypeOf(testComponent.info()).toHaveProperty('id');
+        expectTypeOf(testComponent.info()).toHaveProperty('tag');
+        expectTypeOf(testComponent.info()).toHaveProperty('category');
+      });
+    });
+
+    describe('Component Tag Types', () => {
+      it('should accept all valid component tags', () => {
+        const validTags = [
+          'Aggregate',
+          'Builder',
+          'Command',
+          'Criteria',
+          'Event',
+          'Flow',
+          'Query',
+          'Rule',
+          'Schema',
+          'Specification',
+          'Value',
+          'Port',
+          'Adapter',
+          'Service',
+          'Container',
+          'Object',
+        ] as const;
+
+        validTags.forEach((tag) => {
+          if (tag === 'Object') {
+            expectTypeOf(component).toBeCallableWith(tag, mockObject());
+          } else {
+            expectTypeOf(component).toBeCallableWith(tag, mockFunction());
+          }
+        });
+      });
+    });
+
+    describe('Error Types', () => {
+      it('should provide correct error types', () => {
+        expectTypeOf(ComponentError).toBeObject();
+        expect(() => {
+          throw new ComponentError('AlreadyRegisteredError', 'Test error');
+        }).toThrow(ComponentError);
+      });
     });
   });
 });

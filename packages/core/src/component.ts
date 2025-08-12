@@ -1,26 +1,18 @@
-/**
- * Copyright (c) 2025, Binary Shapes. All rights reserved.
- * Licensed under the MIT License.
+/*
+ * This file is part of the Mixor project.
  *
- * Component module.
+ * Copyright (c) 2025, Binary Shapes.
  *
- * System for managing and categorizing different types of components.
- *
- * A component is a internal representation of a function or an object in the core system.
- * It is used to track the usage of the function or object and to provide extra information.
- *
- * This module provides a comprehensive component management system that allows components to
- * be categorized, traced, and managed throughout their lifecycle. It supports both injectable
- * and non-injectable components with different capabilities and metadata management.
- *
- * @packageDocumentation
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 
 import { config } from './_config';
-import type { Any, Prettify, TypeError } from './generics';
-import { Panic } from './panic';
+import type { Any, Prettify } from './generics';
+import { assert } from './logger';
+import { panic } from './panic';
 import { type Result } from './result';
 
 /**
@@ -139,8 +131,10 @@ type ComponentSubType =
 type ComponentType<Tag extends ComponentTag> = Tag extends 'Object'
   ? Record<string, Any>
   : Tag extends ComponentNonInjectable
-    ? (...args: Any) => Result<Any, Any>
-    : TypeError<'Invalid Component Type'>;
+    ? Tag extends 'Flow' | 'Query' | 'Command'
+      ? (...args: Any) => Result<Any, Any> | Promise<Result<Any, Any>>
+      : (...args: Any) => Result<Any, Any>
+    : (...args: Any) => Any;
 
 /**
  * Core data structure for component information.
@@ -261,48 +255,51 @@ type Component<Type, Tag extends ComponentTag> = Type & {
  *
  * @public
  */
-const ComponentError = Panic<
-  'COMPONENT',
-  // When a component is already registered.
-  | 'ALREADY_REGISTERED'
-  // When the target is not a function or an object.
-  | 'INVALID_TARGET'
-  // Raised when a component is not traceable.
-  | 'NOT_TRACEABLE'
->('COMPONENT');
+const ComponentError = panic<'Component', 'AlreadyRegisteredError' | 'InvalidTargetError'>(
+  'Component',
+);
 
 /**
- * Parse an object to extract type information for tracing.
+ * Parse arguments array to extract type information for tracing.
  *
- * This function analyzes objects and arrays to extract type information
- * without exposing sensitive data. It returns type information for
- * primitive values and object structures.
+ * This function analyzes function arguments to extract type information
+ * without exposing sensitive data.
  *
- * @param obj - The object to parse.
+ * @param args - The arguments array to parse.
+ * @returns Array of type strings for each argument.
+ *
+ * @internal
+ */
+const parseArgs = (args: Any[]): string[] => {
+  return args.map((arg) => (typeof arg === 'object' ? 'object' : typeof arg));
+};
+
+/**
+ * Parse return object to extract type information for tracing.
+ *
+ * This function analyzes function returns to extract type information
+ * without exposing sensitive data.
+ *
+ * @param obj - The return object to parse.
  * @returns The parsed object with type information.
  *
  * @internal
  */
-const parseObject = (obj: Any): Any => {
-  if (!!obj && typeof obj === 'object' && !Array.isArray(obj)) {
-    return Object.keys(obj).reduce(
-      (acc, key) => ({
-        ...acc,
-        [key]: typeof obj[key] === 'object' ? parseObject(obj[key]) : typeof obj[key],
-      }),
-      {} as Record<string, string>,
-    );
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map((arg) => (typeof arg === 'object' ? parseObject(arg) : typeof arg));
-  }
-
-  return typeof obj;
+const parseReturn = (obj: Record<string, Any>): Record<string, string> => {
+  return Object.keys(obj).reduce(
+    (acc, key) => ({
+      ...acc,
+      [key]: typeof obj[key] === 'object' ? parseReturn(obj[key] as object) : typeof obj[key],
+    }),
+    {} as Record<string, Any>,
+  );
 };
 
 /**
  * Trace a component. Creating a wrapper function that emits trace events.
+ *
+ * @remarks
+ * This trace is only available for function components.
  *
  * @param component - The component to trace.
  * @returns The traced component.
@@ -312,83 +309,80 @@ const parseObject = (obj: Any): Any => {
 const trace = (component: Component<Any, Any>) => {
   const { id, category } = component.info();
 
-  if (category !== 'function') {
-    throw new ComponentError('NOT_TRACEABLE', 'Cannot make non-function elements traceable');
-  }
+  // This should never happen, but we assert it to be sure.
+  assert(category === 'function', `Component "${id}" must be a function to be traceable`);
 
-  // Create a wrapper function that emits trace events.
-  const wrapped = function (...args: Any[]) {
-    const input = { type: parseObject(args), values: args };
-    const start = process.hrtime.bigint();
-    const traceId = randomUUID();
-    const elementId = id;
+  // Create a proxy that intercepts function calls and emits trace events
+  const tracedComponent = new Proxy(component, {
+    apply: (target, thisArg, args) => {
+      const input = { type: parseArgs(args), values: args };
+      const start = process.hrtime.bigint();
+      const traceId = randomUUID();
+      const elementId = id;
 
-    tracer.emit('start', { traceId, elementId, start, input });
+      tracer.emit('start', { traceId, elementId, start, input });
 
-    const emitPerf = (finish: bigint, output: Any, isAsync: boolean) => {
-      tracer.emit('finish', { finish, output });
-      tracer.emit('performance', {
-        traceId,
-        elementId,
-        durationMs: Number(finish - start) / 1_000_000,
-        start,
-        finish,
-        input,
-        output,
-        async: isAsync,
-      });
-    };
+      const emitPerf = (finish: bigint, output: Any, isAsync: boolean) => {
+        tracer.emit('finish', { finish, output });
+        tracer.emit('performance', {
+          traceId,
+          elementId,
+          durationMs: Number(finish - start) / 1_000_000,
+          start,
+          finish,
+          input,
+          output,
+          async: isAsync,
+        });
+      };
 
-    const emitError = (end: bigint, error: Error, isAsync: boolean) => {
-      tracer.emit('error', {
-        traceId,
-        elementId,
-        error,
-        durationMs: Number(end - start) / 1_000_000,
-        start,
-        end,
-        input,
-        async: isAsync,
-      });
-    };
+      const emitError = (finish: bigint, error: Error, isAsync: boolean) => {
+        tracer.emit('error', {
+          traceId,
+          elementId,
+          error,
+          durationMs: Number(finish - start) / 1_000_000,
+          start,
+          finish,
+          input,
+          async: isAsync,
+        });
+      };
 
-    try {
-      // Execute the original function.
-      const result = (component as Any)(...args);
+      try {
+        // Execute the original function
+        const result = Reflect.apply(target, thisArg, args) as Record<string, Any>;
 
-      if (result instanceof Promise) {
-        return result
-          .then((resolvedValue) => {
-            emitPerf(
-              process.hrtime.bigint(),
-              { type: parseObject(resolvedValue), values: resolvedValue },
-              true,
-            );
-            return resolvedValue;
-          })
-          .catch((error) => {
-            emitError(process.hrtime.bigint(), error, true);
-            throw error;
-          });
-      } else {
-        emitPerf(process.hrtime.bigint(), { type: parseObject(result), values: result }, false);
-        return result;
+        if (result instanceof Promise) {
+          return result
+            .then((resolvedValue) => {
+              emitPerf(
+                process.hrtime.bigint(),
+                { type: parseReturn(resolvedValue), values: resolvedValue },
+                true,
+              );
+              return resolvedValue;
+            })
+            .catch((error) => {
+              emitError(process.hrtime.bigint(), error, true);
+              throw error;
+            });
+        } else {
+          emitPerf(process.hrtime.bigint(), { type: parseReturn(result), values: result }, false);
+          return result;
+        }
+      } catch (error) {
+        emitError(process.hrtime.bigint(), error as Error, false);
+        throw error;
       }
-    } catch (error) {
-      emitError(process.hrtime.bigint(), error as Error, false);
-      throw error;
-    }
-  };
-
-  // Keep the original name of the function.
-  Object.defineProperty(wrapped, 'name', {
-    value: (component as Any).name,
-    writable: true,
-    enumerable: true,
-    configurable: true,
+    },
+    get: (target, prop) => {
+      // Forward all property access to the original component
+      return target[prop as keyof typeof target];
+    },
   });
 
-  return Object.assign(wrapped, component);
+  return tracedComponent;
 };
 
 /**
@@ -413,8 +407,8 @@ const registry = (() => {
     add: (component: Any, data: ComponentData<Any, Any>) => {
       if (store.has(component)) {
         throw new ComponentError(
-          'ALREADY_REGISTERED',
-          'Component with id: ' + data.id + ' already registered.',
+          'AlreadyRegisteredError',
+          `Component "${data.id}" already registered.`,
         );
       }
 
@@ -532,9 +526,10 @@ const InjectableComponentPrototype = (self: Any) => {
  */
 function hash(...args: unknown[]): string {
   const safeArgs = args.map((arg) => {
-    if (typeof arg === 'string') return arg;
-    if (Array.isArray(arg)) return arg.join(',');
-    return JSON.stringify(arg);
+    if (typeof arg === 'object') return JSON.stringify(arg);
+
+    // This fallback is safe for arrays, functions and other primitives.
+    return String(arg);
   });
   return createHash('sha256').update(safeArgs.join('')).digest('hex');
 }
@@ -562,11 +557,11 @@ const component = <Tag extends ComponentTag, Target extends ComponentType<Tag>>(
 ) => {
   // Validate target before any processing.
   if (target === null || target === undefined || !['function', 'object'].includes(typeof target)) {
-    throw new ComponentError('INVALID_TARGET', 'Target is not a function or an object.');
+    throw new ComponentError('InvalidTargetError', 'Target is not a function or an object.');
   }
 
   // Generate a unique id for the component (Opinionated structure and deterministic).
-  const id = ''.concat(tag.toLowerCase(), ':', hash(tag, String(target)));
+  const id = ''.concat(tag.toLowerCase(), ':', hash(tag, target));
   const injectable = injectableList.includes(tag as ComponentInjectable);
   const nonInjectable = nonInjectableList.includes(tag as ComponentNonInjectable);
   const category = typeof target === 'function' ? 'function' : 'object';
@@ -682,6 +677,13 @@ const tracer = (() => {
       maxListeners: tracer.getMaxListeners(),
       events: tracerEvents,
     }),
+
+    /**
+     * Clear the tracer all listeners.
+     */
+    clear: () => {
+      tracer.removeAllListeners();
+    },
   };
 })();
 
