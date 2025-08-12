@@ -1,13 +1,13 @@
 import { setTimeout } from 'node:timers/promises';
-import type { Any } from 'src/generics';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { EventError, event, events } from '../src/event';
+import { type Event, EventError, type EventStore, event, events } from '../src/event';
+import type { Any } from '../src/generics';
 import { ok } from '../src/result';
 import { type Value, rule, value } from '../src/value';
 
 describe('Event', () => {
-  describe('Basic functionality', () => {
+  describe('Public API', () => {
     it('should create an event constructor', () => {
       const userCreated = event({
         key: 'user.created',
@@ -69,10 +69,8 @@ describe('Event', () => {
         age: 30,
       });
     });
-  });
 
-  describe('Event store functionality', () => {
-    it('should create an event store with multiple events', () => {
+    it('should create event store with multiple events', () => {
       const userCreated = event({
         key: 'user.created',
         value: {
@@ -209,7 +207,9 @@ describe('Event', () => {
       const pulledEventsDesc = eventStore.pull('desc');
       expect(pulledEventsDesc[0].timestamp).toBeGreaterThan(pulledEventsDesc[1].timestamp);
     });
+  });
 
+  describe('Edge Cases & Error Handling', () => {
     it('should throw EventError for invalid keys', () => {
       const userCreated = event({
         key: 'user.created',
@@ -226,9 +226,69 @@ describe('Event', () => {
         eventStore.add('invalid.key', { id: '123', name: 'John' });
       }).toThrow(EventError);
     });
+
+    it('should handle empty event store', () => {
+      const eventStore = events();
+
+      expect(eventStore.keys).toEqual([]);
+      expect(eventStore.list()).toEqual([]);
+      expect(eventStore.pull()).toEqual([]);
+    });
+
+    it('should handle single event in store', () => {
+      const userCreated = event({
+        key: 'user.created',
+        value: {
+          id: value(rule((id: string) => ok(id))),
+          name: value(rule((name: string) => ok(name))),
+        },
+      });
+
+      const eventStore = events(userCreated);
+
+      expect(eventStore.keys).toEqual(['user.created']);
+      expect(eventStore.list()).toEqual([]);
+    });
+
+    it('should handle multiple events with same key', () => {
+      const userCreated1 = event({
+        key: 'user.created',
+        value: {
+          id: value(rule((id: string) => ok(id))),
+          name: value(rule((name: string) => ok(name))),
+        },
+      });
+
+      const userCreated2 = event({
+        key: 'user.created',
+        value: {
+          id: value(rule((id: string) => ok(id))),
+          email: value(rule((email: string) => ok(email))),
+        },
+      });
+
+      // Last event with same key should override previous
+      const eventStore = events(userCreated1, userCreated2);
+      expect(eventStore.keys).toEqual(['user.created']);
+    });
+
+    it('should handle timestamp edge cases', () => {
+      const userCreated = event({
+        key: 'user.created',
+        value: {
+          id: value(rule((id: string) => ok(id))),
+          name: value(rule((name: string) => ok(name))),
+        },
+      });
+
+      const eventData = userCreated({ id: '123', name: 'John' });
+
+      expect(eventData.timestamp).toBeGreaterThan(0);
+      expect(eventData.timestamp).toBeLessThanOrEqual(Date.now());
+    });
   });
 
-  describe('Type safety', () => {
+  describe('Type Safety', () => {
     it('should provide correct type inference for all public elements', () => {
       // Test event function
       expectTypeOf(event).toBeFunction();
@@ -310,145 +370,21 @@ describe('Event', () => {
         age: number;
       }>();
     });
-  });
 
-  describe('Code examples', () => {
-    it('should run example event-001: Basic event creation with Value types for validation', () => {
-      // event-001: Basic event creation with Value types for validation.
-      const userCreated = event({
-        key: 'user.created',
-        value: {
-          id: value(rule((id: string) => ok(id))),
-          name: value(rule((name: string) => ok(name))),
-        },
-      });
-
-      const eventData = userCreated({ id: '123', name: 'John' });
-
-      expect(eventData.key).toBe('user.created');
-      expect(eventData.value).toEqual({ id: '123', name: 'John' });
-      expect(eventData.timestamp).toBeDefined();
+    it('should validate EventStore interface types', () => {
+      const eventStore = {} as EventStore<{ 'user.created': { id: string; name: string } }>;
+      expectTypeOf(eventStore.keys).toBeArray();
+      expectTypeOf(eventStore.add).toBeFunction();
+      expectTypeOf(eventStore.list).toBeFunction();
+      expectTypeOf(eventStore.pull).toBeFunction();
     });
 
-    it('should run example event-002: Event creation with complex Value schema for validation', () => {
-      // event-002: Event creation with complex Value schema for validation.
-      const userUpdated = event({
-        key: 'user.updated',
-        value: {
-          id: value(rule((id: string) => ok(id))),
-          name: value(rule((name: string) => ok(name))),
-          email: value(rule((email: string) => ok(email))),
-          age: value(rule((age: number) => ok(age))),
-        },
-      });
-
-      const eventData = userUpdated({
-        id: '123',
-        name: 'John',
-        email: 'john@example.com',
-        age: 30,
-      });
-
-      expect(eventData.key).toBe('user.updated');
-      expect(eventData.value).toEqual({
-        id: '123',
-        name: 'John',
-        email: 'john@example.com',
-        age: 30,
-      });
-    });
-
-    it('should run example event-003: Creating an event store with multiple event types', () => {
-      // event-003: Creating an event store with multiple event types.
-      const userCreated = event({
-        key: 'user.created',
-        value: {
-          id: value(rule((id: string) => ok(id))),
-          name: value(rule((name: string) => ok(name))),
-        },
-      });
-
-      const userUpdated = event({
-        key: 'user.updated',
-        value: {
-          id: value(rule((id: string) => ok(id))),
-          name: value(rule((name: string) => ok(name))),
-          email: value(rule((email: string) => ok(email))),
-        },
-      });
-
-      const eventList = events(userCreated, userUpdated);
-
-      expect(eventList.keys).toEqual(['user.created', 'user.updated']);
-      expect(typeof eventList.add).toBe('function');
-      expect(typeof eventList.list).toBe('function');
-      expect(typeof eventList.pull).toBe('function');
-    });
-
-    it('should run example event-004: Using the event store to add and retrieve events', () => {
-      // event-004: Using the event store to add and retrieve events.
-      const userCreated = event({
-        key: 'user.created',
-        value: {
-          id: value(rule((id: string) => ok(id))),
-          name: value(rule((name: string) => ok(name))),
-        },
-      });
-
-      const userUpdated = event({
-        key: 'user.updated',
-        value: {
-          id: value(rule((id: string) => ok(id))),
-          name: value(rule((name: string) => ok(name))),
-          email: value(rule((email: string) => ok(email))),
-        },
-      });
-
-      const eventList = events(userCreated, userUpdated);
-
-      // Add events with type safety
-      eventList.add('user.created', { id: '123', name: 'John' });
-      eventList.add('user.updated', {
-        id: '123',
-        name: 'John',
-        email: 'john@example.com',
-      });
-
-      // List all events
-      const allEvents = eventList.list();
-      expect(allEvents).toHaveLength(2);
-
-      // Pull events (removes from store)
-      const pulledEvents = eventList.pull('asc');
-      expect(pulledEvents).toHaveLength(2);
-    });
-
-    it('should run example event-005: Error handling when adding events with invalid keys', () => {
-      // event-005: Error handling when adding events with invalid keys.
-      const userCreated = event({
-        key: 'user.created',
-        value: {
-          id: value(rule((id: string) => ok(id))),
-          name: value(rule((name: string) => ok(name))),
-        },
-      });
-
-      const eventList = events(userCreated);
-
-      expect(() => {
-        // @ts-expect-error - invalid key.
-        eventList.add('invalid.key', { id: '123', name: 'John' });
-      }).toThrow(EventError);
-
-      try {
-        // @ts-expect-error - invalid key.
-        eventList.add('invalid.key', { id: '123', name: 'John' });
-      } catch (error) {
-        if (error instanceof EventError) {
-          expect(error.key).toBe('EVENT:INVALID_KEY');
-          expect(error.message).toContain('Event constructor not found for key: invalid.key');
-        }
-      }
+    it('should validate Event type', () => {
+      const eventInstance = {} as Event<'user.created', { id: string; name: string }>;
+      expectTypeOf(eventInstance.key).toBeString();
+      expectTypeOf(eventInstance.value).toBeObject();
+      expectTypeOf(eventInstance.timestamp).toBeNumber();
+      expectTypeOf(eventInstance).toBeFunction();
     });
   });
 });
