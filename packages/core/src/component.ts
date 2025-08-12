@@ -1,16 +1,9 @@
-/*
- * This file is part of the Mixor project.
- *
- * Copyright (c) 2025, Binary Shapes.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
-import { hash } from './_hash';
-import type { Any, Prettify } from './generics';
-import { Panic } from './panic';
-
 /**
+ * Copyright (c) 2025, Binary Shapes. All rights reserved.
+ * Licensed under the MIT License.
+ *
+ * Component module.
+ *
  * System for managing and categorizing different types of components.
  *
  * A component is a internal representation of a function or an object in the core system.
@@ -22,46 +15,81 @@ import { Panic } from './panic';
  *
  * @packageDocumentation
  */
+import { createHash, randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+
+import { config } from './_config';
+import type { Any, Prettify, TypeError } from './generics';
+import { Panic } from './panic';
+import { type Result } from './result';
 
 /**
- * Array of non-injectable component types.
+ * Infer the type of a component.
+ *
+ * @typeParam T - The type to infer.
+ * @typeParam Tag - The tag of the component.
+ * @returns The type of the component.
  *
  * @internal
  */
-const nonInjectables = [
-  'Object',
-  'Builder',
-  'Criteria',
-  'Value',
-  'Rule',
-  'Event',
-  'Specification',
+type Infer<T, Tag extends string> =
+  // If the tag represents a Schema, Value or Rule, infer the type of the function.
+  Tag extends 'Schema' | 'Value' | 'Rule'
+    ? T extends (...args: [infer F]) => Any
+      ? F
+      : T
+    : // If the tag represents an Object, return the prettified type.
+      Tag extends 'Object'
+      ? Prettify<T>
+      : // Otherwise, return the type as is (no inference needed, the type is already known).
+        T;
+
+/**
+ * List of non-injectable component types.
+ *
+ * @internal
+ */
+const nonInjectableList = [
   'Aggregate',
-  'Schema',
+  'Builder',
   'Command',
+  'Criteria',
+  'Event',
+  'Flow',
   'Query',
+  'Rule',
+  'Schema',
+  'Specification',
+  'Value',
 ] as const;
 
 /**
- * Array of injectable component types.
+ * List of injectable component types.
  *
  * @internal
  */
-const injectables = ['Port', 'Adapter', 'Service', 'Container'] as const;
+const injectableList = ['Port', 'Adapter', 'Service', 'Container', 'Object'] as const;
+
+/**
+ * List of tracer events.
+ *
+ * @internal
+ */
+const tracerEvents = ['start', 'finish', 'error', 'performance', 'buildtime'] as const;
 
 /**
  * Type representing non-injectable component tags.
  *
  * @internal
  */
-type ComponentNonInjectable = (typeof nonInjectables)[number];
+type ComponentNonInjectable = (typeof nonInjectableList)[number];
 
 /**
  * Type representing injectable component tags.
  *
  * @internal
  */
-type ComponentInjectable = (typeof injectables)[number];
+type ComponentInjectable = (typeof injectableList)[number];
 
 /**
  * Union type of all possible component tags.
@@ -76,6 +104,13 @@ type ComponentTag = ComponentNonInjectable | ComponentInjectable;
  * @internal
  */
 type ComponentCategory = 'function' | 'object';
+
+/**
+ * Type representing a tracer event.
+ *
+ * @internal
+ */
+type TracerEvent = (typeof tracerEvents)[number];
 
 /**
  * Type representing the sub-type of a component.
@@ -93,22 +128,19 @@ type ComponentSubType =
   | 'array';
 
 /**
- * Metadata structure for components with extensible properties.
+ * Type representing the allowed shape of a component.
  *
- * @typeParam Meta - Additional metadata properties to extend the base metadata.
+ * @typeParam T - The type of the component.
+ * @typeParam Tag - The component tag type.
+ * @returns The allowed shape of the component.
  *
- * @public
+ * @internal
  */
-type ComponentMeta<Meta extends Record<string, Any> = object> = Prettify<
-  {
-    /** Human-readable name of the traced element. */
-    readonly name: string;
-    /** Description of the element's purpose. */
-    readonly description: string;
-    /** Scope or context where the element is used. */
-    readonly scope: string;
-  } & Readonly<Meta>
->;
+type ComponentType<Tag extends ComponentTag> = Tag extends 'Object'
+  ? Record<string, Any>
+  : Tag extends ComponentNonInjectable
+    ? (...args: Any) => Result<Any, Any>
+    : TypeError<'Invalid Component Type'>;
 
 /**
  * Core data structure for component information.
@@ -118,7 +150,7 @@ type ComponentMeta<Meta extends Record<string, Any> = object> = Prettify<
  *
  * @internal
  */
-type ComponentData<Tag extends ComponentTag, Meta extends Record<string, Any> = ComponentMeta> = {
+type ComponentData<Type, Tag extends ComponentTag> = {
   /** Unique identifier for the component. */
   readonly id: string;
 
@@ -141,7 +173,22 @@ type ComponentData<Tag extends ComponentTag, Meta extends Record<string, Any> = 
   readonly injectable: boolean;
 
   /** Metadata for the component. */
-  meta: ComponentMeta<Meta> | null;
+  readonly meta: Prettify<
+    {
+      /** Human-readable name of the traced element. */
+      readonly name: string;
+      /** Description of the element's purpose. */
+      readonly description: string;
+      /** Scope or context where the element is used. */
+      readonly scope: string;
+    } & (Tag extends 'Value' | 'Rule' | 'Schema' | 'Object'
+      ? Infer<Type, Tag> extends never
+        ? Type
+        : {
+            readonly example: Infer<Type, Tag>;
+          }
+      : Record<never, never>)
+  > | null;
 };
 
 /**
@@ -150,16 +197,21 @@ type ComponentData<Tag extends ComponentTag, Meta extends Record<string, Any> = 
  * @typeParam Tag - The component tag type.
  * @typeParam Meta - The metadata type for the component.
  *
- * @public
+ * @internal
  */
-type Component<Tag extends ComponentTag, Meta extends Record<string, Any> = ComponentMeta> = {
+type Component<Type, Tag extends ComponentTag> = Type & {
+  /**
+   * Inferred type of the component.
+   */
+  Type: Infer<Type, Tag>;
+
   /**
    * Set/Override the component metadata.
    *
    * @param meta - The metadata to set.
    * @returns The component for method chaining.
    */
-  meta: <Self>(this: Self, meta: ComponentMeta<Meta>) => Self;
+  meta: <Self>(this: Self, meta: ComponentData<Type, Tag>['meta']) => Self;
 
   /**
    * Set the parent for the component.
@@ -167,14 +219,7 @@ type Component<Tag extends ComponentTag, Meta extends Record<string, Any> = Comp
    * @param parent - The parent component.
    * @returns The component for method chaining.
    */
-  parent: <Self>(this: Self, parent: Component<Any>) => Self;
-
-  /**
-   * Make the component traceable.
-   *
-   * @returns The component for method chaining.
-   */
-  traceable: <Self>(this: Self) => Self;
+  parent: <Self>(this: Self, parent: Component<Any, Any>) => Self;
 
   /**
    * Get the info related to the component.
@@ -184,25 +229,32 @@ type Component<Tag extends ComponentTag, Meta extends Record<string, Any> = Comp
    *
    * @returns The component data information.
    */
-  info: <Self>(this: Self) => ComponentData<Tag, Meta>;
+  info: <Self>(this: Self) => ComponentData<Type, Tag>;
 } & (Tag extends ComponentInjectable
-  ? {
-      /**
-       * Mark the component as injectable.
-       *
-       * @returns The component for method chaining.
-       */
-      injectable: <Self>(this: Self) => Self;
-    }
-  : {
-      /**
-       * Overrides the type of the component.
-       *
-       * @param type - The type to set.
-       * @returns The component for method chaining.
-       */
-      subType: <Self>(this: Self, type: ComponentSubType) => Self;
-    });
+    ? {
+        /**
+         * Mark the component as injectable.
+         *
+         * @returns The component for method chaining.
+         */
+        injectable: <Self>(this: Self) => Self;
+      }
+    : {
+        /**
+         * Make the component traceable.
+         *
+         * @returns The component for method chaining.
+         */
+        traceable: <Self>(this: Self) => Self;
+
+        /**
+         * Overrides the type of the component.
+         *
+         * @param type - The type to set.
+         * @returns The component for method chaining.
+         */
+        subType: <Self>(this: Self, type: ComponentSubType) => Self;
+      });
 
 /**
  * Error types for component operations.
@@ -211,13 +263,133 @@ type Component<Tag extends ComponentTag, Meta extends Record<string, Any> = Comp
  */
 const ComponentError = Panic<
   'COMPONENT',
-  // When a component is not found in the registry.
-  | 'NOT_FOUND'
   // When a component is already registered.
   | 'ALREADY_REGISTERED'
   // When the target is not a function or an object.
   | 'INVALID_TARGET'
+  // Raised when a component is not traceable.
+  | 'NOT_TRACEABLE'
 >('COMPONENT');
+
+/**
+ * Parse an object to extract type information for tracing.
+ *
+ * This function analyzes objects and arrays to extract type information
+ * without exposing sensitive data. It returns type information for
+ * primitive values and object structures.
+ *
+ * @param obj - The object to parse.
+ * @returns The parsed object with type information.
+ *
+ * @internal
+ */
+const parseObject = (obj: Any): Any => {
+  if (!!obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    return Object.keys(obj).reduce(
+      (acc, key) => ({
+        ...acc,
+        [key]: typeof obj[key] === 'object' ? parseObject(obj[key]) : typeof obj[key],
+      }),
+      {} as Record<string, string>,
+    );
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((arg) => (typeof arg === 'object' ? parseObject(arg) : typeof arg));
+  }
+
+  return typeof obj;
+};
+
+/**
+ * Trace a component. Creating a wrapper function that emits trace events.
+ *
+ * @param component - The component to trace.
+ * @returns The traced component.
+ *
+ * @internal
+ */
+const trace = (component: Component<Any, Any>) => {
+  const { id, category } = component.info();
+
+  if (category !== 'function') {
+    throw new ComponentError('NOT_TRACEABLE', 'Cannot make non-function elements traceable');
+  }
+
+  // Create a wrapper function that emits trace events.
+  const wrapped = function (...args: Any[]) {
+    const input = { type: parseObject(args), values: args };
+    const start = process.hrtime.bigint();
+    const traceId = randomUUID();
+    const elementId = id;
+
+    tracer.emit('start', { traceId, elementId, start, input });
+
+    const emitPerf = (finish: bigint, output: Any, isAsync: boolean) => {
+      tracer.emit('finish', { finish, output });
+      tracer.emit('performance', {
+        traceId,
+        elementId,
+        durationMs: Number(finish - start) / 1_000_000,
+        start,
+        finish,
+        input,
+        output,
+        async: isAsync,
+      });
+    };
+
+    const emitError = (end: bigint, error: Error, isAsync: boolean) => {
+      tracer.emit('error', {
+        traceId,
+        elementId,
+        error,
+        durationMs: Number(end - start) / 1_000_000,
+        start,
+        end,
+        input,
+        async: isAsync,
+      });
+    };
+
+    try {
+      // Execute the original function.
+      const result = (component as Any)(...args);
+
+      if (result instanceof Promise) {
+        return result
+          .then((resolvedValue) => {
+            emitPerf(
+              process.hrtime.bigint(),
+              { type: parseObject(resolvedValue), values: resolvedValue },
+              true,
+            );
+            return resolvedValue;
+          })
+          .catch((error) => {
+            emitError(process.hrtime.bigint(), error, true);
+            throw error;
+          });
+      } else {
+        emitPerf(process.hrtime.bigint(), { type: parseObject(result), values: result }, false);
+        return result;
+      }
+    } catch (error) {
+      emitError(process.hrtime.bigint(), error as Error, false);
+      throw error;
+    }
+  };
+
+  // Keep the original name of the function.
+  Object.defineProperty(wrapped, 'name', {
+    value: (component as Any).name,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+
+  return Object.assign(wrapped, component);
+};
 
 /**
  * Metadata store for components.
@@ -263,7 +435,7 @@ const registry = (() => {
      *
      * @internal
      */
-    set: (component: Component<Any>, newData: Partial<ComponentData<Any, Any>>) => {
+    set: (component: Component<Any, Any>, newData: Partial<ComponentData<Any, Any>>) => {
       // Merge the data with the new data. All matches will be overridden.
       store.set(component, { ...self.get(component), ...newData });
     },
@@ -276,7 +448,7 @@ const registry = (() => {
      *
      * @internal
      */
-    get: (component: Component<Any>) =>
+    get: (component: Component<Any, Any>) =>
       Object.freeze(store.get(component)) as ComponentData<Any, Any>,
 
     /**
@@ -287,7 +459,7 @@ const registry = (() => {
      *
      * @internal
      */
-    exists: (component: Component<Any>) => store.has(component),
+    exists: (component: Component<Any, Any>) => store.has(component),
 
     /**
      * Get the catalog of components.
@@ -312,12 +484,11 @@ const registry = (() => {
  */
 const ComponentBasePrototype = (self: Any) => {
   return {
-    meta: (meta: ComponentMeta<Any>) => (registry.set(self, { meta }), self),
-    parent: (parent: Component<Any>) => (
+    meta: (meta: ComponentData<Any, Any>['meta']) => (registry.set(self, { meta }), self),
+    parent: (parent: Component<Any, Any>) => (
       registry.set(self, { parentId: registry.get(parent).id }),
       self
     ),
-    traceable: () => (registry.set(self, { traceable: true }), self),
     info: () => registry.get(self),
   };
 };
@@ -332,6 +503,7 @@ const ComponentBasePrototype = (self: Any) => {
  */
 const NonInjectableComponentPrototype = (self: Any) => {
   return {
+    traceable: () => (registry.set(self, { traceable: true }), trace(self)),
     subType: (type: ComponentSubType) => (registry.set(self, { subType: type }), self),
   };
 };
@@ -351,6 +523,23 @@ const InjectableComponentPrototype = (self: Any) => {
 };
 
 /**
+ * Hash a set of arguments.
+ *
+ * @param args - The arguments to hash.
+ * @returns The hash of the arguments.
+ *
+ * @internal
+ */
+function hash(...args: unknown[]): string {
+  const safeArgs = args.map((arg) => {
+    if (typeof arg === 'string') return arg;
+    if (Array.isArray(arg)) return arg.join(',');
+    return JSON.stringify(arg);
+  });
+  return createHash('sha256').update(safeArgs.join('')).digest('hex');
+}
+
+/**
  * Main component factory function that creates and registers components.
  *
  * This function takes a tag and target, creates a unique identifier,
@@ -365,67 +554,11 @@ const InjectableComponentPrototype = (self: Any) => {
  * @returns The enhanced target with component capabilities.
  * @throws A {@link ComponentError} if the target is not a function or object.
  *
- * @example
- * ```ts
- * // component-001: Component function example.
- * const EmailValidator = (email: string) => {
- *   if (!email.includes('@')) {
- *     throw new Error('Invalid email');
- *   }
- *   return email;
- * };
- *
- * const EmailValidatorComponent = component<'Rule', EmailValidatorMeta>(
- *   'Rule',
- *   EmailValidator,
- * ).meta({
- *   scope: 'User',
- *   name: 'EmailValidator',
- *   description: 'Validates an email address',
- *   example: 'example@example.com',
- * });
- * ```
- *
- * @example
- * ```ts
- * // component-002: Component object example.
- * const User = {
- *   name: 'John',
- *   age: 30,
- * };
- *
- * const UserComponent = component<'Object', UserMeta>('Object', User)
- *   .meta({
- *     scope: 'User',
- *     name: 'User',
- *     description: 'A user object',
- *     example: {
- *       name: 'John',
- *       age: 30,
- *     },
- *   })
- *   .traceable();
- * ```
- *
- * @example
- * ```ts
- * // component-003: Error handling example.
- * try {
- *   // This will throw an error because we're trying to create a component with an invalid target
- *   component('Rule', 42);
- * } catch (error) {
- *   if (error instanceof ComponentError) {
- *     // Caught ComponentError: Target is not a function or an object.
- *     // Error key: INVALID_TARGET
- *   }
- * }
- * ```
- *
  * @public
  */
-const component = <Tag extends ComponentTag, Meta extends Record<string, Any> = ComponentMeta>(
+const component = <Tag extends ComponentTag, Target extends ComponentType<Tag>>(
   tag: Tag,
-  target: Any,
+  target: Target,
 ) => {
   // Validate target before any processing.
   if (target === null || target === undefined || !['function', 'object'].includes(typeof target)) {
@@ -434,12 +567,12 @@ const component = <Tag extends ComponentTag, Meta extends Record<string, Any> = 
 
   // Generate a unique id for the component (Opinionated structure and deterministic).
   const id = ''.concat(tag.toLowerCase(), ':', hash(tag, String(target)));
-  const injectable = injectables.includes(tag as ComponentInjectable);
-  const nonInjectable = nonInjectables.includes(tag as ComponentNonInjectable);
+  const injectable = injectableList.includes(tag as ComponentInjectable);
+  const nonInjectable = nonInjectableList.includes(tag as ComponentNonInjectable);
   const category = typeof target === 'function' ? 'function' : 'object';
 
   // Initial data for the component.
-  const targetData: ComponentData<Tag, Meta> = {
+  const targetData: ComponentData<Target, Tag> = {
     id,
     parentId: null,
     tag,
@@ -466,7 +599,7 @@ const component = <Tag extends ComponentTag, Meta extends Record<string, Any> = 
     Object.assign(target, InjectableComponentPrototype(target));
   }
 
-  return target as Component<Tag, Meta>;
+  return target as Component<Target, Tag>;
 };
 
 /**
@@ -481,11 +614,76 @@ const component = <Tag extends ComponentTag, Meta extends Record<string, Any> = 
 const isComponent = (maybeComponent: Any, tag?: ComponentTag) =>
   registry.exists(maybeComponent) && (tag ? registry.get(maybeComponent).tag === tag : true);
 
-export type {
-  ComponentMeta,
-  ComponentNonInjectable,
-  ComponentInjectable,
-  ComponentCategory,
-  ComponentSubType,
-};
-export { component, isComponent, ComponentError };
+/**
+ * Global tracer for emitting and subscribing to trace events.
+ *
+ * The tracer provides a centralized event system for trace monitoring.
+ * It emits four types of events:
+ * - `start`: When a traced function begins execution
+ * - `end`: When a traced function completes execution
+ * - `perf`: Performance metrics with duration and metadata
+ * - `error`: When errors occur during tracing (especially for async functions)
+ *
+ * For async functions, the tracer provides additional context:
+ * - `async: true` flag in perf events
+ * - Error events with async context.
+ * - Proper timing for Promise resolution.
+ *
+ * @public
+ */
+const tracer = (() => {
+  const tracer = new EventEmitter();
+  tracer.setMaxListeners(config.tracerMaxListeners);
+
+  return {
+    /**
+     * Emit a trace event with data.
+     *
+     * @param event - The event type to emit.
+     * @param data - The data to include with the event.
+     */
+    emit: (event: TracerEvent, data: Any) => {
+      tracer.emit(event, data);
+    },
+
+    /**
+     * Subscribe to trace events.
+     *
+     * @param event - The event type to listen for.
+     * @param listener - The callback function to execute.
+     */
+    on: (event: TracerEvent, listener: (...args: Any[]) => void) => {
+      tracer.on(event, listener);
+    },
+
+    /**
+     * Subscribe to trace events once.
+     *
+     * @param event - The event type to listen for.
+     * @param listener - The callback function to execute.
+     */
+    once: (event: TracerEvent, listener: (...args: Any[]) => void) => {
+      tracer.once(event, listener);
+    },
+
+    /**
+     * Get the stats of the tracer.
+     *
+     * @returns The stats of the tracer.
+     */
+    stats: () => ({
+      count: tracerEvents.reduce(
+        (acc, event) => {
+          acc[event] = tracer.listenerCount(event);
+          return acc;
+        },
+        {} as Record<TracerEvent, number>,
+      ),
+      maxListeners: tracer.getMaxListeners(),
+      events: tracerEvents,
+    }),
+  };
+})();
+
+export type { Component };
+export { component, tracer, isComponent, ComponentError, injectableList, nonInjectableList };
