@@ -1,36 +1,36 @@
 import { describe, expect, it } from 'vitest';
 
-import { Panic, PanicError } from '../src/panic';
+import { PanicError, panic } from '../src/panic';
 
 describe('Panic', () => {
   describe('PanicError', () => {
     it('should create a panic error with correct properties', () => {
-      const error = new PanicError('TEST', 'INVALID_STATE', 'Something went wrong');
+      const error = new PanicError('Test', 'InvalidState', 'Something went wrong');
 
       expect(error).toBeInstanceOf(Error);
       expect(error).toBeInstanceOf(PanicError);
       expect(error.name).toBe('Panic');
       expect(error.message).toBe('Something went wrong');
-      expect(error.key).toBe('TEST:INVALID_STATE');
+      expect(error.code).toBe('Test:InvalidState');
     });
 
     it('should have readonly key property', () => {
-      const error = new PanicError('SCOPE', 'TAG', 'Message');
+      const error = new PanicError('Scope', 'Tag', 'Message');
       // @ts-expect-error key should be readonly
-      error.key = 'NEW:KEY';
+      error.code = 'NewKey';
       // No runtime assertion, as readonly is only enforced at compile time
     });
 
     it('should work with different scope and tag combinations', () => {
-      const error1 = new PanicError('AUTH', 'INVALID_TOKEN', 'Token is invalid');
-      const error2 = new PanicError('DB', 'CONNECTION_FAILED', 'Database connection failed');
+      const error1 = new PanicError('Auth', 'InvalidToken', 'Token is invalid');
+      const error2 = new PanicError('Db', 'ConnectionFailed', 'Database connection failed');
 
-      expect(error1.key).toBe('AUTH:INVALID_TOKEN');
-      expect(error2.key).toBe('DB:CONNECTION_FAILED');
+      expect(error1.code).toBe('Auth:InvalidToken');
+      expect(error2.code).toBe('Db:ConnectionFailed');
     });
 
     it('should maintain proper inheritance chain', () => {
-      const error = new PanicError('TEST', 'ERROR', 'Test error');
+      const error = new PanicError('Test', 'Error', 'Test error');
 
       expect(error).toBeInstanceOf(Error);
       expect(error).toBeInstanceOf(PanicError);
@@ -40,41 +40,41 @@ describe('Panic', () => {
 
   describe('Panic factory', () => {
     it('should create a panic factory for a given scope', () => {
-      const TestPanic = Panic('TEST');
-      const error = new TestPanic('INVALID_STATE', 'Something went wrong');
+      const TestPanic = panic('Test');
+      const error = new TestPanic('InvalidState', 'Something went wrong');
 
       expect(error).toBeInstanceOf(Error);
       expect(error).toBeInstanceOf(PanicError);
       expect(error.name).toBe('Panic');
       expect(error.message).toBe('Something went wrong');
-      expect(error.key).toBe('TEST:INVALID_STATE');
+      expect(error.code).toBe('Test:InvalidState');
     });
 
     it('should create different panic factories for different scopes', () => {
-      const AuthPanic = Panic('AUTH');
-      const DbPanic = Panic('DB');
+      const AuthPanic = panic('Auth');
+      const DbPanic = panic('Db');
 
-      const authError = new AuthPanic('INVALID_TOKEN', 'Token is invalid');
-      const dbError = new DbPanic('CONNECTION_FAILED', 'Database connection failed');
+      const authError = new AuthPanic('InvalidToken', 'Token is invalid');
+      const dbError = new DbPanic('ConnectionFailed', 'Database connection failed');
 
-      expect(authError.key).toBe('AUTH:INVALID_TOKEN');
-      expect(dbError.key).toBe('DB:CONNECTION_FAILED');
+      expect(authError.code).toBe('Auth:InvalidToken');
+      expect(dbError.code).toBe('Db:ConnectionFailed');
     });
 
     it('should enforce uppercase scope and tag types', () => {
-      const TestPanic = Panic('TEST');
+      const TestPanic = panic('Test');
 
       // These should work with uppercase strings
-      const error1 = new TestPanic('ERROR', 'Test error');
-      const error2 = new TestPanic('INVALID_STATE', 'Invalid state');
+      const error1 = new TestPanic('Error', 'Test error');
+      const error2 = new TestPanic('InvalidState', 'Invalid state');
 
-      expect(error1.key).toBe('TEST:ERROR');
-      expect(error2.key).toBe('TEST:INVALID_STATE');
+      expect(error1.code).toBe('Test:Error');
+      expect(error2.code).toBe('Test:InvalidState');
     });
 
     it('should create panic errors that can be thrown', () => {
-      const TestPanic = Panic('TEST');
-      const error = new TestPanic('THROWABLE', 'This can be thrown');
+      const TestPanic = panic('Test');
+      const error = new TestPanic('Throwable', 'This can be thrown');
 
       expect(() => {
         throw error;
@@ -85,8 +85,8 @@ describe('Panic', () => {
     });
 
     it('should maintain proper inheritance for factory-created errors', () => {
-      const TestPanic = Panic('TEST');
-      const error = new TestPanic('ERROR', 'Test error');
+      const TestPanic = panic('Test');
+      const error = new TestPanic('Error', 'Test error');
 
       expect(error).toBeInstanceOf(Error);
       expect(error).toBeInstanceOf(PanicError);
@@ -96,11 +96,11 @@ describe('Panic', () => {
 
   describe('Error behavior', () => {
     it('should stack trace work correctly', () => {
-      const TestPanic = Panic('TEST');
+      const TestPanic = panic('Test');
 
       let error: InstanceType<typeof TestPanic>;
       try {
-        throw new TestPanic('ERROR', 'Test error');
+        throw new TestPanic('Error', 'Test error');
       } catch (e) {
         error = e as InstanceType<typeof TestPanic>;
       }
@@ -110,13 +110,13 @@ describe('Panic', () => {
     });
 
     it('should be serializable', () => {
-      const error = new PanicError('TEST', 'ERROR', 'Test error');
+      const error = new PanicError('Test', 'Error', 'Test error');
       const serialized = JSON.stringify(error);
       const parsed = JSON.parse(serialized);
 
       expect(parsed.name).toBe('Panic');
       expect(parsed.message).toBe('Test error');
-      expect(parsed.key).toBe('TEST:ERROR');
+      expect(parsed.code).toBe('Test:Error');
     });
   });
 });
