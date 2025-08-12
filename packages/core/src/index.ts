@@ -8,7 +8,6 @@ export * from './env';
 export * from './event';
 export * from './flow';
 export * from './logger';
-export * from './metadata';
 export * from './panic';
 export * from './pipe';
 export * from './result';
