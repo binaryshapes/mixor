@@ -6,6 +6,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import type { ErrorMode } from './_err';
 
 /**
  * Core global configuration.
@@ -36,6 +37,11 @@ const config = {
   tracerMaxListeners: process.env.MIXOR_TRACER_MAX_LISTENERS
     ? Number(process.env.MIXOR_TRACER_MAX_LISTENERS)
     : 100,
+
+  /**
+   * The default error mode for value validation.
+   */
+  defaultErrorMode: 'all' as ErrorMode,
 };
 
 export { config };
