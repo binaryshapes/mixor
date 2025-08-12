@@ -197,7 +197,7 @@ type ComponentData<Type, Tag extends ComponentTag> = {
  * @typeParam Tag - The component tag type.
  * @typeParam Meta - The metadata type for the component.
  *
- * @internal
+ * @public
  */
 type Component<Type, Tag extends ComponentTag> = Type & {
   /**
