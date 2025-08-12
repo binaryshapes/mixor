@@ -1,0 +1,345 @@
+---
+alwaysApply: false
+---
+
+# Code Guidelines: Development Workflow Standards
+
+## Overview
+
+This document defines a streamlined workflow for managing code, documentation, examples, and tests that follows the natural development process: Code → Examples → Documentation → Tests.
+
+## Core Development Workflow
+
+### Step 1: Code Development
+
+- **Write code first** - Focus on implementation without documentation overhead
+- **Use TSDoc for API documentation** - Document all @public elements clearly
+- **NO @example tags** - Examples are managed separately
+
+**TSDoc Requirements**:
+
+- **Module documentation** - `@packageDocumentation` at file top
+- **Document all @public elements** - Functions, classes, interfaces, types
+- **Mark internal elements** - Use `@internal` for non-exported elements
+- **Clear descriptions** - Explain what it does, not how it works
+- **Type parameters** - Use `@typeParam` for generics
+- **Parameters and returns** - Use `@param` and `@returns`
+- **Error documentation** - Use `@throws` with `@link` to error types
+- **Tag positioning** - `@packageDocumentation`, `@public`, `@internal` at end
+
+**Public vs Internal Rules**:
+
+- **@public Elements**: MUST be exported, MUST have @example tags (except types/interfaces)
+- **@internal Elements**: NO export, NO examples, minimal documentation
+- **Builder Pattern**: Interfaces and methods are @internal, factory functions are @public
+
+### Step 2: Examples Management
+
+- **Examples in dedicated files** - `examples/module.ts` for each module
+- **Independent functions** - Each example wrapped in named, non-exported function
+- **Real usage scenarios** - Show success and error cases
+- **Executable examples** - Can run with `pnpm dev examples/module.ts`
+- **Simple and focused** - Avoid complex logic, demonstrate one concept per example
+- **Module isolation** - Don't use other modules in examples
+
+**How to Define Examples**:
+
+1. **Start with Public API** - Identify all @public functions, classes, and constructors
+2. **One example per public element** - Each @public element needs at least one example
+3. **Cover success and error paths** - Show both happy path and error handling
+4. **Real-world scenarios** - Use realistic input values and expected outputs
+5. **Sequential numbering** - Use format: `module-001`, `module-002`, etc.
+6. **Clear descriptions** - Each example should have a descriptive comment
+
+**Types of Examples to Create**:
+
+1. **Basic Usage Examples** - Show the simplest way to use the function/class
+2. **Parameter Variations** - Demonstrate different input types and values
+3. **Error Handling Examples** - Show how errors are handled and returned
+4. **Edge Case Examples** - Demonstrate boundary conditions (empty strings, null values, etc.)
+5. **Integration Examples** - Show how multiple functions work together (within the same module)
+6. **Return Value Examples** - Demonstrate different output types and structures
+
+**Example File Structure**:
+
+```typescript
+// examples/component.ts
+import { componentFunction } from '../src/component';
+import { err, ok } from '../src/result';
+
+/**
+ * component-001: Basic usage demonstration.
+ */
+function componentBasicUsage() {
+  console.log('component-001: Basic usage demonstration');
+
+  const result = componentFunction('input');
+  console.log('Result:', result);
+  // output: success result
+}
+
+/**
+ * component-002: Error handling demonstration.
+ */
+function componentErrorHandling() {
+  console.log('component-002: Error handling demonstration');
+
+  const errorResult = componentFunction('invalid');
+  if (isErr(errorResult)) {
+    console.log('Error caught:', unwrap(errorResult));
+  }
+  // output: error message
+}
+
+// Execute all examples
+componentBasicUsage();
+componentErrorHandling();
+```
+
+**Quality Standards**:
+
+- **Maximum 15-20 lines** per function
+- **One concept per example** - Avoid complex logic
+- **Real use cases** - No artificial examples
+- **Console.log for debugging** - Use console.log to see outputs
+- **Output documentation** - Include `// output: <expected>` comments
+
+**Types of Examples to Create**:
+
+1. **Basic Usage Examples** - Show the simplest way to use the function/class
+2. **Parameter Variations** - Demonstrate different input types and values
+3. **Error Handling Examples** - Show how errors are handled and returned
+4. **Edge Case Examples** - Demonstrate boundary conditions (empty strings, null values, etc.)
+5. **Integration Examples** - Show how multiple functions work together (within the same module)
+6. **Return Value Examples** - Demonstrate different output types and structures
+
+**Naming Convention**: `module-sequential_number: Description` (e.g., `component-001: Basic usage`)
+
+### Step 3: Documentation Synchronization
+
+- **Auto-sync examples to TSDoc** - Generate @example tags automatically
+- **Unique codes required** - Format: `module-sequential_number` (e.g., `component-001`)
+- **Examples placement rules**:
+  - ✅ **REQUIRED**: Functions, classes, constructors, factory functions
+  - ❌ **FORBIDDEN**: Types, interfaces, enums, constants, simple values
+- **Order preservation** - Examples appear in same order as code
+- **Console.log rules**:
+  - ✅ **ALLOWED in examples/ files**: Use console.log to see outputs when running examples
+  - ❌ **FORBIDDEN in @example tags**: Replace console.log with comments showing expected output
+
+**Example Transformation Process**:
+
+````typescript
+// Step 1: Example in examples/component.ts
+function componentBasicUsage() {
+  console.log('Running basic usage example...');
+  const result = componentFunction('input');
+  console.log('Result:', result);
+  // output: success result
+}
+
+// Step 2: Generated @example tag in src/component.ts
+/**
+ * Main component factory function.
+ *
+ * @param input - The input to process.
+ * @returns The processed result.
+ *
+ * @example
+ * ```ts
+ * // component-001: Basic usage demonstration.
+ * const result = componentFunction('input');
+ * // output: success result
+ * ```
+ *
+ * @public
+ */
+````
+
+**Synchronization Rules**:
+
+- **Examples are IDENTICAL** between files and TSDoc (except console.log)
+- **Unique codes match exactly** - module-001 in file = module-001 in TSDoc
+- **Descriptions match exactly** - Same text in both places
+- **Code logic preserved** - No modifications to core functionality
+- **Console.log → output comments** - Only transformation applied
+
+### Step 4: Test Generation
+
+- **Examples = Public API tests** - Each example function tests the API it demonstrates
+- **Edge cases complement examples** - Boundary conditions and error handling not covered by examples
+- **Type safety validation** - Test all @public elements with `expectTypeOf`
+- **Complete coverage** - Examples + Edge cases, no overlap
+
+**Test Structure**:
+
+```typescript
+describe('ModuleName', () => {
+  describe('Functionality', () => {
+    // Examples serve as tests for the Public API they demonstrate
+    // Each example function becomes a test case
+  });
+
+  describe('Edge Cases & Error Handling', () => {
+    // Boundary conditions and error handling
+  });
+
+  describe('Type Safety', () => {
+    // TypeScript type validation
+  });
+});
+```
+
+**Test Categories & Responsibilities**:
+
+1. **Functionality**:
+   - **Purpose**: Examples test the Public API they demonstrate
+   - **Characteristics**: Each example function becomes a test case
+   - **Focus**: Public API functionality through practical examples
+
+2. **Edge Cases & Error Handling**:
+   - **Purpose**: Validate boundary conditions not covered by examples
+   - **Characteristics**: Test extreme cases and error handling
+   - **Focus**: Robustness beyond normal usage
+
+3. **Type Safety**:
+   - **Purpose**: Validate TypeScript type safety
+   - **Characteristics**: Test ALL @public elements with `expectTypeOf`
+   - **Focus**: Type inference and constraints
+
+## File Structure
+
+```text
+examples/
+  component.ts         # Examples for component module
+  event.ts             # Examples for event module
+tests/
+  component.spec.ts    # Tests for component module
+src/
+  component.ts         # Source code with TSDoc
+```
+
+## Test Generation Rules
+
+### 1. No Overlap Principle
+
+- **Examples**: Serve as Public API tests, demonstrate and test real use cases
+- **Edge Cases**: Complement examples by testing boundary conditions and error handling
+- **Type Safety**: Type validation only, NOT behavior
+
+**Important**: Examples serve dual purposes - documentation AND tests
+
+### 2. Test Naming Convention
+
+```typescript
+// Functionality
+it('should run example component-001: Basic component creation', () => {};
+
+// Edge cases
+it('should handle null input gracefully', () => {});
+
+// Type safety
+it('should provide correct type inference for all public elements', () => {});
+```
+
+### 3. Test Implementation Rules
+
+- **Examples are tests**: Each example function serves as a test case
+- **Exact Code Copy**: Copy code exactly from examples/module.ts
+- **No Modifications**: DON'T change example logic
+- **Runtime Only**: Validate behavior, NOT types
+- **Shared Utilities**: Use helpers to avoid duplication
+
+## Common Test Patterns
+
+### 1. Result Validation Pattern
+
+```typescript
+// Success case
+const result = functionName('valid input');
+expect(isOk(result)).toBe(true);
+expect(unwrap(result)).toEqual(expectedValue);
+
+// Error case
+const errorResult = functionName('invalid input');
+expect(isErr(errorResult)).toBe(true);
+expect(unwrap(errorResult)).toEqual(expectedError);
+```
+
+### 2. Component Validation Pattern
+
+```typescript
+const component = createComponent('Rule', () => {});
+expect(component).toBeDefined();
+expect(typeof component).toBe('function');
+expect(component.info).toBeDefined();
+expect(component.meta).toBeDefined();
+```
+
+### 3. Type Safety Pattern
+
+```typescript
+expectTypeOf(functionName).toBeFunction();
+expectTypeOf(functionName('input')).toEqualTypeOf<ExpectedType>();
+expectTypeOf(ClassName).toBeConstructor();
+expectTypeOf(new ClassName()).toBeInstanceOf(ClassName);
+```
+
+## Maintenance Workflow
+
+**Adding Features**: Code → Examples → Auto-sync → Tests
+**Updating Features**: Modify code/examples → Re-sync → Update tests
+**Removing Features**: Delete code/examples → Re-sync → Update tests
+
+## Quality Checklist
+
+### Code Development Quality
+
+- [ ] **Code written first** - Implementation before documentation
+- [ ] **TSDoc used consistently** - All @public elements documented
+- [ ] **NO @example tags** - Examples managed separately
+- [ ] **Clear descriptions** - Explain what, not how
+- [ ] **Proper tagging** - @public, @internal used correctly
+- [ ] **Module agnostic** - No cross-module assumptions
+
+### Examples Quality
+
+- [ ] **Examples in dedicated files** - `examples/module.ts` structure
+- [ ] **Independent functions** - Each example wrapped in named function
+- [ ] **Maximum 15-20 lines** per function
+- [ ] **One concept per example** - Avoid complex logic
+- [ ] **Real use cases** - No artificial examples
+- [ ] **Error handling included** - Both success and error cases
+- [ ] **Console.log for debugging** - Use console.log to see outputs
+- [ ] **Output documentation** - Include `// output: <expected>` comments
+- [ ] **Sequential unique codes** - module-001, module-002, etc.
+- [ ] **Module isolation** - Don't use other modules
+
+### Documentation Synchronization Quality
+
+- [ ] **Examples auto-synced** - TSDoc @example tags generated automatically
+- [ ] **Unique codes match** - module-001 in file = module-001 in TSDoc
+- [ ] **Descriptions match** - Same text in both places
+- [ ] **Code logic preserved** - No modifications to core functionality
+- [ ] **Console.log removed** - Replaced with output comments
+- [ ] **Order preserved** - Examples appear in same order as code
+- [ ] **Placement rules followed** - Examples only in required elements
+
+### Test Generation Quality
+
+- [ ] **Examples serve as tests** - Each example function tests the Public API
+- [ ] **Edge cases complement examples** - Test boundary conditions not covered by examples
+- [ ] **Comprehensive typechecking** - Test all @public elements with `expectTypeOf`
+- [ ] **No overlap** - Functionality and edge cases provide complementary coverage
+- [ ] **Exact code copy** - Copy code exactly from examples/module.ts
+- [ ] **No modifications** - Don't change example logic
+- [ ] **Runtime only** - Validate behavior, NOT types
+- [ ] **Shared utilities** - Use helpers to avoid duplication
+
+## Implementation Steps
+
+1. **Set up structure** - Create `examples/module.ts` files and tools
+2. **Write code with TSDoc** - Document @public elements (no @example tags)
+3. **Create examples** - Add to `examples/module.ts` with unique codes
+4. **Auto-sync docs** - Generate TSDoc @example tags automatically
+5. **Generate tests** - Create tests from examples + edge cases
