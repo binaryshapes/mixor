@@ -686,4 +686,4 @@ const tracer = (() => {
 })();
 
 export type { Component };
-export { component, tracer, isComponent, ComponentError, injectableList, nonInjectableList };
+export { component, tracer, isComponent, ComponentError };
