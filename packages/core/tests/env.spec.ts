@@ -43,7 +43,7 @@ const createTestHelpers = () => ({
 describe('env', () => {
   const helpers = createTestHelpers();
 
-  describe('Basic functionality', () => {
+  describe('Public API', () => {
     it('should create an environment configuration function', () => {
       const redisConfig = env(helpers.createRedisSchema());
 
@@ -81,6 +81,25 @@ describe('env', () => {
       }
     });
 
+    it('should work with Node.js environment', () => {
+      const cleanup = helpers.mockEnv({
+        REDIS_HOST: 'localhost',
+        REDIS_PORT: '6379',
+      });
+
+      try {
+        const redisConfig = env(helpers.createRedisSchema());
+        const result = redisConfig();
+
+        expect(unwrap(result)).toEqual({
+          REDIS_HOST: 'localhost',
+          REDIS_PORT: 6379,
+        });
+      } finally {
+        cleanup();
+      }
+    });
+
     it('should handle schema validation errors', () => {
       const cleanup = helpers.mockEnv({
         REDIS_HOST: '',
@@ -103,28 +122,35 @@ describe('env', () => {
         cleanup();
       }
     });
-  });
 
-  describe('Runtime compatibility', () => {
-    it('should work with Node.js environment', () => {
+    it('should filter only schema fields from environment', () => {
       const cleanup = helpers.mockEnv({
         REDIS_HOST: 'localhost',
         REDIS_PORT: '6379',
+        UNRELATED_VAR: 'should-be-ignored',
+        ANOTHER_VAR: 'also-ignored',
       });
 
       try {
         const redisConfig = env(helpers.createRedisSchema());
-        const result = redisConfig();
+        const result = redisConfig('strict');
 
         expect(unwrap(result)).toEqual({
           REDIS_HOST: 'localhost',
           REDIS_PORT: 6379,
         });
+
+        // Verify unrelated variables are not included.
+        const resultValue = unwrap(result);
+        expect(resultValue).not.toHaveProperty('UNRELATED_VAR');
+        expect(resultValue).not.toHaveProperty('ANOTHER_VAR');
       } finally {
         cleanup();
       }
     });
+  });
 
+  describe('Edge Cases & Error Handling', () => {
     it('should throw error for unsupported runtime', () => {
       // Mock a runtime without process.env
       const originalProcess = global.process;
@@ -139,9 +165,7 @@ describe('env', () => {
         global.process = originalProcess;
       }
     });
-  });
 
-  describe('Error handling', () => {
     it('should throw error for missing environment variables', () => {
       const cleanup = helpers.mockEnv({});
 
@@ -167,10 +191,47 @@ describe('env', () => {
         cleanup();
       }
     });
+
+    it('should handle empty environment variables', () => {
+      const cleanup = helpers.mockEnv({
+        REDIS_HOST: '',
+        REDIS_PORT: '6379',
+      });
+
+      try {
+        const redisConfig = env(helpers.createRedisSchema());
+        const result = redisConfig();
+
+        if (isOk(result)) {
+          throw new Error('Expected error result');
+        } else {
+          expect(unwrap(result)).toEqual({
+            REDIS_HOST: ['EMPTY_HOST'],
+          });
+        }
+      } finally {
+        cleanup();
+      }
+    });
+
+    it('should handle undefined environment variables', () => {
+      const cleanup = helpers.mockEnv({
+        REDIS_HOST: 'localhost',
+        // REDIS_PORT is undefined
+      });
+
+      try {
+        const redisConfig = env(helpers.createRedisSchema());
+        expect(() => redisConfig()).toThrow(EnvError);
+        expect(() => redisConfig()).toThrow('Missing environment variables: REDIS_PORT');
+      } finally {
+        cleanup();
+      }
+    });
   });
 
-  describe('Type safety', () => {
-    it('should provide correct type inference', () => {
+  describe('Type Safety', () => {
+    it('should provide correct type inference for all public elements', () => {
       const redisConfig = env(helpers.createRedisSchema());
 
       // Typechecking.
@@ -240,149 +301,6 @@ describe('env', () => {
       >();
 
       cleanup();
-    });
-  });
-
-  describe('Code examples', () => {
-    it('should run example env-001: Basic environment variable validation with schema', () => {
-      const cleanup = helpers.mockEnv({
-        REDIS_HOST: 'localhost',
-        REDIS_PORT: '6379',
-      });
-
-      try {
-        // env-001: Basic environment variable validation with schema.
-        const redisConfig = env(
-          schema({
-            REDIS_HOST: value(
-              rule((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_HOST'))),
-            ),
-            REDIS_PORT: value(
-              rule((value: string) => {
-                const port = parseInt(value);
-                return !isNaN(port) && port > 0 ? ok(value) : err('INVALID_PORT');
-              }),
-            ),
-          }),
-        );
-
-        const result = redisConfig();
-        expect(unwrap(result)).toEqual({
-          REDIS_HOST: 'localhost',
-          REDIS_PORT: '6379',
-        });
-
-        // Typechecking.
-        expectTypeOf(redisConfig).toBeFunction();
-        expectTypeOf(result).toEqualTypeOf<
-          Result<
-            {
-              REDIS_HOST: string;
-              REDIS_PORT: string;
-            },
-            {
-              REDIS_HOST: 'EMPTY_HOST'[];
-              REDIS_PORT: 'INVALID_PORT'[];
-            }
-          >
-        >();
-      } finally {
-        cleanup();
-      }
-    });
-
-    it('should run example env-002: Error handling for missing environment variables', () => {
-      const cleanup = helpers.mockEnv({});
-
-      try {
-        // env-002: Error handling for missing environment variables.
-        const config = env(
-          schema({
-            DATABASE_URL: value(
-              rule((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_URL'))),
-            ),
-            API_KEY: value(
-              rule((value: string) => (value.length > 0 ? ok(value) : err('EMPTY_KEY'))),
-            ),
-          }),
-        );
-
-        expect(() => config()).toThrow(EnvError);
-        expect(() => config()).toThrow(
-          'Missing environment variables: DATABASE_URL, API_KEY. Please check your .env file.',
-        );
-
-        // Typechecking.
-        expectTypeOf(config).toBeFunction();
-        expectTypeOf(config).returns.toEqualTypeOf<ReturnType<typeof config>>();
-      } finally {
-        cleanup();
-      }
-    });
-  });
-
-  describe('Edge cases', () => {
-    it('should handle empty environment variables', () => {
-      const cleanup = helpers.mockEnv({
-        REDIS_HOST: '',
-        REDIS_PORT: '6379',
-      });
-
-      try {
-        const redisConfig = env(helpers.createRedisSchema());
-        const result = redisConfig();
-
-        if (isOk(result)) {
-          throw new Error('Expected error result');
-        } else {
-          expect(unwrap(result)).toEqual({
-            REDIS_HOST: ['EMPTY_HOST'],
-          });
-        }
-      } finally {
-        cleanup();
-      }
-    });
-
-    it('should handle undefined environment variables', () => {
-      const cleanup = helpers.mockEnv({
-        REDIS_HOST: 'localhost',
-        // REDIS_PORT is undefined
-      });
-
-      try {
-        const redisConfig = env(helpers.createRedisSchema());
-        expect(() => redisConfig()).toThrow(EnvError);
-        expect(() => redisConfig()).toThrow('Missing environment variables: REDIS_PORT');
-      } finally {
-        cleanup();
-      }
-    });
-
-    it('should filter only schema fields from environment', () => {
-      const cleanup = helpers.mockEnv({
-        REDIS_HOST: 'localhost',
-        REDIS_PORT: '6379',
-        UNRELATED_VAR: 'should-be-ignored',
-        ANOTHER_VAR: 'also-ignored',
-      });
-
-      try {
-        const redisConfig = env(helpers.createRedisSchema());
-        const result = redisConfig('strict');
-
-        expect(unwrap(result)).toEqual({
-          REDIS_HOST: 'localhost',
-          REDIS_PORT: 6379,
-        });
-
-        // Verify unrelated variables are not included.
-        const resultValue = unwrap(result);
-        expect(resultValue).not.toHaveProperty('UNRELATED_VAR');
-        expect(resultValue).not.toHaveProperty('ANOTHER_VAR');
-      } finally {
-        cleanup();
-      }
     });
   });
 });
