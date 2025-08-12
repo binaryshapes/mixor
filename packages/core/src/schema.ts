@@ -6,62 +6,20 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import { config } from './_config';
 import type { ApplyErrorMode, ErrorMode } from './_err';
+import { type Component, component, isComponent } from './component';
 import type { Any, Prettify } from './generics';
-import { Panic } from './panic';
+import { panic } from './panic';
 import { type Result, err, isOk, ok } from './result';
-import { type Traceable, type TraceableMeta, isTraceable, traceInfo, traceable } from './trace';
 import { type Value, isValue } from './value';
 
 /**
- * Panic error for the schema module.
- *
- * @internal
- */
-const SchemaError = Panic<
-  'SCHEMA',
-  // When a schema field is not a value.
-  'FIELD_IS_NOT_VALUE'
->('SCHEMA');
-
-/**
- * Extended metadata for schema validation.
- * @typeParam T - The type of the schema object.
- *
- * @internal
- */
-type SchemaMeta<T> = TraceableMeta<{
-  /** Example of valid schema object. */
-  example: SchemaValues<T>;
-}>;
-
-/**
  * A schema is a record of field names and their corresponding validation functions.
+ *
  * @internal
  */
 type SchemaFields = Record<string, Value<Any, Any>>;
-
-/**
- * The type of the values of the schema.
- * @typeParam S - The schema fields.
- *
- * @internal
- */
-type SchemaValues<S> = Prettify<{
-  [K in keyof S]: S[K] extends Value<infer T, Any> ? T : never;
-}>;
-
-/**
- * The type of the errors of the schema.
- * Uses the centralized error mode concept from {@link ErrorMode}.
- * @typeParam S - The schema fields.
- * @typeParam Mode - The error mode.
- *
- * @internal
- */
-type SchemaErrors<S, Mode extends ErrorMode> = Prettify<{
-  [K in keyof S]: S[K] extends Value<Any, infer E> ? ApplyErrorMode<E, Mode> : never;
-}>;
 
 /**
  * Type constraint to ensure all properties in a record are Value types.
@@ -73,6 +31,30 @@ type SchemaErrors<S, Mode extends ErrorMode> = Prettify<{
  */
 type EnsureAllValues<T> = Prettify<{
   [K in keyof T]: T[K] extends Value<Any, Any> ? T[K] : never;
+}>;
+
+/**
+ * The type of the values of the schema.
+ *
+ * @typeParam S - The schema fields.
+ *
+ * @public
+ */
+type SchemaValues<S> = Prettify<{
+  [K in keyof S]: S[K] extends Value<infer T, Any> ? T : never;
+}>;
+
+/**
+ * The type of the errors of the schema.
+ * Uses the centralized error mode concept from {@link ErrorMode}.
+ *
+ * @typeParam S - The schema fields.
+ * @typeParam Mode - The error mode.
+ *
+ * @public
+ */
+type SchemaErrors<S, Mode extends ErrorMode> = Prettify<{
+  [K in keyof S]: S[K] extends Value<Any, infer E> ? ApplyErrorMode<E, Mode> : never;
 }>;
 
 /**
@@ -92,30 +74,33 @@ type SchemaFunction<F, V = SchemaValues<F>> = {
    * @remarks
    * - `'strict'`: Stops at the first error and returns the error.
    * - `'all'`: Collects all errors and returns an object with the details of each field error.
-   * - Default: Uses 'all' mode if no mode is specified.
+   * Use the {@link config.defaultErrorMode} to set the default error mode.
    *
    * @param value - The value to validate.
    * @param mode - The error mode to use for validation.
    * @returns A result containing the validated value or an error.
    */
   <Mode extends ErrorMode = 'all'>(value: V, mode?: Mode): Result<V, SchemaErrors<F, Mode>>;
+} & {
+  [K in keyof F]: F[K] extends Value<Any, Any> ? F[K] : never;
 };
 
 /**
  * A schema that provides both object validation and individual field validation.
  * It follows the same pattern as Value, being both a function and an object with properties.
  *
- * @typeParam S - The schema fields.
+ * @typeParam F - The schema fields type.
  *
  * @public
  */
-type Schema<F> = Traceable<
-  'Schema',
-  SchemaFunction<F> & {
-    [K in keyof F]: F[K] extends Value<Any, Any> ? F[K] : never;
-  },
-  SchemaMeta<F>
->;
+type Schema<F> = Component<'Schema', SchemaFunction<F>>;
+
+/**
+ * Panic error for the schema module.
+ *
+ * @public
+ */
+const SchemaError = panic<'Schema', 'FieldIsNotValue'>('Schema');
 
 /**
  * Creates a schema from a set of fields.
@@ -124,110 +109,20 @@ type Schema<F> = Traceable<
  * @param fields - The schema object containing field validators.
  * @returns The schema function with field validators as properties.
  *
- * @example
- * ```ts
- * // schema-001: Basic schema creation and validation.
- * const NameNotEmpty = rule((name: string) =>
- *   name.length > 0 ? ok(name) : err('EMPTY_NAME')
- * );
- * const AgeValid = rule((age: number) =>
- *   age >= 0 ? ok(age) : err('INVALID_AGE')
- * );
- *
- * const NameValidator = value(NameNotEmpty);
- * const AgeValidator = value(AgeValid);
- *
- * const UserSchema = schema({
- *   name: NameValidator,
- *   age: AgeValidator,
- * });
- *
- * const validUser = UserSchema({ name: 'John Doe', age: 30 });
- * // validUser: ok({ name: 'John Doe', age: 30 }).
- *
- * const invalidUser = UserSchema({ name: '', age: -5 });
- * // invalidUser: err({ name: ['EMPTY_NAME'], age: ['INVALID_AGE'] }).
- * ```
- *
- * @example
- * ```ts
- * // schema-002: Individual field validation.
- * const NameValidator = value(
- *   rule((name: string) => name.length > 0 ? ok(name) : err('EMPTY_NAME'))
- * );
- * const AgeValidator = value(
- *   rule((age: number) => age >= 0 ? ok(age) : err('INVALID_AGE'))
- * );
- *
- * const UserSchema = schema({
- *   name: NameValidator,
- *   age: AgeValidator,
- * });
- *
- * const nameResult = UserSchema.name('John Doe');
- * // nameResult: ok('John Doe').
- *
- * const ageResult = UserSchema.age(25);
- * // ageResult: ok(25).
- *
- * const invalidName = UserSchema.name('');
- * // invalidName: err(['EMPTY_NAME']).
- * ```
- *
- * @example
- * ```ts
- * // schema-003: Schema with metadata and tracing.
- * const UserSchema = schema({
- *   name: value(
- *     rule((name: string) => name.length > 0 ? ok(name) : err('EMPTY_NAME'))
- *   ),
- *   email: value(
- *     rule((email: string) => email.includes('@') ? ok(email) : err('INVALID_EMAIL'))
- *   ),
- * }).meta({
- *   name: 'UserSchema',
- *   description: 'User validation schema with name and email',
- *   scope: 'UserValidation',
- *   example: '{ "name": "John Doe", "email": "john@example.com" }'
- * });
- * ```
- *
- * @example
- * ```ts
- * // schema-004: Strict vs All validation modes.
- * const UserSchema = schema({
- *   name: value(
- *     rule((name: string) => name.length > 0 ? ok(name) : err('EMPTY_NAME'))
- *   ),
- *   email: value(
- *     rule((email: string) => email.includes('@') ? ok(email) : err('INVALID_EMAIL'))
- *   ),
- *   age: value(
- *     rule((age: number) => age >= 0 ? ok(age) : err('INVALID_AGE'))
- *   ),
- * });
- *
- * const invalidData = { name: '', email: 'invalid', age: -5 };
- *
- * // All mode (default) - collects all errors
- * const allErrors = UserSchema(invalidData, 'all');
- * // allErrors: err({ name: ['EMPTY_NAME'], email: ['INVALID_EMAIL'], age: ['INVALID_AGE'] }).
- *
- * // Strict mode - stops at first error
- * const strictError = UserSchema(invalidData, 'strict');
- * // strictError: err({ name: ['EMPTY_NAME'] }).
- * ```
- *
  * @public
  */
-const schema = <F extends Record<string, Any>>(fields: EnsureAllValues<F>): Schema<F> => {
+const schema = <F extends SchemaFields>(fields: EnsureAllValues<F>): Schema<F> => {
   // Validate that all fields are values during schema creation.
-  if (Object.values(fields).some((f) => !isValue(f))) {
-    throw new SchemaError('FIELD_IS_NOT_VALUE', 'All fields must be values.');
+  if (
+    Object.values(fields).some((f) => {
+      return !isValue(f);
+    })
+  ) {
+    throw new SchemaError('FieldIsNotValue', 'All fields must be values.');
   }
 
   // Create the main schema validation function.
-  const schemaValidator = (value: SchemaValues<F>, mode = 'all') => {
+  const schemaValidator = (value: SchemaValues<F>, mode = config.defaultErrorMode) => {
     if (mode === 'strict') {
       // Stop at first error mode - more performant for early validation.
       const result: Record<string, Any> = {};
@@ -273,7 +168,7 @@ const schema = <F extends Record<string, Any>>(fields: EnsureAllValues<F>): Sche
   };
 
   // Create a traceable schema function.
-  const traceableSchema = traceable('Schema', schemaValidator) as Schema<F>;
+  const traceableSchema = component('Schema', schemaValidator) as Schema<F>;
 
   // Add field functions as properties.
   for (const [fieldName, fieldFn] of Object.entries(fields)) {
@@ -282,74 +177,24 @@ const schema = <F extends Record<string, Any>>(fields: EnsureAllValues<F>): Sche
       writable: false,
       enumerable: true,
     });
+
+    // Set the field schema parentId to the schema.
+    (fieldFn as Value<Any, Any>).parent(traceableSchema);
   }
 
   return traceableSchema;
 };
 
 /**
- * Infer the type of the values of the schema.
- *
- * This utility type extracts the input types from a schema,
- * allowing you to get the expected shape of the data to validate.
- *
- * @typeParam S - The schema to infer the type from.
- *
- * @example
- * ```ts
- * // schema-005: Type inference with schema.
- * const UserSchema = schema({
- *   name: value(
- *     rule((name: string) => name.length > 0 ? ok(name) : err('EMPTY_NAME'))
- *   ),
- *   age: value(
- *     rule((age: number) => age >= 0 ? ok(age) : err('INVALID_AGE'))
- *   ),
- *   email: value(
- *     rule((email: string) => email.includes('@') ? ok(email) : err('INVALID_EMAIL'))
- *   ),
- * });
- *
- * type UserInput = InferSchema<typeof UserSchema>;
- * // type UserInput = { name: string; age: number; email: string }.
- *
- * // Use the inferred type for type-safe validation
- * const validateUser = (data: UserInput) => UserSchema(data);
- *
- * const validationResult = validateUser(testData);
- * ```
- *
- * @public
- */
-type InferSchema<S, F = S extends Schema<infer F> ? SchemaValues<F> : never> = Prettify<{
-  [K in keyof F]: F[K] extends SchemaValues<infer V> ? InferSchema<Schema<V>> : F[K];
-}>;
-
-/**
  * Guard check to determine if the given object is a schema.
+ *
  * @param maybeSchema - The object to check.
  * @returns True if the object is a schema, false otherwise.
  *
- * @example
- * ```ts
- * // schema-006: Check if object is a schema.
- * const UserSchema = schema({
- *   name: value(
- *     rule((name: string) => name.length > 0 ? ok(name) : err('EMPTY_NAME'))
- *   ),
- * });
- *
- * const isUserSchema = isSchema(UserSchema);
- * // isUserSchema: true.
- *
- * const isNotSchema = isSchema({ name: 'test' });
- * // isNotSchema: false.
- * ```
- *
  * @public
  */
-const isSchema = (maybeSchema: unknown): maybeSchema is Schema<Any> =>
-  isTraceable(maybeSchema) && traceInfo(maybeSchema as Schema<Any>).tag === 'Schema';
+const isSchema = (maybeSchema: Any): maybeSchema is Schema<Any> =>
+  isComponent(maybeSchema, 'Schema');
 
-export type { InferSchema, Schema, SchemaFields, SchemaValues, SchemaErrors };
+export type { Schema, SchemaErrors, SchemaValues };
 export { schema, isSchema, SchemaError };
