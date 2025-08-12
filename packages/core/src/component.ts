@@ -131,9 +131,11 @@ type ComponentSubType =
 type ComponentType<Tag extends ComponentTag> = Tag extends 'Object'
   ? Record<string, Any>
   : Tag extends ComponentNonInjectable
-    ? Tag extends 'Flow' | 'Query' | 'Command'
-      ? (...args: Any) => Result<Any, Any> | Promise<Result<Any, Any>>
-      : (...args: Any) => Result<Any, Any>
+    ? Tag extends 'Event'
+      ? (...args: Any) => Any
+      : Tag extends 'Flow' | 'Query' | 'Command'
+        ? (...args: Any) => Result<Any, Any> | Promise<Result<Any, Any>>
+        : (...args: Any) => Result<Any, Any>
     : (...args: Any) => Any;
 
 /**
