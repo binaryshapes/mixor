@@ -8,12 +8,6 @@
  */
 
 /**
- * A panic key is a string that is used to identify a panic error.
- * It is used to identify the scope and tag of the panic error.
- */
-type PanicKey = Uppercase<string>;
-
-/**
  * A panic represents a runtime error that is not recoverable.
  * It is used to signal that the application is in an invalid state and should be terminated.
  * All core components should throw a panic error when they are in an invalid state.
@@ -21,17 +15,14 @@ type PanicKey = Uppercase<string>;
  * @param S - The scope of the panic.
  * @param T - The tag of the panic.
  *
- * @example
- * ```ts
- * throw new PanicError('AUTH', 'INVALID_TOKEN', 'Token is invalid');
- * ```
+ * @public
  */
-class PanicError<S extends PanicKey, T extends PanicKey> extends Error {
-  readonly key: `${S}:${T}`;
+class PanicError<S extends string, T extends string> extends Error {
+  readonly code: `${S}:${T}`;
   constructor(scope: S, tag: T, message: string) {
     super(message);
     this.name = 'Panic';
-    this.key = `${scope}:${tag}`;
+    this.code = `${scope}:${tag}`;
   }
 
   /**
@@ -42,7 +33,7 @@ class PanicError<S extends PanicKey, T extends PanicKey> extends Error {
     return {
       name: this.name,
       message: this.message,
-      key: this.key,
+      code: this.code,
     };
   }
 }
@@ -54,20 +45,9 @@ class PanicError<S extends PanicKey, T extends PanicKey> extends Error {
  * @param scope - The scope of the panic.
  * @returns A panic error factory for the given scope.
  *
- * @example
- * ```ts
- * class ContainerError extends Panic<
- *   'CONTAINER',
- *   | 'NO_ADAPTER_BOUND'
- *   | 'MISSING_DEPENDENCY'
- *   | 'INVALID_DEFINITION_TYPE'
- *   | 'CANNOT_OVERRIDE_UNBOUND_PORT'
- * >('CONTAINER') {}
- * ```
- *
  * @public
  */
-function Panic<S extends PanicKey, T extends PanicKey>(scope: S) {
+function panic<S extends string, T extends string>(scope: S) {
   return class extends PanicError<S, T> {
     constructor(tag: T, message: string) {
       super(scope, tag, message);
@@ -75,4 +55,4 @@ function Panic<S extends PanicKey, T extends PanicKey>(scope: S) {
   };
 }
 
-export { Panic, PanicError };
+export { panic, PanicError };
