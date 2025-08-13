@@ -104,6 +104,7 @@ const SchemaError = panic<'Schema', 'FieldIsNotValue'>('Schema');
 
 /**
  * Creates a schema from a set of fields.
+ * Automatically adds the field value as a child of the schema.
  *
  * @typeParam F - The schema fields type.
  * @param fields - The schema object containing field validators.
@@ -178,8 +179,8 @@ const schema = <F extends SchemaFields>(fields: EnsureAllValues<F>): Schema<F> =
       enumerable: true,
     });
 
-    // Set the field schema parentId to the schema.
-    (fieldFn as Value<Any, Any>).parent(traceableSchema);
+    // Adding field value as a child of the schema.
+    traceableSchema.addChildren(fieldFn as Value<Any, Any>);
   }
 
   return traceableSchema;
