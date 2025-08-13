@@ -108,4 +108,15 @@ const assert = (condition: boolean, message: string) => {
  */
 const error = (message: string) => print(message, 'error');
 
-export { assert, error, print };
+/**
+ * Print a warning message to the console.
+ *
+ * @param message - The message to print.
+ *
+ * @returns void
+ *
+ * @public
+ */
+const warn = (message: string) => print(message, 'warning');
+
+export { assert, error, print, warn };
