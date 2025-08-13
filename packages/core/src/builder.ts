@@ -8,7 +8,7 @@
  */
 import type { ErrorMode } from './_err';
 import type { Any } from './generics';
-import { Panic } from './panic';
+import { panic } from './panic';
 import { pipe } from './pipe';
 import { type Result, ok } from './result';
 
@@ -59,15 +59,15 @@ import { type Result, ok } from './result';
  *
  * @public
  */
-class BuilderError extends Panic<
-  'BUILDER',
+const BuilderError = panic<
+  'Builder',
   // A corrupted state of the builder.
-  | 'CORRUPTED_FUNCTION'
+  | 'CorruptedFunction'
   // A function is not found in the builder.
-  | 'FUNCTION_NOT_FOUND'
+  | 'FunctionNotFound'
   // A function is not repeatable in the builder.
-  | 'FUNCTION_NOT_REPEATABLE'
->('BUILDER') {}
+  | 'FunctionNotRepeatable'
+>('Builder');
 
 /**
  * Describes the signature of a function that can be used in the builder.
@@ -359,7 +359,7 @@ function builder<
           const fns = steps.map(({ key, args }) => {
             const originalFn = functions[key];
             if (!originalFn) {
-              throw new BuilderError('CORRUPTED_FUNCTION', `Function '${String(key)}' not found.`);
+              throw new BuilderError('CorruptedFunction', `Function "${String(key)}" not found.`);
             }
 
             return typeof originalFn === 'function' && args.length > 0
@@ -381,7 +381,7 @@ function builder<
       }
 
       if (!(prop in functions)) {
-        throw new BuilderError('FUNCTION_NOT_FOUND', `Function '${prop}' not found in builder.`);
+        throw new BuilderError('FunctionNotFound', `Function "${prop}" not found in builder.`);
       }
 
       const usedCount = steps.filter((s) => s.key === prop).length;
@@ -389,8 +389,8 @@ function builder<
 
       if (usedCount > 0 && !isRepeatable) {
         throw new BuilderError(
-          'FUNCTION_NOT_REPEATABLE',
-          `Function '${prop}' cannot be used more than once.`,
+          'FunctionNotRepeatable',
+          `Function "${prop}" cannot be used more than once.`,
         );
       }
 
