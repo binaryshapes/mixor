@@ -220,29 +220,33 @@ describe('Builder', () => {
   describe('Error handling', () => {
     it('should throw error for non-existent function', () => {
       const string = builder(stringFunctions);
-      let panic: BuilderError;
 
       try {
         // @ts-expect-error - This function is not defined.
         string.nonExistentFunction();
       } catch (error: unknown) {
-        panic = error as BuilderError;
-        expect(panic).toBeInstanceOf(BuilderError);
-        expect(panic.key).toBe('BUILDER:FUNCTION_NOT_FOUND');
+        expect(error).instanceOf(BuilderError);
+        expect(error).toHaveProperty('code', 'Builder:FunctionNotFound');
+        expect(error).toHaveProperty(
+          'message',
+          'Function "nonExistentFunction" not found in builder.',
+        );
       }
     });
 
     it('should throw error for repeated non-repeatable function', () => {
       const string = builder(stringFunctions);
-      let panic: BuilderError;
 
       try {
         // @ts-expect-error - This function is not defined.
         string.isString().isString();
       } catch (error: unknown) {
-        panic = error as BuilderError;
-        expect(panic).toBeInstanceOf(BuilderError);
-        expect(panic.key).toBe('BUILDER:FUNCTION_NOT_REPEATABLE');
+        expect(error).instanceOf(BuilderError);
+        expect(error).toHaveProperty('code', 'Builder:FunctionNotRepeatable');
+        expect(error).toHaveProperty(
+          'message',
+          'Function "isString" cannot be used more than once.',
+        );
       }
     });
 
@@ -253,13 +257,12 @@ describe('Builder', () => {
         { key: 'nonExistentFunction' as keyof typeof stringFunctions, args: [] },
       ]);
 
-      let panic: BuilderError;
       try {
         corruptedBuilder.build();
       } catch (error: unknown) {
-        panic = error as BuilderError;
-        expect(panic).toBeInstanceOf(BuilderError);
-        expect(panic.key).toBe('BUILDER:CORRUPTED_FUNCTION');
+        expect(error).instanceOf(BuilderError);
+        expect(error).toHaveProperty('code', 'Builder:CorruptedFunction');
+        expect(error).toHaveProperty('message', 'Function "nonExistentFunction" not found.');
       }
     });
   });
@@ -454,7 +457,7 @@ describe('Builder', () => {
   });
 
   describe('BuilderError examples', () => {
-    it('should handle CORRUPTED_FUNCTION example from documentation', () => {
+    it('should handle CorruptedFunction example from documentation', () => {
       const stringBuilder = builder({
         isString: (a: unknown) => (typeof a === 'string' ? ok(a) : err('NOT_STRING')),
       });
@@ -472,38 +475,42 @@ describe('Builder', () => {
       expectTypeOf(result).toEqualTypeOf<Result<string, 'NOT_STRING'>>();
     });
 
-    it('should handle FUNCTION_NOT_FOUND example from documentation', () => {
+    it('should handle FunctionNotFound example from documentation', () => {
       const stringBuilder = builder({
         isString: (a: unknown) => (typeof a === 'string' ? ok(a) : err('NOT_STRING')),
       });
 
-      let panic: BuilderError;
       try {
         (stringBuilder as Any).nonExistentFunction();
       } catch (error: unknown) {
-        panic = error as BuilderError;
-        expect(panic).toBeInstanceOf(BuilderError);
-        expect(panic.key).toBe('BUILDER:FUNCTION_NOT_FOUND');
+        expect(error).instanceOf(BuilderError);
+        expect(error).toHaveProperty('code', 'Builder:FunctionNotFound');
+        expect(error).toHaveProperty(
+          'message',
+          'Function "nonExistentFunction" not found in builder.',
+        );
       }
 
       // Typechecking
       expectTypeOf(stringBuilder).toBeObject();
     });
 
-    it('should handle FUNCTION_NOT_REPEATABLE example from documentation', () => {
+    it('should handle FunctionNotRepeatable example from documentation', () => {
       const stringBuilder = builder({
         isString: (a: unknown) => (typeof a === 'string' ? ok(a) : err('NOT_STRING')),
         minLength: (length: number) => (a: string) =>
           a.length >= length ? ok(a) : err('TOO_SHORT'),
       });
 
-      let panic: BuilderError;
       try {
         (stringBuilder as Any).isString().isString();
       } catch (error: unknown) {
-        panic = error as BuilderError;
-        expect(panic).toBeInstanceOf(BuilderError);
-        expect(panic.key).toBe('BUILDER:FUNCTION_NOT_REPEATABLE');
+        expect(error).instanceOf(BuilderError);
+        expect(error).toHaveProperty('code', 'Builder:FunctionNotRepeatable');
+        expect(error).toHaveProperty(
+          'message',
+          'Function "isString" cannot be used more than once.',
+        );
       }
 
       // Typechecking
