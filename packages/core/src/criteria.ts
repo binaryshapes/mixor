@@ -6,6 +6,9 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import { type Component, component } from './component';
+import type { Any } from './generics';
+import { panic } from './panic';
 
 /**
  * Represents the basic scalar types that can be used in criteria operations.
@@ -196,8 +199,33 @@ type FilterableFields<T> = {
 };
 
 /**
+ * Represents a complete criteria object that can be used for filtering.
+ * Combines field-specific criteria with logical operators for complex queries.
+ * This type is flexible and accepts both CriteriaLogic and Criteria objects.
+ *
+ * @typeParam T - The type that the criteria operates on.
+ *
+ * @public
+ */
+type CriteriaLogic<T> =
+  | (Partial<{ [K in keyof FilterableFields<T>]: FieldCriteria<FilterableFields<T>[K]> }> &
+      LogicalOperators<FilterableFields<T>>)
+  | LogicalOperators<FilterableFields<T>>;
+
+/**
+ * A more flexible criteria type that accepts both CriteriaLogic and Criteria objects.
+ * This allows for easier composition without type errors.
+ *
+ * @typeParam T - The type that the criteria operates on.
+ *
+ * @public
+ */
+type FlexibleCriteria<T> = CriteriaLogic<T> | Criteria<T>;
+
+/**
  * Defines logical operators for combining multiple criteria.
  * Provides AND, OR, and NOT operations for criteria composition.
+ * Now accepts both CriteriaLogic and Criteria objects for flexibility.
  *
  * @typeParam T - The type that criteria operate on.
  *
@@ -205,25 +233,12 @@ type FilterableFields<T> = {
  */
 type LogicalOperators<T> = {
   /** Combines multiple criteria with AND logic. */
-  $and?: Criteria<T>[];
+  $and?: FlexibleCriteria<T>[];
   /** Combines multiple criteria with OR logic. */
-  $or?: Criteria<T>[];
+  $or?: FlexibleCriteria<T>[];
   /** Negates a single criteria. */
-  $not?: Criteria<T>;
+  $not?: FlexibleCriteria<T>;
 };
-
-/**
- * Represents a complete criteria object that can be used for filtering.
- * Combines field-specific criteria with logical operators for complex queries.
- *
- * @typeParam T - The type that the criteria operates on.
- *
- * @public
- */
-type Criteria<T> =
-  | (Partial<{ [K in keyof FilterableFields<T>]: FieldCriteria<FilterableFields<T>[K]> }> &
-      LogicalOperators<FilterableFields<T>>)
-  | LogicalOperators<FilterableFields<T>>;
 
 /**
  * Builder interface for composing criteria.
@@ -231,203 +246,104 @@ type Criteria<T> =
  *
  * @public
  */
-interface CriteriaBuilder<T> {
-  /**
-   * Combines the current criteria with others using AND logic.
-   * Accepts both Criteria objects and CriteriaBuilder objects.
-   *
-   * @param others - Additional criteria to combine with AND.
-   * @returns A new CriteriaBuilder with the combined criteria.
-   *
-   * @example
-   * ```ts
-   * // criteria-008: Basic AND composition.
-   * const criteria = criteria<User>({ score: { $gte: 90 } })
-   *   .and({ rating: { $gte: 4 } })
-   *   .build();
-   * ```
-   *
-   * @example
-   * ```ts
-   * // criteria-007: AND composition with existing criteria.
-   * const existingCriteria = criteria<User>({ score: { $gte: 90 } }).build();
-   * const finalCriteria = criteria<User>({ rating: { $gte: 4 } })
-   *   .and(existingCriteria)
-   *   .build();
-   * ```
-   */
-  and(...others: (Criteria<T> | CriteriaBuilder<T>)[]): CriteriaBuilder<T>;
-
-  /**
-   * Combines the current criteria with others using OR logic.
-   * Accepts both Criteria objects and CriteriaBuilder objects.
-   *
-   * @param others - Additional criteria to combine with OR.
-   * @returns A new CriteriaBuilder with the combined criteria.
-   *
-   * @example
-   * ```ts
-   * // criteria-009: Basic OR composition.
-   * const criteria = criteria<User>({ score: { $gte: 90 } })
-   *   .or({ rating: { $gte: 4 } })
-   *   .build();
-   * ```
-   *
-   * @example
-   * ```ts
-   * // criteria-010: OR composition with existing criteria.
-   * const existingCriteria = criteria<User>({ score: { $gte: 90 } }).build();
-   * const finalCriteria = criteria<User>({ rating: { $gte: 4 } })
-   *   .or(existingCriteria)
-   *   .build();
-   * ```
-   */
-  or(...others: (Criteria<T> | CriteriaBuilder<T>)[]): CriteriaBuilder<T>;
-
-  /**
-   * Negates the current criteria.
-   *
-   * @returns A new CriteriaBuilder with the negated criteria.
-   *
-   * @example
-   * ```ts
-   * // criteria-011: Negating criteria.
-   * const criteria = criteria<User>({ score: { $lt: 50 } })
-   *   .not()
-   *   .build();
-   * ```
-   */
-  not(): CriteriaBuilder<T>;
-
-  /**
-   * Builds the final criteria object.
-   *
-   * @returns The composed criteria object.
-   *
-   * @example
-   * ```ts
-   * // criteria-012: Building final criteria.
-   * const finalCriteria = criteria<User>({ score: { $gte: 90 } })
-   *   .and({ rating: { $gte: 4 } })
-   *   .build();
-   * ```
-   */
-  build(): Criteria<T>;
-}
+type Criteria<T> = Component<
+  'Criteria',
+  {
+    value: CriteriaLogic<T>;
+  }
+>;
 
 /**
- * Creates a criteria builder for composing criteria objects.
- * This function provides a unified API for creating and composing criteria.
- *
- * @param criteriaDefinition - The initial criteria definition or existing criteria.
- * @returns A CriteriaBuilder for composing criteria.
- *
- * @example
- * ```ts
- * // criteria-001: Creating individual criteria.
- * const UserHasGreatScore = criteria<User>({
- *   score: { $gte: 90 },
- * }).build();
- * ```
- *
- * @example
- * ```ts
- * // criteria-002: Composing existing criteria.
- * const SelectedUserForContest = UserHasGreatScore
- *   .and(UserIsEarlyAdopter.or(UserIsInvestor))
- *   .and(UserHasBadRating.not())
- *   .build();
- * ```
- *
- * @example
- * ```ts
- * // criteria-003: Complex chaining with AND/OR operations.
- * const ComplexCriteria = criteria<User>({
- *   score: { $gte: 70 },
- * })
- *   .and({ rating: { $gte: 3 } })
- *   .or({ tags: { $contains: 'vip' } })
- *   .and({ isActive: true })
- *   .build();
- * ```
- *
- * @example
- * ```ts
- * // criteria-004: Negation example.
- * const NegatedCriteria = criteria<User>({
- *   score: { $lt: 50 },
- * })
- *   .not()
- *   .build();
- * ```
- *
- * @example
- * ```ts
- * // criteria-005: Negation of complex composition.
- * const AdvancedCriteria = criteria<User>({
- *   score: { $gte: 60 },
- * })
- *   .and({ rating: { $gte: 4 } })
- *   .or({ tags: { $contains: 'premium' } })
- *   .and({ isActive: true })
- *   .not()
- *   .build();
- * ```
- *
- * @example
- * ```ts
- * // criteria-006: Multiple operators in single chain.
- * const MultiOperatorCriteria = criteria<User>({
- *   score: { $gte: 50 },
- * })
- *   .and({ rating: { $gte: 2 } })
- *   .or({ tags: { $contains: 'vip' } })
- *   .and({ isActive: true })
- *   .or({ createdAt: { $lt: new Date('2023-01-01') } })
- *   .and({ rating: { $lte: 5 } })
- *   .build();
- * ```
+ * Criteria module error.
  *
  * @public
  */
-function criteria<T>(criteriaDefinition: Criteria<T>): CriteriaBuilder<T> {
-  return {
-    and: (...others: (Criteria<T> | CriteriaBuilder<T>)[]) => {
-      const existingAnd = criteriaDefinition.$and ? criteriaDefinition.$and : [criteriaDefinition];
-      const newAnds = others.flatMap((c) => {
-        if ('build' in c) {
-          // It's a CriteriaBuilder, get the built criteria
-          const builtCriteria = c.build();
-          return builtCriteria.$and ? builtCriteria.$and : [builtCriteria];
-        } else {
-          // It's a Criteria, use it directly
-          return c.$and ? c.$and : [c];
-        }
-      });
-      return criteria<T>({
-        $and: [...existingAnd, ...newAnds],
-      });
-    },
-    or: (...others: (Criteria<T> | CriteriaBuilder<T>)[]) => {
-      const existingOr = criteriaDefinition.$or ? criteriaDefinition.$or : [criteriaDefinition];
-      const newOrs = others.flatMap((c) => {
-        if ('build' in c) {
-          // It's a CriteriaBuilder, get the built criteria
-          const builtCriteria = c.build();
-          return builtCriteria.$or ? builtCriteria.$or : [builtCriteria];
-        } else {
-          // It's a Criteria, use it directly
-          return c.$or ? c.$or : [c];
-        }
-      });
-      return criteria<T>({
-        $or: [...existingOr, ...newOrs],
-      });
-    },
-    not: () => criteria<T>({ $not: criteriaDefinition }),
-    build: () => criteriaDefinition,
+const CriteriaError = panic<'Criteria', 'InvalidCriteria'>('Criteria');
+
+/**
+ * Checks if the criteria definition is valid.
+ *
+ * @param criteria - The criteria definition to check.
+ *
+ * @internal
+ */
+const checkCriteriaLogicStructure = (criteria: CriteriaLogic<Any>) => {
+  // TODO: This check must be more robust! Need to check every property inside the criteria logic.
+  if (
+    // Not defined.
+    !criteria ||
+    // Not an object.
+    typeof criteria !== 'object' ||
+    // Array.
+    Array.isArray(criteria) ||
+    // Empty object.
+    Object.entries(criteria).length === 0
+  ) {
+    throw new CriteriaError('InvalidCriteria', 'The criteria definition is invalid.');
+  }
+};
+
+/**
+ * Creates a criteria object that can accept both Criteria and CriteriaLogic directly.
+ * This function is intelligent and automatically extracts values from Criteria objects.
+ *
+ * @param criteriaDefinition - The criteria definition that can include Criteria objects.
+ * @returns A Criteria object.
+ *
+ * @public
+ */
+function criteria<T>(criteriaDefinition: FlexibleCriteria<T>): Criteria<T> {
+  const processCriteria = (
+    criteria: FlexibleCriteria<T>,
+  ): { value: CriteriaLogic<T>; children: Component<Any, Any>[] } => {
+    // Check if the criteria definition is valid.
+    checkCriteriaLogicStructure(criteria);
+
+    // If it's a Criteria object, extract its value and collect the component.
+    if ('info' in criteria) {
+      return { value: criteria.value, children: [criteria] };
+    }
+
+    // If it has logical operators, process them recursively.
+    if ('$and' in criteria && criteria.$and) {
+      const processed = criteria.$and.map((c) => processCriteria(c));
+      const value = { $and: processed.map((p) => p.value) };
+      const children = processed.flatMap((p) => p.children);
+      return { value, children };
+    }
+
+    if ('$or' in criteria && criteria.$or) {
+      const processed = criteria.$or.map((c) => processCriteria(c));
+      const value = { $or: processed.map((p) => p.value) };
+      const children = processed.flatMap((p) => p.children);
+      return { value, children };
+    }
+
+    if ('$not' in criteria && criteria.$not) {
+      const processed = processCriteria(criteria.$not);
+      const value = { $not: processed.value };
+      const children = processed.children;
+      return { value, children };
+    }
+
+    // For other properties, return as is (field criteria).
+    return { value: criteria as CriteriaLogic<T>, children: [] };
   };
+
+  const { value, children } = processCriteria(criteriaDefinition);
+
+  // Create the component.
+  const criteriaComponent = component('Criteria', {
+    value,
+  }) as Criteria<T>;
+
+  // Add children if any exist.
+  if (children.length > 0) {
+    criteriaComponent.addChildren(...children);
+  }
+
+  return criteriaComponent;
 }
 
-export type { Criteria, CriteriaBuilder };
+export type { Criteria, CriteriaError };
 export { criteria };

@@ -1,517 +1,162 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { type Criteria, type CriteriaBuilder, criteria } from '../src/criteria';
+import { CriteriaError, criteria } from '../src/criteria';
 
 type User = {
   id: string;
-  tags: string[];
+  tags: ['founder', 'investor'];
   score: number;
   isActive: boolean;
   rating: number;
   createdAt: Date;
 };
 
+// Basic criteria.
+const UserHasGreatScore = criteria<User>({
+  score: { $gte: 90 },
+}).meta({
+  name: 'UserHasGreatScore',
+  description: 'User has a great score',
+  scope: 'User',
+});
+
+// Basic criteria.
+const UserIsEarlyAdopter = criteria<User>({
+  createdAt: { $lt: new Date('2023-03-01') },
+}).meta({
+  name: 'UserIsEarlyAdopter',
+  description: 'User is an early adopter',
+  scope: 'User',
+});
+
+// Basic criteria.
+const UserIsInvestor = criteria<User>({
+  tags: { $contains: 'founder' },
+}).meta({
+  name: 'UserIsInvestor',
+  description: 'User is an investor',
+  scope: 'User',
+});
+
+// Basic criteria.
+const UserHasBadRating = criteria<User>({
+  rating: { $lt: 2 },
+}).meta({
+  name: 'UserHasBadRating',
+  description: 'User has a bad rating',
+  scope: 'User',
+});
+
+// Composed criteria.
+const UserTargetCampaign = criteria<User>({
+  $or: [UserIsEarlyAdopter, UserIsInvestor],
+}).meta({
+  name: 'UserTargetCampaign',
+  description: 'User target campaign',
+  scope: 'User',
+});
+
+// Composed criteria.
+const SelectedUserForContest = criteria<User>({
+  $and: [
+    UserHasGreatScore,
+    UserTargetCampaign,
+    { $not: UserHasBadRating },
+  ],
+}).meta({
+  name: 'SelectedUserForContest',
+  description: 'Selected user for contest logic improved',
+  scope: 'User',
+});
+
 describe('Criteria', () => {
-  describe('Basic functionality', () => {
-    it('should create individual criteria', () => {
-      const UserHasGreatScore = criteria<User>({
-        score: { $gte: 90 },
-      }).build();
+  describe('Public API', () => {
+    it('should create a criteria object with correct metadata', () => {
+      expect(UserHasGreatScore.info().meta?.scope).toBe('User');
+      expect(UserHasGreatScore.info().meta?.name).toBe('UserHasGreatScore');
+      expect(UserHasGreatScore.info().meta?.description).toBe('User has a great score');
 
-      expect(UserHasGreatScore).toEqual({
-        score: { $gte: 90 },
+      expect(UserIsEarlyAdopter.value).toEqual({
+        createdAt: { $lt: new Date('2023-03-01') },
+      });
+
+      expect(UserIsInvestor.value).toEqual({
+        tags: { $contains: 'founder' },
+      });
+
+      expect(UserHasBadRating.value).toEqual({
+        rating: { $lt: 2 },
+      });
+
+      expect(UserTargetCampaign.value).toEqual({
+        $or: [UserIsEarlyAdopter.value, UserIsInvestor.value],
       });
     });
 
-    it('should compose criteria with AND logic', () => {
-      const composedCriteria = criteria<User>({ score: { $gte: 90 } })
-        .and({ rating: { $gte: 4 } })
-        .build();
+    it('should create a composed criteria from other criterias', () => {
+      // Simple composed criteria.
+      expect(UserTargetCampaign.value).toEqual({
+        $or: [UserIsEarlyAdopter.value, UserIsInvestor.value],
+      });
 
-      expect(composedCriteria).toEqual({
+      // Complex composed criteria.
+      expect(SelectedUserForContest.value).toEqual({
         $and: [
-          { score: { $gte: 90 } },
-          { rating: { $gte: 4 } },
+          UserHasGreatScore.value,
+          UserTargetCampaign.value,
+          { $not: UserHasBadRating.value },
         ],
       });
     });
 
-    it('should compose criteria with OR logic', () => {
-      const composedCriteria = criteria<User>({ score: { $gte: 90 } })
-        .or({ rating: { $gte: 4 } })
-        .build();
+    it('should auto-generate the children nodes for the criteria', () => {
+      // Simple composed criteria.
+      const info = UserTargetCampaign.info();
+      expect(info.id).toBeDefined();
+      expect(info.tag).toBe('Criteria');
+      expect(info.category).toBe('object');
+      expect(info.traceable).toBe(false);
+      expect(info.injectable).toBe(true);
+      expect(info.meta).toBeDefined();
+      expect(info.subType).toBe(null);
+      expect(info.childrenIds.length).toBe(2);
+      expect(info.childrenIds[0]).toBeDefined();
+      expect(info.childrenIds[0]).toBe(UserIsEarlyAdopter.info().id);
+      expect(info.childrenIds[1]).toBe(UserIsInvestor.info().id);
 
-      expect(composedCriteria).toEqual({
-        $or: [
-          { score: { $gte: 90 } },
-          { rating: { $gte: 4 } },
-        ],
-      });
-    });
-
-    it('should negate criteria', () => {
-      const negatedCriteria = criteria<User>({ score: { $lt: 50 } })
-        .not()
-        .build();
-
-      expect(negatedCriteria).toEqual({
-        $not: { score: { $lt: 50 } },
-      });
-    });
-
-    it('should handle empty criteria', () => {
-      const emptyCriteria = criteria<User>({}).build();
-      expect(emptyCriteria).toEqual({});
-    });
-
-    it('should handle multiple operations', () => {
-      const complexCriteria = criteria<User>({ score: { $gte: 90 } })
-        .and({ rating: { $gte: 4 } })
-        .and({ isActive: true })
-        .build();
-
-      expect(complexCriteria).toEqual({
-        $and: [
-          { score: { $gte: 90 } },
-          { rating: { $gte: 4 } },
-          { isActive: true },
-        ],
-      });
-    });
-
-    it('should handle AND composition with existing $and criteria', () => {
-      // Create a criteria that already has $and
-      const existingAndCriteria = criteria<User>({ score: { $gte: 90 } })
-        .and({ rating: { $gte: 4 } })
-        .build();
-
-      // Compose with another criteria that also has $and
-      const additionalAndCriteria = criteria<User>({ isActive: true })
-        .and({ tags: { $contains: 'vip' } })
-        .build();
-
-      const result = criteria(existingAndCriteria).and(additionalAndCriteria).build();
-
-      expect(result).toEqual({
-        $and: [
-          { score: { $gte: 90 } },
-          { rating: { $gte: 4 } },
-          { isActive: true },
-          { tags: { $contains: 'vip' } },
-        ],
-      });
-    });
-
-    it('should handle OR composition with existing $or criteria', () => {
-      // Create a criteria that already has $or
-      const existingOrCriteria = criteria<User>({ score: { $gte: 90 } })
-        .or({ rating: { $gte: 4 } })
-        .build();
-
-      // Compose with another criteria that also has $or
-      const additionalOrCriteria = criteria<User>({ isActive: true })
-        .or({ tags: { $contains: 'vip' } })
-        .build();
-
-      const result = criteria(existingOrCriteria).or(additionalOrCriteria).build();
-
-      expect(result).toEqual({
-        $or: [
-          { score: { $gte: 90 } },
-          { rating: { $gte: 4 } },
-          { isActive: true },
-          { tags: { $contains: 'vip' } },
-        ],
-      });
-    });
-
-    it('should handle mixed composition with existing logical operators', () => {
-      // Create a criteria with existing $and
-      const existingAndCriteria = criteria<User>({ score: { $gte: 90 } })
-        .and({ rating: { $gte: 4 } })
-        .build();
-
-      // Create a criteria with existing $or
-      const existingOrCriteria = criteria<User>({ isActive: true })
-        .or({ tags: { $contains: 'vip' } })
-        .build();
-
-      // Compose them together
-      const result = criteria(existingAndCriteria).and(existingOrCriteria).build();
-
-      expect(result).toEqual({
-        $and: [
-          { score: { $gte: 90 } },
-          { rating: { $gte: 4 } },
-          {
-            $or: [
-              { isActive: true },
-              { tags: { $contains: 'vip' } },
-            ],
-          },
-        ],
-      });
-    });
-
-    it('should handle AND composition with CriteriaBuilder objects', () => {
-      // Create a CriteriaBuilder
-      const builderCriteria = criteria<User>({ score: { $gte: 90 } }).and({ rating: { $gte: 4 } });
-
-      // Compose with another CriteriaBuilder
-      const anotherBuilder = criteria<User>({ isActive: true }).and({ tags: { $contains: 'vip' } });
-
-      const result = criteria<User>({ createdAt: { $lt: new Date() } })
-        .and(builderCriteria, anotherBuilder)
-        .build();
-
-      expect(result).toEqual({
-        $and: [
-          { createdAt: { $lt: new Date() } },
-          { score: { $gte: 90 } },
-          { rating: { $gte: 4 } },
-          { isActive: true },
-          { tags: { $contains: 'vip' } },
-        ],
-      });
-    });
-
-    it('should handle OR composition with CriteriaBuilder objects', () => {
-      // Create a CriteriaBuilder
-      const builderCriteria = criteria<User>({ score: { $gte: 90 } }).or({ rating: { $gte: 4 } });
-
-      // Compose with another CriteriaBuilder
-      const anotherBuilder = criteria<User>({ isActive: true }).or({ tags: { $contains: 'vip' } });
-
-      const result = criteria<User>({ createdAt: { $lt: new Date() } })
-        .or(builderCriteria, anotherBuilder)
-        .build();
-
-      expect(result).toEqual({
-        $or: [
-          { createdAt: { $lt: new Date() } },
-          { score: { $gte: 90 } },
-          { rating: { $gte: 4 } },
-          { isActive: true },
-          { tags: { $contains: 'vip' } },
-        ],
-      });
-    });
-
-    it('should handle AND composition with direct Criteria objects', () => {
-      // Create a direct Criteria object (not a CriteriaBuilder)
-      const directCriteria: Criteria<User> = { score: { $gte: 90 } };
-      const anotherDirectCriteria: Criteria<User> = { rating: { $gte: 4 } };
-
-      const result = criteria<User>({ isActive: true })
-        .and(directCriteria, anotherDirectCriteria)
-        .build();
-
-      expect(result).toEqual({
-        $and: [
-          { isActive: true },
-          { score: { $gte: 90 } },
-          { rating: { $gte: 4 } },
-        ],
-      });
-    });
-
-    it('should handle OR composition with direct Criteria objects', () => {
-      // Create a direct Criteria object (not a CriteriaBuilder)
-      const directCriteria: Criteria<User> = { score: { $gte: 90 } };
-      const anotherDirectCriteria: Criteria<User> = { rating: { $gte: 4 } };
-
-      const result = criteria<User>({ isActive: true })
-        .or(directCriteria, anotherDirectCriteria)
-        .build();
-
-      expect(result).toEqual({
-        $or: [
-          { isActive: true },
-          { score: { $gte: 90 } },
-          { rating: { $gte: 4 } },
-        ],
-      });
+      // Complex composed criteria.
+      const info2 = SelectedUserForContest.info();
+      expect(info2.id).toBeDefined();
+      expect(info2.tag).toBe('Criteria');
+      expect(info2.category).toBe('object');
+      expect(info2.traceable).toBe(false);
+      expect(info2.injectable).toBe(true);
+      expect(info2.meta).toBeDefined();
+      expect(info2.subType).toBe(null);
+      expect(info2.childrenIds.length).toBe(3);
+      expect(info2.childrenIds[0]).toBeDefined();
+      expect(info2.childrenIds[0]).toBe(UserHasGreatScore.info().id);
+      expect(info2.childrenIds[1]).toBe(UserTargetCampaign.info().id);
+      expect(info2.childrenIds[2]).toBe(UserHasBadRating.info().id);
     });
   });
 
-  describe('Type safety', () => {
-    it('should provide correct type inference for all public elements', () => {
-      // Test the main criteria function
-      expectTypeOf(criteria).toBeFunction();
-      expectTypeOf(criteria<User>({ score: { $gte: 90 } })).toBeObject();
-      expectTypeOf(criteria<User>({ score: { $gte: 90 } }).build()).toBeObject();
+  describe('Edge Cases & Error Handling', () => {
+    it('should throw an error if the criteria definition is not valid', () => {
+      // @ts-expect-error - A primitive value is not a valid criteria definition.
+      expect(() => criteria<User>('hello')).toThrow(CriteriaError);
 
-      // Test CriteriaBuilder interface
-      const builder = criteria<User>({ score: { $gte: 90 } });
-      expectTypeOf(builder.and).toBeFunction();
-      expectTypeOf(builder.or).toBeFunction();
-      expectTypeOf(builder.not).toBeFunction();
-      expectTypeOf(builder.build).toBeFunction();
+      // @ts-expect-error - An empty object is not a valid criteria definition.
+      expect(() => criteria<User>({})).toThrow(CriteriaError);
 
-      // Test type parameters
-      expectTypeOf<Criteria<User>>().toBeObject();
-      expectTypeOf<CriteriaBuilder<User>>().toBeObject();
-    });
+      // @ts-expect-error - An array is not a valid criteria definition.
+      expect(() => criteria<User>([])).toThrow(CriteriaError);
 
-    it('should validate generic type constraints', () => {
-      // Test generic function with different types
-      expectTypeOf(criteria<User>).toBeFunction();
-      expectTypeOf(criteria<User>({ score: { $gte: 90 } })).toBeObject();
+      // @ts-expect-error - Null is not a valid criteria definition.
+      expect(() => criteria<User>(null)).toThrow(CriteriaError);
 
-      // Test builder methods with generics
-      const builder = criteria<User>({ score: { $gte: 90 } });
-      expectTypeOf(builder.and({ rating: { $gte: 4 } })).toBeObject();
-      expectTypeOf(builder.or({ tags: { $contains: 'vip' } })).toBeObject();
-      expectTypeOf(builder.not()).toBeObject();
-    });
-
-    it('should validate field operators type safety', () => {
-      // Test string operators
-      expectTypeOf(criteria<User>({ tags: { $contains: 'vip' } })).toBeObject();
-      expectTypeOf(criteria<User>({ tags: { $containsAny: ['premium'] } })).toBeObject();
-
-      // Test number operators
-      expectTypeOf(criteria<User>({ score: { $gte: 90, $lt: 100 } })).toBeObject();
-      expectTypeOf(criteria<User>({ rating: { $eq: 5 } })).toBeObject();
-
-      // Test boolean operators
-      expectTypeOf(criteria<User>({ isActive: { $eq: true } })).toBeObject();
-
-      // Test date operators
-      expectTypeOf(criteria<User>({ createdAt: { $gt: new Date() } })).toBeObject();
-
-      // Test array operators
-      expectTypeOf(criteria<User>({ tags: { $containsAny: ['vip', 'premium'] } })).toBeObject();
-    });
-
-    it('should validate complex nested criteria types', () => {
-      const complexCriteria = criteria<User>({ score: { $gte: 70 } })
-        .and({ rating: { $gte: 3 } })
-        .or({ tags: { $contains: 'vip' } })
-        .and({ isActive: true })
-        .build();
-
-      expectTypeOf(complexCriteria).toBeObject();
-    });
-  });
-
-  describe('Code examples', () => {
-    it('should run example criteria-001: Creating individual criteria', () => {
-      const UserHasGreatScore = criteria<User>({
-        score: { $gte: 90 },
-      }).build();
-
-      const UserIsEarlyAdopter = criteria<User>({
-        createdAt: { $lt: new Date('2023-03-01') },
-      }).build();
-
-      const UserIsInvestor = criteria<User>({
-        tags: { $contains: 'founder' },
-      }).build();
-
-      const UserHasBadRating = criteria<User>({
-        rating: { $lt: 2 },
-      }).build();
-
-      expect(UserHasGreatScore).toEqual({
-        score: { $gte: 90 },
-      });
-
-      expect(UserIsEarlyAdopter).toEqual({
-        createdAt: { $lt: new Date('2023-03-01') },
-      });
-
-      expect(UserIsInvestor).toEqual({
-        tags: { $contains: 'founder' },
-      });
-
-      expect(UserHasBadRating).toEqual({
-        rating: { $lt: 2 },
-      });
-    });
-
-    it('should run example criteria-002: Composing existing criteria', () => {
-      const UserHasGreatScore = criteria<User>({
-        score: { $gte: 90 },
-      });
-
-      const UserIsEarlyAdopter = criteria<User>({
-        createdAt: { $lt: new Date('2023-03-01') },
-      });
-
-      const UserIsInvestor = criteria<User>({
-        tags: { $contains: 'founder' },
-      });
-
-      const UserHasBadRating = criteria<User>({
-        rating: { $lt: 2 },
-      });
-
-      // Elegant inline composition: UserHasGreatScore AND (UserIsEarlyAdopter OR UserIsInvestor) AND NOT UserHasBadRating
-      const SelectedUserForContest = UserHasGreatScore.and(UserIsEarlyAdopter.or(UserIsInvestor))
-        .and(UserHasBadRating.not())
-        .build();
-
-      expect(SelectedUserForContest).toEqual({
-        $and: [
-          {
-            score: { $gte: 90 },
-          },
-          {
-            $or: [
-              {
-                createdAt: { $lt: new Date('2023-03-01') },
-              },
-              {
-                tags: { $contains: 'founder' },
-              },
-            ],
-          },
-          {
-            $not: {
-              rating: { $lt: 2 },
-            },
-          },
-        ],
-      });
-    });
-
-    it('should run example criteria-003: Complex chaining with AND/OR operations', () => {
-      const ComplexCriteria = criteria<User>({
-        score: { $gte: 70 },
-      })
-        .and({ rating: { $gte: 3 } })
-        .or({ tags: { $contains: 'vip' } })
-        .and({ isActive: true })
-        .build();
-
-      expect(ComplexCriteria).toEqual({
-        $and: [
-          {
-            $or: [
-              {
-                $and: [
-                  {
-                    score: { $gte: 70 },
-                  },
-                  {
-                    rating: { $gte: 3 },
-                  },
-                ],
-              },
-              {
-                tags: { $contains: 'vip' },
-              },
-            ],
-          },
-          {
-            isActive: true,
-          },
-        ],
-      });
-    });
-
-    it('should run example criteria-004: Negation example', () => {
-      const NegatedCriteria = criteria<User>({
-        score: { $lt: 50 },
-      })
-        .not()
-        .build();
-
-      expect(NegatedCriteria).toEqual({
-        $not: {
-          score: { $lt: 50 },
-        },
-      });
-    });
-
-    it('should run example criteria-005: Negation of complex composition', () => {
-      const AdvancedCriteria = criteria<User>({
-        score: { $gte: 60 },
-      })
-        .and({ rating: { $gte: 4 } })
-        .or({ tags: { $contains: 'premium' } })
-        .and({ isActive: true })
-        .not()
-        .build();
-
-      expect(AdvancedCriteria).toEqual({
-        $not: {
-          $and: [
-            {
-              $or: [
-                {
-                  $and: [
-                    {
-                      score: { $gte: 60 },
-                    },
-                    {
-                      rating: { $gte: 4 },
-                    },
-                  ],
-                },
-                {
-                  tags: { $contains: 'premium' },
-                },
-              ],
-            },
-            {
-              isActive: true,
-            },
-          ],
-        },
-      });
-    });
-
-    it('should run example criteria-006: Multiple operators in single chain', () => {
-      const MultiOperatorCriteria = criteria<User>({
-        score: { $gte: 50 },
-      })
-        .and({ rating: { $gte: 2 } })
-        .or({ tags: { $contains: 'vip' } })
-        .and({ isActive: true })
-        .or({ createdAt: { $lt: new Date('2023-01-01') } })
-        .and({ rating: { $lte: 5 } })
-        .build();
-
-      expect(MultiOperatorCriteria).toEqual({
-        $and: [
-          {
-            $or: [
-              {
-                $and: [
-                  {
-                    $or: [
-                      {
-                        $and: [
-                          {
-                            score: { $gte: 50 },
-                          },
-                          {
-                            rating: { $gte: 2 },
-                          },
-                        ],
-                      },
-                      {
-                        tags: { $contains: 'vip' },
-                      },
-                    ],
-                  },
-                  {
-                    isActive: true,
-                  },
-                ],
-              },
-              {
-                createdAt: { $lt: new Date('2023-01-01') },
-              },
-            ],
-          },
-          {
-            rating: { $lte: 5 },
-          },
-        ],
-      });
+      // @ts-expect-error - Undefined is not a valid criteria definition.
+      expect(() => criteria<User>(undefined)).toThrow(CriteriaError);
     });
   });
 });
