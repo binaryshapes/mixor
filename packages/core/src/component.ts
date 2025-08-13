@@ -11,7 +11,7 @@ import { EventEmitter } from 'node:events';
 
 import { config } from './_config';
 import type { Any, Prettify } from './generics';
-import { assert } from './logger';
+import { assert, warn } from './logger';
 import { panic } from './panic';
 import { type Result } from './result';
 
@@ -31,7 +31,7 @@ type Infer<T, Tag extends string> =
       ? F
       : T
     : // If the tag represents an Object, return the prettified type.
-      Tag extends 'Object'
+      Tag extends 'Object' | 'Criteria'
       ? Prettify<T>
       : // Otherwise, return the type as is (no inference needed, the type is already known).
         T;
@@ -46,7 +46,6 @@ const nonInjectableList = [
   'Builder',
   'Command',
   'Condition',
-  'Criteria',
   'Event',
   'Flow',
   'Query',
@@ -61,7 +60,7 @@ const nonInjectableList = [
  *
  * @internal
  */
-const injectableList = ['Port', 'Adapter', 'Service', 'Container', 'Object'] as const;
+const injectableList = ['Port', 'Adapter', 'Service', 'Container', 'Object', 'Criteria'] as const;
 
 /**
  * List of tracer events.
@@ -129,7 +128,7 @@ type ComponentSubType =
  *
  * @internal
  */
-type ComponentType<Tag extends ComponentTag> = Tag extends 'Object'
+type ComponentType<Tag extends ComponentTag> = Tag extends 'Object' | 'Criteria'
   ? Record<string, Any>
   : Tag extends ComponentNonInjectable
     ? Tag extends 'Event'
@@ -151,8 +150,8 @@ type ComponentData<Type, Tag extends ComponentTag> = {
   /** Unique identifier for the component. */
   readonly id: string;
 
-  /** Parent component identifier for hierarchical tracing. */
-  readonly parentId: string | null;
+  /** Child components identifiers. */
+  readonly childrenIds: string[];
 
   /** Tag identifier for categorization. */
   readonly tag: Tag;
@@ -187,6 +186,26 @@ type ComponentData<Type, Tag extends ComponentTag> = {
 };
 
 /**
+ * Represents a node in the component dependency tree.
+ *
+ * @typeParam T - The component type.
+ *
+ * @public
+ */
+type TreeNode<T> = {
+  /** The component instance. */
+  readonly component: T;
+  /** Component information. */
+  readonly info: ComponentData<Any, Any>;
+  /** Child nodes in the tree. */
+  readonly children: TreeNode<Any>[];
+  /** Depth level in the tree (0 for root). */
+  readonly depth: number;
+  /** Path from root to this node. */
+  readonly path: string[];
+};
+
+/**
  * Main component interface with fluent API methods.
  *
  * @typeParam Tag - The component tag type.
@@ -209,12 +228,12 @@ type Component<Tag extends ComponentTag, Type> = Type & {
   meta: <Self>(this: Self, meta: ComponentData<Type, Tag>['meta']) => Self;
 
   /**
-   * Set the parent for the component.
+   * Set the children for the component.
    *
-   * @param parent - The parent component.
+   * @param children - The children components.
    * @returns The component for method chaining.
    */
-  parent: <Self>(this: Self, parent: Component<Any, Any>) => Self;
+  addChildren: <Self>(this: Self, ...children: Component<Any, Any>[]) => Self;
 
   /**
    * Get the info related to the component.
@@ -225,6 +244,17 @@ type Component<Tag extends ComponentTag, Type> = Type & {
    * @returns The component data information.
    */
   info: <Self>(this: Self) => ComponentData<Type, Tag>;
+
+  /**
+   * Get the dependency tree for this component.
+   *
+   * @remarks
+   * This method traverses the component hierarchy and builds a tree
+   * representation showing all parent-child relationships.
+   *
+   * @returns A tree node representing this component and its dependencies.
+   */
+  tree: <Self>(this: Self) => TreeNode<Self>;
 } & (Tag extends ComponentInjectable
     ? {
         /**
@@ -256,9 +286,10 @@ type Component<Tag extends ComponentTag, Type> = Type & {
  *
  * @public
  */
-const ComponentError = panic<'Component', 'AlreadyRegisteredError' | 'InvalidTargetError'>(
+const ComponentError = panic<
   'Component',
-);
+  'AlreadyRegisteredError' | 'InvalidTargetError' | 'ComponentNotFoundError'
+>('Component');
 
 /**
  * Parse arguments array to extract type information for tracing.
@@ -480,11 +511,12 @@ const registry = (() => {
 const ComponentBasePrototype = (self: Any) => {
   return {
     meta: (meta: ComponentData<Any, Any>['meta']) => (registry.set(self, { meta }), self),
-    parent: (parent: Component<Any, Any>) => (
-      registry.set(self, { parentId: registry.get(parent).id }),
+    addChildren: (...children: Component<Any, Any>[]) => (
+      registry.set(self, { childrenIds: children.map((c) => registry.get(c).id) }),
       self
     ),
     info: () => registry.get(self),
+    tree: () => buildTree(self.info().id),
   };
 };
 
@@ -527,12 +559,82 @@ const InjectableComponentPrototype = (self: Any) => {
  */
 function hash(...args: unknown[]): string {
   const safeArgs = args.map((arg) => {
-    if (typeof arg === 'object') return JSON.stringify(arg);
+    if (typeof arg === 'object')
+      return JSON.stringify(
+        Object.entries(arg as Any)
+          .map(([key, value]) =>
+            typeof value === 'object' ? hash(value) : `${key}:${String(value)}`,
+          )
+          .join(''),
+      );
 
     // This fallback is safe for arrays, functions and other primitives.
     return String(arg);
   });
+
   return createHash('sha256').update(safeArgs.join('')).digest('hex');
+}
+
+/**
+ * Build a dependency tree for a component.
+ *
+ * @param componentId - The ID of the component to build the tree for.
+ * @param depth - Current depth in the tree.
+ * @param path - Current path from root.
+ * @param visited - Set of visited component IDs to prevent cycles.
+ * @returns A tree node representing the component and its dependencies.
+ *
+ * @public
+ */
+function buildTree(
+  componentId: string,
+  depth = 0,
+  path: string[] = [],
+  visited: Set<string> = new Set(),
+): TreeNode<Any> {
+  const component = registry.catalog.get(componentId);
+
+  if (!component) {
+    throw new ComponentError('ComponentNotFoundError', `Component not found: ${componentId}`);
+  }
+
+  const info = component.info();
+
+  // Prevent infinite recursion in case of circular dependencies.
+  if (visited.has(componentId)) {
+    warn(`Circular dependency detected: ${componentId}. Maybe you tree is corrupted.`);
+    return {
+      component,
+      info,
+      children: [],
+      depth,
+      path: [...path, componentId],
+    };
+  }
+
+  visited.add(componentId);
+  const currentPath = [...path, componentId];
+
+  // Build children trees.
+  const children = info.childrenIds
+    .map((childId: string) => {
+      const childComponent = registry.catalog.get(childId);
+
+      // This should never happen, but we assert it to be sure.
+      assert(childComponent, `Child component not found: ${childId}. Maybe you tree is corrupted.`);
+
+      // Build the child tree.
+      return buildTree(childId, depth + 1, currentPath, visited);
+    })
+    .filter((child: TreeNode<Any> | null): child is TreeNode<Any> => child !== null);
+
+  return {
+    component,
+    info,
+    children,
+    depth,
+    path: currentPath,
+  };
 }
 
 /**
@@ -570,7 +672,7 @@ const component = <Tag extends ComponentTag, Target extends ComponentType<Tag>>(
   // Initial data for the component.
   const targetData: ComponentData<Target, Tag> = {
     id,
-    parentId: null,
+    childrenIds: [],
     tag,
     category,
     subType: null,
@@ -688,5 +790,29 @@ const tracer = (() => {
   };
 })();
 
+/**
+ * List of supported components.
+ *
+ * @remarks
+ * This list is could be useful if you want to check the behavior setup of each
+ * component supported by the core.
+ *
+ * @public
+ */
+const supportedComponents = [
+  ...nonInjectableList.map((tag) => {
+    return {
+      tag,
+      injectable: false as const,
+    };
+  }),
+  ...injectableList.map((tag) => {
+    return {
+      tag,
+      injectable: true as const,
+    };
+  }),
+];
+
 export type { Component };
-export { component, tracer, isComponent, ComponentError };
+export { component, supportedComponents, tracer, isComponent, ComponentError, buildTree };

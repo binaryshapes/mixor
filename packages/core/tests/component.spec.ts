@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
-import { ComponentError, component, isComponent, tracer } from '../src/component';
+import {
+  ComponentError,
+  buildTree,
+  component,
+  isComponent,
+  supportedComponents,
+  tracer,
+} from '../src/component';
 import { ok } from '../src/result';
 
 describe('Component', () => {
   // Test data and utilities
   const mockFunction = () => (value: string) => ok(value);
-  const mockObject = () => ({ key: 'value' });
+  const mockObject = () => ({ key: 'value', nested: { nestedKey: 'nestedValue' } });
   const mockErrorFunction = () => () => {
     throw new Error('Test error');
   };
@@ -87,27 +94,26 @@ describe('Component', () => {
       });
 
       it('should throw InvalidTargetError for invalid targets', () => {
-        expect(() => component('Rule', null as never)).toThrow(ComponentError);
-        expect(() => component('Rule', undefined as never)).toThrow(ComponentError);
+        try {
+          component('Rule', null as never);
+        } catch (error) {
+          expect(error).toBeInstanceOf(ComponentError);
+          expect(error).toHaveProperty('code', 'Component:InvalidTargetError');
+        }
+
+        try {
+          component('Rule', undefined as never);
+        } catch (error) {
+          expect(error).toBeInstanceOf(ComponentError);
+          expect(error).toHaveProperty('code', 'Component:InvalidTargetError');
+        }
       });
     });
   });
 
   describe('Injectable vs Non-Injectable Components', () => {
     describe('Non-Injectable Components', () => {
-      const nonInjectableTags = [
-        'Aggregate',
-        'Builder',
-        'Command',
-        'Criteria',
-        'Event',
-        'Flow',
-        'Query',
-        'Rule',
-        'Schema',
-        'Specification',
-        'Value',
-      ] as const;
+      const nonInjectableTags = supportedComponents.filter((c) => !c.injectable).map((c) => c.tag);
 
       it.each(nonInjectableTags)('should create %s component as non-injectable', (tag) => {
         const testComponent = component(tag, mockFunction());
@@ -127,7 +133,7 @@ describe('Component', () => {
     });
 
     describe('Injectable Components', () => {
-      const injectableTags = ['Port', 'Adapter', 'Service', 'Container', 'Object'] as const;
+      const injectableTags = supportedComponents.filter((c) => c.injectable).map((c) => c.tag);
 
       it.each(injectableTags)('should create %s component as injectable', (tag) => {
         const testComponent = component(tag, mockInjectableObject());
@@ -181,16 +187,6 @@ describe('Component', () => {
         expect(testComponent.info().meta?.name).toBe('Test Rule');
       });
 
-      it('should provide parent method on all components', () => {
-        const parentComponent = component('Schema', mockFunction());
-        const childComponent = component('Rule', mockFunction());
-
-        const result = childComponent.parent(parentComponent);
-
-        expect(result).toBe(childComponent);
-        expect(childComponent.info().parentId).toBe(parentComponent.info().id);
-      });
-
       it('should provide info method on all components', () => {
         const testComponent = component('Rule', mockFunction());
         const info = testComponent.info();
@@ -212,6 +208,63 @@ describe('Component', () => {
           // @ts-expect-error - we want to test the immutability of the info object.
           info.tag = 'Modified';
         }).toThrow();
+      });
+
+      it('should provide tree method on all components', () => {
+        const testComponent = component('Rule', mockFunction());
+        const tree = testComponent.tree();
+        expect(tree).toBeDefined();
+
+        expect(tree.info.id).toBe(testComponent.info().id);
+        expect(tree.info.tag).toBe('Rule');
+        expect(tree.info.category).toBe('function');
+        expect(tree.info.traceable).toBe(false);
+        expect(tree.info.injectable).toBe(false);
+        expect(tree.info.meta).toBe(null);
+        expect(tree.info.subType).toBe(null);
+        expect(tree.children.length).toBe(0);
+      });
+
+      it('should build tree with children', () => {
+        const testComponent = component('Rule', mockFunction());
+        const childComponent = component('Object', mockObject());
+        testComponent.addChildren(childComponent);
+        const tree = testComponent.tree();
+
+        expect(tree.children.length).toBe(1);
+        expect(tree.children[0].info.id).toBe(childComponent.info().id);
+        expect(tree.children[0].info.tag).toBe('Object');
+        expect(tree.children[0].info.category).toBe('object');
+        expect(tree.children[0].info.traceable).toBe(false);
+        expect(tree.children[0].info.injectable).toBe(true);
+        expect(tree.children[0].info.meta).toBe(null);
+        expect(tree.children[0].info.subType).toBe(null);
+        expect(tree.children[0].children.length).toBe(0);
+      });
+
+      it('should throw error if component is not found in buildTree', () => {
+        try {
+          buildTree('non-existent-component');
+        } catch (error) {
+          expect(error).toBeInstanceOf(ComponentError);
+          expect(error).toHaveProperty('code', 'Component:ComponentNotFoundError');
+        }
+      });
+
+      it('should build tree with circular dependencies', () => {
+        const testComponent = component('Rule', mockFunction());
+        // Self-referencing component.
+        testComponent.addChildren(testComponent);
+        const tree = testComponent.tree();
+        expect(tree.children.length).toBe(1);
+        expect(tree.children[0].info.id).toBe(testComponent.info().id);
+        expect(tree.children[0].info.tag).toBe('Rule');
+        expect(tree.children[0].info.category).toBe('function');
+        expect(tree.children[0].info.traceable).toBe(false);
+        expect(tree.children[0].info.injectable).toBe(false);
+        expect(tree.children[0].info.meta).toBe(null);
+        expect(tree.children[0].info.subType).toBe(null);
+        expect(tree.children[0].children.length).toBe(0);
       });
     });
 
@@ -466,27 +519,6 @@ describe('Component', () => {
       });
     });
 
-    describe('Parent-Child Relationships', () => {
-      it('should handle null parent ID correctly', () => {
-        const testComponent = component('Rule', mockFunction());
-        const info = testComponent.info();
-
-        expect(info.parentId).toBe(null);
-      });
-
-      it('should support deep parent-child hierarchies', () => {
-        const grandparent = component('Schema', mockFunction());
-        const parent = component('Rule', mockFunction());
-        const child = component('Value', mockFunction());
-
-        parent.parent(grandparent);
-        child.parent(parent);
-
-        expect(parent.info().parentId).toBe(grandparent.info().id);
-        expect(child.info().parentId).toBe(parent.info().id);
-      });
-    });
-
     describe('SubType Handling', () => {
       it('should handle all valid subType values', () => {
         const validSubTypes = [
@@ -552,14 +584,6 @@ describe('Component', () => {
         ).toEqualTypeOf<typeof testComponent>();
       });
 
-      it('should return correct types for parent method', () => {
-        const testComponent = component('Rule', mockFunction());
-        const parentComponent = component('Schema', mockFunction());
-
-        expectTypeOf(testComponent.parent).toBeFunction();
-        expectTypeOf(testComponent.parent(parentComponent)).toEqualTypeOf<typeof testComponent>();
-      });
-
       it('should return correct types for info method', () => {
         const testComponent = component('Rule', mockFunction());
 
@@ -568,30 +592,22 @@ describe('Component', () => {
         expectTypeOf(testComponent.info()).toHaveProperty('tag');
         expectTypeOf(testComponent.info()).toHaveProperty('category');
       });
+
+      it('should return correct types for tree method', () => {
+        const testComponent = component('Rule', mockFunction());
+
+        expectTypeOf(testComponent.tree).toBeFunction();
+        expectTypeOf(testComponent.tree()).toHaveProperty('info');
+        expectTypeOf(testComponent.tree()).toHaveProperty('children');
+        expectTypeOf(testComponent.tree()).toHaveProperty('depth');
+        expectTypeOf(testComponent.tree()).toHaveProperty('path');
+        expectTypeOf(testComponent.tree()).toHaveProperty('component');
+      });
     });
 
     describe('Component Tag Types', () => {
       it('should accept all valid component tags', () => {
-        const validTags = [
-          'Aggregate',
-          'Builder',
-          'Command',
-          'Criteria',
-          'Event',
-          'Flow',
-          'Query',
-          'Rule',
-          'Schema',
-          'Specification',
-          'Value',
-          'Port',
-          'Adapter',
-          'Service',
-          'Container',
-          'Object',
-        ] as const;
-
-        validTags.forEach((tag) => {
+        supportedComponents.forEach(({ tag }) => {
           if (tag === 'Object') {
             expectTypeOf(component).toBeCallableWith(tag, mockObject());
           } else {
