@@ -77,12 +77,13 @@ function env<F>(schema: Schema<F>) {
       (key) =>
         ![
           'meta',
-          'parent',
+          'addChildren',
           'traceable',
           'Type',
           'info',
           'subType',
           'injectable',
+          'tree',
         ].includes(key),
     );
 
