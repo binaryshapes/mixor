@@ -205,7 +205,7 @@ type FilterableFields<T> = {
  *
  * @typeParam T - The type that the criteria operates on.
  *
- * @public
+ * @internal
  */
 type CriteriaLogic<T> =
   | (Partial<{ [K in keyof FilterableFields<T>]: FieldCriteria<FilterableFields<T>[K]> }> &
@@ -218,7 +218,7 @@ type CriteriaLogic<T> =
  *
  * @typeParam T - The type that the criteria operates on.
  *
- * @public
+ * @internal
  */
 type FlexibleCriteria<T> = CriteriaLogic<T> | Criteria<T>;
 
@@ -267,7 +267,7 @@ const CriteriaError = panic<'Criteria', 'InvalidCriteria'>('Criteria');
  *
  * @internal
  */
-const checkCriteriaLogicStructure = (criteria: CriteriaLogic<Any>) => {
+const checkCriteriaLogic = (criteria: CriteriaLogic<Any>) => {
   // TODO: This check must be more robust! Need to check every property inside the criteria logic.
   if (
     // Not defined.
@@ -297,7 +297,7 @@ function criteria<T>(criteriaDefinition: FlexibleCriteria<T>): Criteria<T> {
     criteria: FlexibleCriteria<T>,
   ): { value: CriteriaLogic<T>; children: Component<Any, Any>[] } => {
     // Check if the criteria definition is valid.
-    checkCriteriaLogicStructure(criteria);
+    checkCriteriaLogic(criteria);
 
     // If it's a Criteria object, extract its value and collect the component.
     if ('info' in criteria) {
