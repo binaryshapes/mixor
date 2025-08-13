@@ -4,5 +4,14 @@
   "typescript.enablePromptUseWorkspaceTsdk": true,
 
   // This is not a frontend project, so we don't need to highlight colors.
-  "color-highlight.enable": false
+  "color-highlight.enable": false,
+
+  // Format markdown files with prettier and markdownlint.
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.markdownlint": "always"
+    }
+  }
 }
