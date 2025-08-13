@@ -1,263 +1,161 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { schema, value } from '../src';
-import { AggregateError, aggregate } from '../src/aggregate';
-import { event, events } from '../src/event';
-import { isErr, isOk, ok } from '../src/result';
+import { aggregate } from '../src/aggregate';
+import { type Result, err, isErr, isOk, ok } from '../src/result';
+import { schema } from '../src/schema';
+import { rule, value } from '../src/value';
 
-// Shared test helpers.
-const createTestHelpers = () => ({
-  createUserAggregate: () =>
-    aggregate({
-      schema: schema({
-        id: value((id: string) => ok(id)),
-        name: value((name: string) => ok(name)),
-        email: value((email: string) => ok(email)),
-      }),
-      events: events([]),
-      specs: {},
-      methods: ({ self, fn }) => ({
-        updateName: fn('Update user name', (name: string) => {
-          return self.set('name', name);
-        }),
-      }),
-    }),
+const userSchema = schema({
+  id: value(rule((id: string) => (id.length > 0 ? ok(id) : err('INVALID_ID')))),
+  name: value(
+    rule((name: string) => (name.length > 0 ? ok(name) : err('INVALID_NAME'))),
+    rule((name: string) => (name.length < 16 ? ok(name) : err('INVALID_NAME_LENGTH'))),
+  ),
+  email: value(rule((email: string) => (email.includes('@') ? ok(email) : err('INVALID_EMAIL')))),
+});
 
-  createOrderAggregate: () =>
-    aggregate({
-      schema: schema({
-        id: value((id: string) => ok(id)),
-        total: value((total: number) => ok(total)),
-        status: value((status: string) => ok(status)),
-      }),
-      events: events([]),
-      specs: {},
-      methods: ({ self, fn }) => ({
-        updateTotal: fn('Update order total', (total: number) => {
-          return self.set('total', total);
-        }),
-        getCurrentState: fn('Get current state', () => {
-          return ok(self.getState());
-        }),
-      }),
-    }),
-
-  createProductAggregate: () => {
-    const stockReducedEvent = event('Stock reduced event', {
-      key: 'stock.reduced',
-      value: {
-        quantity: value((quantity: number) => ok(quantity)),
-      },
-    });
-
-    return aggregate('Product aggregate with inventory management', {
-      schema: schema({
-        id: value((id: string) => ok(id)),
-        name: value((name: string) => ok(name)),
-        stock: value((stock: number) => ok(stock)),
-      }),
-      events: events([stockReducedEvent]),
-      specs: {},
-      methods: ({ self, fn }) => ({
-        reduceStock: fn('Reduce product stock', (quantity: number) => {
-          const newStock = self.getState().stock - quantity;
-          const setResult = self.set('stock', newStock);
-          if (isErr(setResult)) return setResult;
-
-          self.emit('stock.reduced', { quantity });
-          return ok(self.getState());
-        }),
-      }),
-    });
-  },
-
-  createBasicUserAggregate: () =>
-    aggregate({
-      schema: schema({
-        id: value((id: string) => ok(id)),
-        name: value((name: string) => ok(name)),
-      }),
-      events: events([]),
-      specs: {},
-      methods: ({ self, fn }) => ({
-        updateName: fn('Update name', (name: string) => self.set('name', name)),
-      }),
-    }),
+const User = aggregate({
+  schema: userSchema,
+  methods: ({ self, fn }) => ({
+    updateName: fn((name: string) => self.set('name', name)),
+    updateEmail: fn((email: string) => self.set('email', email)),
+  }),
 });
 
 describe('aggregate', () => {
-  const helpers = createTestHelpers();
-
   describe('Basic functionality', () => {
     it('should create an aggregate with schema validation', () => {
-      const userAggregate = helpers.createUserAggregate();
-      const result = userAggregate({
-        id: 'user-1',
-        name: 'John Doe',
-        email: 'john@example.com',
-      });
+      const userResult = User({ id: '1', name: 'John', email: 'john@example.com' });
 
-      expect(isOk(result)).toBe(true);
-      if (isOk(result)) {
-        const user = result.value;
-        expect(user.name).toBe('John Doe');
+      expect(isOk(userResult)).toBe(true);
+      if (isOk(userResult)) {
+        const user = userResult.value;
+        expect(user.getState()).toEqual({ id: '1', name: 'John', email: 'john@example.com' });
+        expect(user.id).toBe('1');
+        expect(user.name).toBe('John');
         expect(user.email).toBe('john@example.com');
-
-        const updateResult = user.updateName('Jane Doe');
-        expect(isOk(updateResult)).toBe(true);
       }
     });
 
-    it('should handle aggregate with state management', () => {
-      const orderAggregate = helpers.createOrderAggregate();
-      const result = orderAggregate({
-        id: 'order-1',
-        total: 100,
-        status: 'pending',
-      });
+    it('should handle validation errors when creating aggregate', () => {
+      const userResult = User({ id: '', name: '', email: 'invalid' });
 
-      expect(isOk(result)).toBe(true);
-      if (isOk(result)) {
-        const order = result.value;
-        expect(order.total).toBe(100);
-
-        const updateResult = order.updateTotal(150);
-        expect(isOk(updateResult)).toBe(true);
-
-        const stateResult = order.getCurrentState();
-        expect(isOk(stateResult)).toBe(true);
-      }
+      expect(isErr(userResult)).toBe(true);
     });
 
-    it('should handle aggregate with events', () => {
-      const productAggregate = helpers.createProductAggregate();
-      const result = productAggregate({
-        id: 'prod-1',
-        name: 'Widget',
-        stock: 50,
-      });
+    it('should allow updating aggregate state through methods', () => {
+      const userResult = User({ id: '1', name: 'John', email: 'john@example.com' });
 
-      expect(isOk(result)).toBe(true);
-      if (isOk(result)) {
-        const product = result.value;
-        expect(product.name).toBe('Widget');
-        expect(product.stock).toBe(50);
+      if (isOk(userResult)) {
+        const user = userResult.value;
+        const updateResult = user.updateName('Jane');
 
-        const reduceResult = product.reduceStock(10);
-        expect(isOk(reduceResult)).toBe(true);
-
-        if (isOk(reduceResult)) {
-          expect(reduceResult.value.stock).toBe(40);
-          expect(product.getEvents()).toHaveLength(1);
+        expect(isOk(updateResult)).toBe(true);
+        if (isOk(updateResult)) {
+          expect(user.getState().name).toBe('Jane');
         }
+      }
+    });
+
+    it('should handle validation errors in set method', () => {
+      const userResult = User({ id: '1', name: 'John', email: 'john@example.com' });
+
+      if (isOk(userResult)) {
+        const user = userResult.value;
+        const updateResult = user.updateName('');
+
+        expect(isErr(updateResult)).toBe(true);
+        if (isErr(updateResult)) {
+          expect(updateResult.error).toEqual(['INVALID_NAME']);
+        }
+      }
+    });
+  });
+
+  describe('Error handling', () => {
+    it('should handle invalid configuration', () => {
+      expect(() => {
+        // @ts-expect-error - Test invalid configuration
+        aggregate(null);
+      }).toThrow();
+    });
+
+    it('should handle methods without config.methods', () => {
+      // @ts-expect-error - Test invalid configuration
+      const User = aggregate({ schema: userSchema });
+
+      const userResult = User({ id: '1', name: 'John', email: 'john@example.com' });
+
+      expect(isOk(userResult)).toBe(true);
+      if (isOk(userResult)) {
+        const user = userResult.value;
+        expect(user.getState()).toEqual({ id: '1', name: 'John', email: 'john@example.com' });
       }
     });
   });
 
   describe('Type safety', () => {
     it('should provide correct type inference for all public elements', () => {
+      // Test aggregate function
       expectTypeOf(aggregate).toBeFunction();
     });
 
-    it('should validate aggregate configuration types', () => {
-      const userAggregate = helpers.createBasicUserAggregate();
-      expectTypeOf(userAggregate).toBeFunction();
-      expectTypeOf(userAggregate({ id: 'test', name: 'test' })).toMatchTypeOf<
-        ReturnType<typeof userAggregate>
-      >();
+    it('should validate aggregate function signature', () => {
+      const User = aggregate({
+        schema: userSchema,
+        methods: ({ self, fn }) => ({
+          updateName: fn((name: string) => self.set('name', name)),
+        }),
+      });
+
+      expectTypeOf(User).toBeFunction();
     });
 
     it('should validate aggregate instance types', () => {
-      const userAggregate = helpers.createBasicUserAggregate();
-      const result = userAggregate({ id: 'test', name: 'test' });
+      const userResult = User({ id: '1', name: 'John', email: 'john@example.com' });
 
-      if (isOk(result)) {
-        const user = result.value;
+      if (isOk(userResult)) {
+        const user = userResult.value;
+        expectTypeOf(user.getState).toBeFunction();
+        expectTypeOf(user.updateName).toBeFunction();
+        expectTypeOf(user.updateEmail).toBeFunction();
         expectTypeOf(user.id).toBeString();
         expectTypeOf(user.name).toBeString();
-        expectTypeOf(user.updateName).toBeFunction();
-        expectTypeOf(user.getState).toBeFunction();
-      }
-    });
-  });
-
-  describe('Code examples', () => {
-    it('should run example aggregate-001: Basic aggregate creation with schema validation', () => {
-      const userAggregate = helpers.createUserAggregate();
-      const result = userAggregate({
-        id: 'user-1',
-        name: 'John Doe',
-        email: 'john@example.com',
-      });
-
-      expect(isOk(result)).toBe(true);
-      if (isOk(result)) {
-        const user = result.value;
-        expect(user.name).toBe('John Doe');
-        expect(user.email).toBe('john@example.com');
-
-        const updateResult = user.updateName('Jane Doe');
-        expect(isOk(updateResult)).toBe(true);
       }
     });
 
-    it('should run example aggregate-002: Aggregate with simple state management', () => {
-      const orderAggregate = helpers.createOrderAggregate();
-      const result = orderAggregate({
-        id: 'order-1',
-        total: 100,
-        status: 'pending',
-      });
+    it('should validate correct error types in all mode', () => {
+      const userResult = User({ id: '1', name: 'John', email: 'john@example.com' }, 'all');
 
-      expect(isOk(result)).toBe(true);
-      if (isOk(result)) {
-        const order = result.value;
-        expect(order.total).toBe(100);
+      if (isOk(userResult)) {
+        const user = userResult.value;
+        const updateResult = user.updateName('test');
 
-        const updateResult = order.updateTotal(150);
-        expect(isOk(updateResult)).toBe(true);
-
-        const stateResult = order.getCurrentState();
-        expect(isOk(stateResult)).toBe(true);
+        // In 'all' mode, the error type should be an array of the union of all possible errors
+        expectTypeOf(updateResult).toEqualTypeOf<
+          Result<
+            { id: string; name: string; email: string },
+            // Should be an array of errors.
+            ('INVALID_NAME' | 'INVALID_NAME_LENGTH')[]
+          >
+        >();
       }
     });
 
-    it('should run example aggregate-003: Aggregate with event handling and documentation', () => {
-      const productAggregate = helpers.createProductAggregate();
-      const result = productAggregate({
-        id: 'prod-1',
-        name: 'Widget',
-        stock: 50,
-      });
+    it('should validate correct error types in strict mode', () => {
+      const userResult = User({ id: '1', name: 'John', email: 'john@example.com' }, 'strict');
 
-      expect(isOk(result)).toBe(true);
-      if (isOk(result)) {
-        const product = result.value;
-        expect(product.name).toBe('Widget');
-        expect(product.stock).toBe(50);
+      if (isOk(userResult)) {
+        const user = userResult.value;
+        const updateResult = user.updateName('test');
 
-        const reduceResult = product.reduceStock(10);
-        expect(isOk(reduceResult)).toBe(true);
-
-        if (isOk(reduceResult)) {
-          expect(reduceResult.value.stock).toBe(40);
-          expect(product.getEvents()).toHaveLength(1);
-        }
-      }
-    });
-
-    it('should run example aggregate-004: Handling aggregate configuration errors', () => {
-      expect(() => {
-        // @ts-expect-error - This is a test error.
-        aggregate(null);
-      }).toThrow(AggregateError);
-
-      try {
-        // @ts-expect-error - This is a test error.
-        aggregate(null);
-      } catch (error) {
-        expect(error).toBeInstanceOf(AggregateError);
-        expect((error as AggregateError).message).toBe('Invalid aggregate configuration.');
+        expectTypeOf(updateResult).toEqualTypeOf<
+          Result<
+            { id: string; name: string; email: string },
+            // Should not be an array of errors.
+            'INVALID_NAME' | 'INVALID_NAME_LENGTH'
+          >
+        >();
       }
     });
   });

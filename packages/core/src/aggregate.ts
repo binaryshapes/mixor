@@ -9,9 +9,9 @@
 import type { ErrorMode } from './_err';
 import type { EventStore } from './event';
 import type { Any, Prettify } from './generics';
-import { Panic } from './panic';
+import { panic } from './panic';
 import { type Result, isErr, ok } from './result';
-import type { InferSchema, Schema, SchemaErrors, SchemaValues } from './schema';
+import type { Schema, SchemaErrors, SchemaValues } from './schema';
 import { type Specification, isSpec } from './specification';
 import type { Value } from './value';
 
@@ -97,7 +97,7 @@ type AggregateInstance<
   C extends AggregateConfig<Any, Any, Any, Any>,
   Mode extends ErrorMode,
 > = Prettify<
-  Readonly<InferSchema<C['schema']>> &
+  Readonly<C['schema']['Type']> &
     // This overrides the methods to ensure the correct error type is returned.
     AggregateMethods<ReturnType<C['methods']>, Mode> &
     EventMethods<C['events']> & {
@@ -197,7 +197,7 @@ const createAggregateState = <
   Mode extends ErrorMode,
 >(
   config: C,
-  initialState: InferSchema<C['schema']>,
+  initialState: C['schema']['Type'],
   mode: Mode,
 ): AggregateState<C, Mode> => {
   const { schema, events } = config;
@@ -307,11 +307,11 @@ const createAggregateMethodLogic = <
  *
  * @public
  */
-const AggregateError = Panic<
-  'AGGREGATE',
+const AggregateError = panic<
+  'Aggregate',
   // Raised when the aggregate configuration is invalid.
-  'INVALID_CONFIGURATION'
->('AGGREGATE');
+  'InvalidConfiguration'
+>('Aggregate');
 
 /**
  * Creates an aggregate with schema validation, event handling, business rule specifications,
@@ -338,11 +338,11 @@ const aggregate = <
 ) => {
   // If the configuration is invalid, throw an error.
   if (!config) {
-    throw new AggregateError('INVALID_CONFIGURATION', 'Invalid aggregate configuration.');
+    throw new AggregateError('InvalidConfiguration', 'Invalid aggregate configuration.');
   }
 
   return <Mode extends ErrorMode>(
-    input: InferSchema<typeof config.schema>,
+    input: (typeof config.schema)['Type'],
     mode?: Mode,
   ): Result<
     AggregateInstance<AggregateConfig<T, E, S, M>, Mode>,
