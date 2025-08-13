@@ -452,62 +452,60 @@ describe('container', () => {
   });
 
   describe('Error handling', () => {
-    it('should throw NO_ADAPTER_BOUND when getting a port that is not bound to an adapter', () => {
+    it('should throw NoAdapterBound when getting a port that is not bound to an adapter', () => {
       const userContainer = container().add(UserService);
-      let panic: ContainerError;
 
       try {
         userContainer.get(Logger);
       } catch (error) {
-        panic = error as ContainerError;
-        expect(panic).toBeInstanceOf(ContainerError);
-        expect(panic.key).toBe('CONTAINER:NO_ADAPTER_BOUND');
+        expect(error).instanceOf(ContainerError);
+        expect(error).toHaveProperty('code', 'Container:NoAdapterBound');
+        expect(error).toHaveProperty(
+          'message',
+          `No adapter bound for port ${Logger.id.toString()}`,
+        );
       }
 
       // Typechecking.
       expectTypeOf(userContainer).toEqualTypeOf<Container>();
     });
 
-    it('should throw CANNOT_OVERRIDE_UNBOUND_PORT when overriding an unbound port', () => {
+    it('should throw CannotOverrideUnboundPort when overriding an unbound port', () => {
       const userContainer = container().add(UserService);
-      let panic: ContainerError;
 
       try {
         userContainer.override(Logger, MemoryLogger);
       } catch (error) {
-        panic = error as ContainerError;
-        expect(panic).toBeInstanceOf(ContainerError);
-        expect(panic.key).toBe('CONTAINER:CANNOT_OVERRIDE_UNBOUND_PORT');
+        expect(error).instanceOf(ContainerError);
+        expect(error).toHaveProperty('code', 'Container:CannotOverrideUnboundPort');
+        expect(error).toHaveProperty('message', 'Cannot override unbound port');
       }
 
       // Typechecking.
       expectTypeOf(userContainer).toEqualTypeOf<Container>();
     });
 
-    it('should throw MISSING_DEPENDENCY when detecting missing dependencies', () => {
+    it('should throw MissingDependency when detecting missing dependencies', () => {
       const orphanService = service({}, ({ foo }: Any) => ({
         doSomething: () => foo.bar(),
       }));
 
       const c = container().add(orphanService);
-      let panic: ContainerError;
 
       try {
         c.get(orphanService);
       } catch (error) {
-        panic = error as ContainerError;
-        expect(panic).toBeInstanceOf(ContainerError);
-        expect(panic.key).toBe('CONTAINER:MISSING_DEPENDENCY');
-        expect(panic.message).toBe('Missing dependency "foo"');
+        expect(error).instanceOf(ContainerError);
+        expect(error).toHaveProperty('code', 'Container:MissingDependency');
+        expect(error).toHaveProperty('message', 'Missing dependency "foo"');
       }
 
       // Typechecking.
       expectTypeOf(c).toEqualTypeOf<Container>();
     });
 
-    it('should throw INVALID_DEFINITION_TYPE when passing invalid object to get', () => {
+    it('should throw InvalidDefinitionType when passing invalid object to get', () => {
       const c = container();
-      let panic: ContainerError;
 
       // Create an invalid object that has an id but wrong _tag.
       const invalidDefinition = {
@@ -521,17 +519,16 @@ describe('container', () => {
         // @ts-expect-error - Intentionally passing invalid definition.
         c.get(invalidDefinition);
       } catch (error) {
-        panic = error as ContainerError;
-        expect(panic).toBeInstanceOf(ContainerError);
-        expect(panic.key).toBe('CONTAINER:INVALID_DEFINITION_TYPE');
-        expect(panic.message).toBe('Invalid definition type');
+        expect(error).instanceOf(ContainerError);
+        expect(error).toHaveProperty('code', 'Container:InvalidDefinitionType');
+        expect(error).toHaveProperty('message', 'Invalid definition type');
       }
 
       // Typechecking.
       expectTypeOf(c).toEqualTypeOf<Container>();
     });
 
-    it('should throw NO_ADAPTER_BOUND when service has unbound port dependencies', () => {
+    it('should throw NoAdapterBound when service has unbound port dependencies', () => {
       // Create a service that depends on a port.
       const serviceWithPortDependency = service({ logger: Logger }, ({ logger }) => ({
         doSomething: () => logger.log('Hello'),
@@ -539,16 +536,17 @@ describe('container', () => {
 
       // Create container with service but without binding the port.
       const c = container().add(serviceWithPortDependency);
-      let panic: ContainerError;
 
       try {
         // This should fail because Logger port is not bound to an adapter.
         c.get(serviceWithPortDependency);
       } catch (error) {
-        panic = error as ContainerError;
-        expect(panic).toBeInstanceOf(ContainerError);
-        expect(panic.key).toBe('CONTAINER:NO_ADAPTER_BOUND');
-        expect(panic.message).toContain('No adapter bound for port');
+        expect(error).instanceOf(ContainerError);
+        expect(error).toHaveProperty('code', 'Container:NoAdapterBound');
+        expect(error).toHaveProperty(
+          'message',
+          `No adapter bound for port ${Logger.id.toString()}`,
+        );
       }
 
       // Typechecking.
