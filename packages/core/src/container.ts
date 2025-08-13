@@ -8,9 +8,9 @@
  */
 import crypto from 'node:crypto';
 
+import { hash } from './_hash';
 import type { Any, Prettify } from './generics';
-import { hash } from './hash';
-import { Panic } from './panic';
+import { panic } from './panic';
 
 /**
  * The maximum number of containers to keep in the pool.
@@ -38,15 +38,13 @@ const requiresCache = new Map<string, string[]>();
 
 /**
  * Panic error for the container module.
+ *
  * @public
  */
-class ContainerError extends Panic<
-  'CONTAINER',
-  | 'NO_ADAPTER_BOUND'
-  | 'MISSING_DEPENDENCY'
-  | 'INVALID_DEFINITION_TYPE'
-  | 'CANNOT_OVERRIDE_UNBOUND_PORT'
->('CONTAINER') {}
+const ContainerError = panic<
+  'Container',
+  'NoAdapterBound' | 'MissingDependency' | 'InvalidDefinitionType' | 'CannotOverrideUnboundPort'
+>('Container');
 
 // *********************************************************************************************
 // Container types.
@@ -344,7 +342,7 @@ function resolveInstance(
     return instance;
   }
 
-  throw new ContainerError('INVALID_DEFINITION_TYPE', 'Invalid definition type');
+  throw new ContainerError('InvalidDefinitionType', 'Invalid definition type');
 }
 
 /**
@@ -369,10 +367,7 @@ function resolveDependencies(
   service.portDeps.forEach((port, index) => {
     const adapter = bindings.get(port);
     if (!adapter) {
-      throw new ContainerError(
-        'NO_ADAPTER_BOUND',
-        `No adapter bound for port ${port.id.toString()}`,
-      );
+      throw new ContainerError('NoAdapterBound', `No adapter bound for port ${port.id.toString()}`);
     }
 
     const portValue = resolveInstance(adapter, services, bindings, instances);
@@ -408,7 +403,7 @@ function resolveDependencies(
     );
 
     if (!depDef) {
-      throw new ContainerError('MISSING_DEPENDENCY', `Missing dependency "${String(key)}"`);
+      throw new ContainerError('MissingDependency', `Missing dependency "${String(key)}"`);
     }
 
     deps[key as string] = resolveInstance(depDef, services, bindings, instances);
@@ -579,7 +574,7 @@ function container(
 
     override(port, adapter) {
       if (!bindings.has(port)) {
-        throw new ContainerError('CANNOT_OVERRIDE_UNBOUND_PORT', 'Cannot override unbound port');
+        throw new ContainerError('CannotOverrideUnboundPort', 'Cannot override unbound port');
       }
       return this.bind(port, adapter);
     },
@@ -589,7 +584,7 @@ function container(
         const adapter = bindings.get(def);
         if (!adapter) {
           throw new ContainerError(
-            'NO_ADAPTER_BOUND',
+            'NoAdapterBound',
             `No adapter bound for port ${def.id.toString()}`,
           );
         }
