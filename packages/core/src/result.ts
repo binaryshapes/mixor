@@ -63,7 +63,7 @@ type ResultError<T extends string, C extends string, O extends string> = {
   /** The origin of the error. */
   origin: O;
   /** The error message. Must be a human readable message of the error. */
-  message?: string;
+  message: string;
 };
 
 /**
