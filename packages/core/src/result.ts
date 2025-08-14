@@ -55,11 +55,13 @@ type Result<T, E> = Ok<T> | Err<E>;
  *
  * @public
  */
-type ResultError<T extends string, C extends string> = {
-  /** The error code. Must be a string literal. */
+type ResultError<T extends string, C extends string, O extends string> = {
+  /** The error code. */
   code: T;
-  /** The context of the error. Must be a string literal. */
+  /** The context of the error. */
   context: C;
+  /** The origin of the error. */
+  origin: O;
   /** The error message. Must be a human readable message of the error. */
   message?: string;
 };
@@ -83,9 +85,12 @@ type ResultError<T extends string, C extends string> = {
 type ResultErrorTypes =
   | string
   | string[]
-  | ResultError<string, Any>
-  | ResultError<string, Any>[]
-  | Record<string, string | ResultError<string, Any> | string[] | ResultError<string, Any>[]>;
+  | ResultError<string, Any, Any>
+  | ResultError<string, Any, Any>[]
+  | Record<
+      string,
+      string | ResultError<string, Any, Any> | string[] | ResultError<string, Any, Any>[]
+    >;
 
 /**
  * Creates a successful result with the given value.
