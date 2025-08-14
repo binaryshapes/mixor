@@ -31,7 +31,7 @@ type Infer<T, Tag extends string> =
       ? F
       : T
     : // If the tag represents an Object, return the prettified type.
-      Tag extends 'Object' | 'Criteria'
+      Tag extends 'Object' | 'Criteria' | 'Event'
       ? Prettify<T>
       : // Otherwise, return the type as is (no inference needed, the type is already known).
         T;
@@ -177,7 +177,7 @@ type ComponentData<Type, Tag extends ComponentTag> = {
       readonly description: string;
       /** Scope or context where the element is used. */
       readonly scope: string;
-    } & (Tag extends 'Value' | 'Rule' | 'Schema' | 'Object'
+    } & (Tag extends 'Value' | 'Schema' | 'Object' | 'Event'
       ? {
           readonly example: Infer<Type, Tag>;
         }
