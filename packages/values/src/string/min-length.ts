@@ -3,11 +3,11 @@ import { err, ok, rule } from '@mixor/core';
 import type { StringValueError } from './string';
 
 /**
- * Result error type related to the string `hasMinLength` rule.
+ * Result error type related to the string `minLength` rule.
  *
  * @internal
  */
-type TooShort = StringValueError<'TooShortError', 'hasMinLength'>;
+type TooShort = StringValueError<'TooShortError', 'minLength'>;
 
 /**
  * Instance of the `TooShort` error type.
@@ -17,7 +17,7 @@ type TooShort = StringValueError<'TooShortError', 'hasMinLength'>;
 const TooShort: TooShort = {
   code: 'TooShortError',
   context: 'StringValue',
-  origin: 'hasMinLength',
+  origin: 'minLength',
   message: 'String length is less than minimum',
 };
 
@@ -29,7 +29,7 @@ const TooShort: TooShort = {
  *
  * @public
  */
-const hasMinLength = (minLength: number) =>
+const minLength = (minLength: number) =>
   rule((value: string) => (value.length >= minLength ? ok(value) : err(TooShort)));
 
-export { hasMinLength };
+export { minLength };
