@@ -3,11 +3,11 @@ import { err, ok, rule } from '@mixor/core';
 import type { StringValueError } from './string';
 
 /**
- * Result error type related to the string `isSlug` rule.
+ * Result error type related to the string `slug` rule.
  *
  * @internal
  */
-type InvalidSlug = StringValueError<'InvalidSlugError', 'isSlug'>;
+type InvalidSlug = StringValueError<'InvalidSlugError', 'slug'>;
 
 /**
  * Instance of the `InvalidSlug` error type.
@@ -17,12 +17,12 @@ type InvalidSlug = StringValueError<'InvalidSlugError', 'isSlug'>;
 const InvalidSlug: InvalidSlug = {
   code: 'InvalidSlugError',
   context: 'StringValue',
-  origin: 'isSlug',
+  origin: 'slug',
   message: 'Value is not a valid slug',
 };
 
 // Regular expression for slug validation (from Zod source code).
-const slug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
  * Value rule that validates that the value is a valid slug.
@@ -32,6 +32,6 @@ const slug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
  *
  * @public
  */
-const isSlug = rule((value: string) => (slug.test(value) ? ok(value) : err(InvalidSlug)));
+const slug = rule((value: string) => (slugRegex.test(value) ? ok(value) : err(InvalidSlug)));
 
-export { isSlug };
+export { slug };

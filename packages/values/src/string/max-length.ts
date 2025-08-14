@@ -3,11 +3,11 @@ import { err, ok, rule } from '@mixor/core';
 import type { StringValueError } from './string';
 
 /**
- * Result error type related to the string `hasMaxLength` rule.
+ * Result error type related to the string `maxLength` rule.
  *
  * @internal
  */
-type TooLong = StringValueError<'TooLongError', 'hasMaxLength'>;
+type TooLong = StringValueError<'TooLongError', 'maxLength'>;
 
 /**
  * Instance of the `TooLong` error type.
@@ -17,7 +17,7 @@ type TooLong = StringValueError<'TooLongError', 'hasMaxLength'>;
 const TooLong: TooLong = {
   code: 'TooLongError',
   context: 'StringValue',
-  origin: 'hasMaxLength',
+  origin: 'maxLength',
   message: 'String length exceeds maximum',
 };
 
@@ -29,7 +29,7 @@ const TooLong: TooLong = {
  *
  * @public
  */
-const hasMaxLength = (maxLength: number) =>
+const maxLength = (maxLength: number) =>
   rule((value: string) => (value.length <= maxLength ? ok(value) : err(TooLong)));
 
-export { hasMaxLength };
+export { maxLength };
