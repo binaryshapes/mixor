@@ -76,6 +76,9 @@ const rule = <T, E>(rule: ValueFunction<T, E>) => component('Rule', rule) as Rul
  * Creates a value that combines multiple rules for field validation.
  * Combines rules using function composition for validation.
  *
+ * @remarks
+ * The value automatically adds the rules as children to the value component.
+ *
  * @param rules - The validation rules to apply to the value.
  * @returns A new value validator.
  *
@@ -88,9 +91,12 @@ const value = <R extends Rule<Any, Any>[]>(...rules: R) => {
   // Defensive assertion (should never happen).
   assert(rules.every(isRule), 'Invalid rules');
 
-  return component('Value', (value: T, mode: ErrorMode = config.defaultErrorMode) =>
-    pipe(mode, ...(rules as unknown as [Any]))(value),
-  ) as Value<T, E>;
+  return component(
+    'Value',
+    (value: T, mode: ErrorMode = config.defaultErrorMode) =>
+      pipe(mode, ...(rules as unknown as [Any]))(value),
+    rules,
+  ).addChildren(...rules) as Value<T, E>;
 };
 
 /**
