@@ -168,22 +168,22 @@ const schema = <F extends SchemaFields>(fields: EnsureAllValues<F>): Schema<F> =
     }
   };
 
-  // Create a traceable schema function.
-  const traceableSchema = component('Schema', schemaValidator) as Schema<F>;
+  // Create a component schema.
+  const sch = component('Schema', schemaValidator, fields) as Schema<F>;
 
   // Add field functions as properties.
   for (const [fieldName, fieldFn] of Object.entries(fields)) {
-    Object.defineProperty(traceableSchema, fieldName, {
+    Object.defineProperty(sch, fieldName, {
       value: fieldFn,
       writable: false,
       enumerable: true,
     });
 
-    // Adding field value as a child of the schema.
-    traceableSchema.addChildren(fieldFn as Value<Any, Any>);
+    // Adding field value as a child of the schema component.
+    sch.addChildren(fieldFn as Value<Any, Any>);
   }
 
-  return traceableSchema;
+  return sch;
 };
 
 /**

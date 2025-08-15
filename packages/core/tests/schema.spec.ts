@@ -89,14 +89,14 @@ describe('schema', () => {
         .meta({
           name: 'UserSchema',
           description: 'User validation description',
-          scope: 'UserValidation',
+          context: 'UserValidation',
           example: { name: 'John Doe', email: 'john@example.com' },
         })
         .traceable();
 
       expect(UserSchema.info().meta?.name).toBe('UserSchema');
       expect(UserSchema.info().meta?.description).toBe('User validation description');
-      expect(UserSchema.info().meta?.scope).toBe('UserValidation');
+      expect(UserSchema.info().meta?.context).toBe('UserValidation');
       expect(UserSchema.info().meta?.example).toEqual({
         name: 'John Doe',
         email: 'john@example.com',
