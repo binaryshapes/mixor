@@ -15,45 +15,45 @@ type User = {
 const UserHasGreatScore = criteria<User>({
   score: { $gte: 90 },
 }).meta({
+  context: 'User',
   name: 'UserHasGreatScore',
   description: 'User has a great score',
-  scope: 'User',
 });
 
 // Basic criteria.
 const UserIsEarlyAdopter = criteria<User>({
   createdAt: { $lt: new Date('2023-03-01') },
 }).meta({
+  context: 'User',
   name: 'UserIsEarlyAdopter',
   description: 'User is an early adopter',
-  scope: 'User',
 });
 
 // Basic criteria.
 const UserIsInvestor = criteria<User>({
   tags: { $contains: 'founder' },
 }).meta({
+  context: 'User',
   name: 'UserIsInvestor',
   description: 'User is an investor',
-  scope: 'User',
 });
 
 // Basic criteria.
 const UserHasBadRating = criteria<User>({
   rating: { $lt: 2 },
 }).meta({
+  context: 'User',
   name: 'UserHasBadRating',
   description: 'User has a bad rating',
-  scope: 'User',
 });
 
 // Composed criteria.
 const UserTargetCampaign = criteria<User>({
   $or: [UserIsEarlyAdopter, UserIsInvestor],
 }).meta({
+  context: 'User',
   name: 'UserTargetCampaign',
   description: 'User target campaign',
-  scope: 'User',
 });
 
 // Composed criteria.
@@ -64,15 +64,15 @@ const SelectedUserForContest = criteria<User>({
     { $not: UserHasBadRating },
   ],
 }).meta({
+  context: 'User',
   name: 'SelectedUserForContest',
   description: 'Selected user for contest logic improved',
-  scope: 'User',
 });
 
 describe('Criteria', () => {
   describe('Public API', () => {
     it('should create a criteria object with correct metadata', () => {
-      expect(UserHasGreatScore.info().meta?.scope).toBe('User');
+      expect(UserHasGreatScore.info().meta?.context).toBe('User');
       expect(UserHasGreatScore.info().meta?.name).toBe('UserHasGreatScore');
       expect(UserHasGreatScore.info().meta?.description).toBe('User has a great score');
 
