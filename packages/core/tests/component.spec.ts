@@ -55,7 +55,7 @@ describe('Component', () => {
         const component1 = component('Rule', mockFunction());
         const component2 = component('Rule', mockFunction());
 
-        expect(component1.info().id).toBe(component2.info().id);
+        expect(component1.info().id).not.toBe(component2.info().id);
         expect(component1.info().id).toMatch(/^rule:/);
       });
     });
@@ -177,10 +177,9 @@ describe('Component', () => {
         expect(typeof testComponent.meta).toBe('function');
 
         const result = testComponent.meta({
+          context: 'test',
           name: 'Test Rule',
           description: 'Test description',
-          scope: 'test',
-          example: 'example value',
         });
 
         expect(result).toBe(testComponent);
@@ -284,7 +283,7 @@ describe('Component', () => {
 
       it('should support method chaining for non-injectable components', () => {
         const testComponent = component('Rule', mockFunction())
-          .meta({ name: 'Test', description: 'Desc', scope: 'test', example: 'example' })
+          .meta({ name: 'Test', description: 'Desc', context: 'test' })
           .subType('string')
           .traceable();
 
@@ -302,7 +301,7 @@ describe('Component', () => {
 
       it('should support method chaining for injectable components', () => {
         const testComponent = component('Port', mockFunction())
-          .meta({ name: 'Test', description: 'Desc', scope: 'test' })
+          .meta({ name: 'Test', description: 'Desc', context: 'test' })
           .injectable();
 
         expect(testComponent.info().meta?.name).toBe('Test');
@@ -510,7 +509,7 @@ describe('Component', () => {
         const result = testComponent.meta({
           name: 'Test Value',
           description: 'Test description',
-          scope: 'test',
+          context: 'test',
           example: 'example value',
         });
 
@@ -576,10 +575,9 @@ describe('Component', () => {
         expectTypeOf(testComponent.meta).toBeFunction();
         expectTypeOf(
           testComponent.meta({
+            context: 'test',
             name: 'test',
             description: 'desc',
-            scope: 'test',
-            example: 'example',
           }),
         ).toEqualTypeOf<typeof testComponent>();
       });
