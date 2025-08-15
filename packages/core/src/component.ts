@@ -171,12 +171,12 @@ type ComponentData<Type, Tag extends ComponentTag> = {
   /** Metadata for the component. */
   readonly meta: Prettify<
     {
-      /** Human-readable name of the traced element. */
+      /** Context where the component is used. */
+      readonly context: string;
+      /** Human-readable name of the component. */
       readonly name: string;
-      /** Description of the element's purpose. */
+      /** Description of the component's purpose. */
       readonly description: string;
-      /** Scope or context where the element is used. */
-      readonly scope: string;
     } & (Tag extends 'Value' | 'Schema' | 'Object' | 'Event'
       ? {
           readonly example: Infer<Type, Tag>;
@@ -228,9 +228,13 @@ type Component<Tag extends ComponentTag, Type> = Type & {
   meta: <Self>(this: Self, meta: ComponentData<Type, Tag>['meta']) => Self;
 
   /**
-   * Set the children for the component.
+   * Add the given children to the component.
    *
-   * @param children - The children components.
+   * @remarks
+   * This method merges existing children with the new ones. New children overrides
+   * existing children. In normal cases, you should not use this method.
+   *
+   * @param children - The children components to add.
    * @returns The component for method chaining.
    */
   addChildren: <Self>(this: Self, ...children: Component<Any, Any>[]) => Self;
@@ -425,27 +429,45 @@ const trace = (component: Component<Any, Any>) => {
 const registry = (() => {
   const store = new WeakMap<object, ComponentData<Any, Any> | object>();
   const catalog = new Map<string, Component<Any, Any>>();
+  const refs = new Map<string, number>();
 
   const self = {
     /**
      * Add a component to the registry.
      *
-     * @param component - The component to add.
+     * @remarks
+     * The component is added to the registry with a unique id.
+     * The id is a combination of the component tag, the target hash and the reference counter.
+     * The target hash is a hash of the component tag, the target and the extra fields provided.
+     * The metadata is stored using the generated id.
+     *
+     * @param target - The component to add.
      * @param data - The initial data for the component.
+     * @param extra - The extra fields to use as part of the component id.
      * @throws A {@link ComponentError} if the component is already registered.
      *
-     * @internal
      */
-    add: (component: Any, data: ComponentData<Any, Any>) => {
-      if (store.has(component)) {
-        throw new ComponentError(
-          'AlreadyRegisteredError',
-          `Component "${data.id}" already registered.`,
-        );
+    add: (target: Any, data: Omit<ComponentData<Any, Any>, 'id'>, extra: Any = {}) => {
+      // This is the more deterministic way to create an id in buildtime without depending on
+      // the a persistent layer (like a database or a file system to store the generated ids).
+
+      // Add the component the internal hash.
+      const targetHash = hash(data.tag, target, extra);
+
+      // Initialize or increment the reference counter for the component.
+      const ref = refs.has(targetHash) ? (refs.get(targetHash) ?? 0) + 1 : 0;
+      refs.set(targetHash, ref);
+
+      // Generate the id for the component.
+      const id = `${data.tag.toLowerCase()}:${targetHash}:${ref}`;
+
+      // This should never happen, so we throw an error.
+      if (store.has(target)) {
+        throw new ComponentError('AlreadyRegisteredError', `Component "${id}" already registered.`);
       }
 
-      catalog.set(data.id, component);
-      store.set(component, data);
+      catalog.set(id, target);
+      store.set(target, { id, ...data });
     },
 
     /**
@@ -458,8 +480,6 @@ const registry = (() => {
      * @param component - The component to set the data for.
      * @param newData - The data to set.
      * @throws A {@link ComponentError} if the component is not found in the registry.
-     *
-     * @internal
      */
     set: (component: Component<Any, Any>, newData: Partial<ComponentData<Any, Any>>) => {
       // Merge the data with the new data. All matches will be overridden.
@@ -471,8 +491,6 @@ const registry = (() => {
      *
      * @param component - The component to get the data for.
      * @returns The data for the component.
-     *
-     * @internal
      */
     get: (component: Component<Any, Any>) =>
       Object.freeze(store.get(component)) as ComponentData<Any, Any>,
@@ -482,8 +500,6 @@ const registry = (() => {
      *
      * @param component - The component to check.
      * @returns True if the component exists, false otherwise.
-     *
-     * @internal
      */
     exists: (component: Component<Any, Any>) => store.has(component),
 
@@ -491,10 +507,15 @@ const registry = (() => {
      * Get the catalog of components.
      *
      * @returns The catalog of components.
-     *
-     * @internal
      */
     catalog,
+
+    /**
+     * Get the reference counter of components.
+     *
+     * @returns A map with the reference counter of all registered components.
+     */
+    refs,
   };
 
   return self;
@@ -512,7 +533,12 @@ const ComponentBasePrototype = (self: Any) => {
   return {
     meta: (meta: ComponentData<Any, Any>['meta']) => (registry.set(self, { meta }), self),
     addChildren: (...children: Component<Any, Any>[]) => (
-      registry.set(self, { childrenIds: children.map((c) => registry.get(c).id) }),
+      registry.set(self, {
+        childrenIds: [
+          ...registry.get(self).childrenIds,
+          ...children.map((c) => registry.get(c).id),
+        ],
+      }),
       self
     ),
     info: () => registry.get(self),
@@ -557,7 +583,7 @@ const InjectableComponentPrototype = (self: Any) => {
  *
  * @internal
  */
-function hash(...args: unknown[]): string {
+function hash(...args: Any[]): string {
   const safeArgs = args.map((arg) => {
     if (typeof arg === 'object')
       return JSON.stringify(
@@ -602,7 +628,7 @@ function buildTree(
 
   // Prevent infinite recursion in case of circular dependencies.
   if (visited.has(componentId)) {
-    warn(`Circular dependency detected: ${componentId}. Maybe you tree is corrupted.`);
+    warn(`Duplicated children component detected: "${componentId}"`);
     return {
       component,
       info,
@@ -649,6 +675,8 @@ function buildTree(
  *
  * @param tag - The component tag for categorization.
  * @param target - The target object or function to convert to a component.
+ * @param extra - The extra fields to use as part of the component id.
+ *
  * @returns The enhanced target with component capabilities.
  * @throws A {@link ComponentError} if the target is not a function or object.
  *
@@ -657,21 +685,19 @@ function buildTree(
 const component = <Tag extends ComponentTag, Target extends ComponentType<Tag>>(
   tag: Tag,
   target: Target,
+  extra: Any = {},
 ) => {
   // Validate target before any processing.
   if (target === null || target === undefined || !['function', 'object'].includes(typeof target)) {
     throw new ComponentError('InvalidTargetError', 'Target is not a function or an object.');
   }
 
-  // Generate a unique id for the component (Opinionated structure and deterministic).
-  const id = ''.concat(tag.toLowerCase(), ':', hash(tag, target));
   const injectable = injectableList.includes(tag as ComponentInjectable);
   const nonInjectable = nonInjectableList.includes(tag as ComponentNonInjectable);
   const category = typeof target === 'function' ? 'function' : 'object';
 
   // Initial data for the component.
-  const targetData: ComponentData<Target, Tag> = {
-    id,
+  const targetData: Parameters<typeof registry.add>[1] = {
     childrenIds: [],
     tag,
     category,
@@ -682,7 +708,7 @@ const component = <Tag extends ComponentTag, Target extends ComponentType<Tag>>(
   };
 
   //  Register the component.
-  registry.add(target, targetData);
+  registry.add(target, targetData, extra);
 
   // Apply base prototype for all components.
   Object.assign(target, ComponentBasePrototype(target));
@@ -699,18 +725,6 @@ const component = <Tag extends ComponentTag, Target extends ComponentType<Tag>>(
 
   return target as Component<Tag, Target>;
 };
-
-/**
- * Guard to check if an object is a component.
- *
- * @param maybeComponent - The object to check.
- * @param tag - The tag to check the component against.
- * @returns True if the object is a component, false otherwise.
- *
- * @public
- */
-const isComponent = (maybeComponent: Any, tag?: ComponentTag) =>
-  registry.exists(maybeComponent) && (tag ? registry.get(maybeComponent).tag === tag : true);
 
 /**
  * Global tracer for emitting and subscribing to trace events.
@@ -794,8 +808,8 @@ const tracer = (() => {
  * List of supported components.
  *
  * @remarks
- * This list is could be useful if you want to check the behavior setup of each
- * component supported by the core.
+ * This list is useful if you want to check the behavior setup of each component
+ * supported by the core.
  *
  * @public
  */
@@ -813,6 +827,18 @@ const supportedComponents = [
     };
   }),
 ];
+
+/**
+ * Guard to check if an object is a component.
+ *
+ * @param maybeComponent - The object to check.
+ * @param tag - The tag to check the component against.
+ * @returns True if the object is a component, false otherwise.
+ *
+ * @public
+ */
+const isComponent = (maybeComponent: Any, tag?: ComponentTag) =>
+  registry.exists(maybeComponent) && (tag ? registry.get(maybeComponent).tag === tag : true);
 
 export type { Component };
 export { component, supportedComponents, tracer, isComponent, ComponentError, buildTree };
