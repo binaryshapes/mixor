@@ -152,9 +152,7 @@ const EventError = panic<'Event', 'InvalidKeyError'>('Event');
  *
  * @public
  */
-const events = <K extends string, E extends Event<K, Any>[], R = EventListToRecord<E>>(
-  ...events: E
-): EventStore<R> => {
+const events = <E extends Event<Any, Any>[]>(...events: E): EventStore<EventListToRecord<E>> => {
   const store: Any[] = [];
   const eventMap = new Map<string, Event<Any, Any>>();
 
@@ -168,7 +166,7 @@ const events = <K extends string, E extends Event<K, Any>[], R = EventListToReco
       .sort((a, b) => (sort === 'asc' ? a.timestamp - b.timestamp : b.timestamp - a.timestamp));
 
   return {
-    keys: Array.from(eventMap.keys()) as (keyof R)[],
+    keys: Array.from(eventMap.keys()) as (keyof EventListToRecord<E>)[],
     add: (key, value) => {
       const eventConstructor = eventMap.get(key as Any);
 
