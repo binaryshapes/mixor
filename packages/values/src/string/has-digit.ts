@@ -22,10 +22,16 @@ const NotDigit: NotDigit = {
 };
 
 /**
- * Value rule that validates that the value contains a number.
+ * Creates a value rule function that validates string values contain at least one digit.
+ *
+ * @remarks
+ * A string is considered okay if it contains the given number of digits. i.e. `hasDigit(2)` will
+ * return true if the string contains at least two digits.
  *
  * @param n - Minimum number of digits to check for.
- * @returns A result indicating whether the value contains a number.
+ * @returns A rule function that validates that the value contains the given number of digits. This
+ * function returns a Result type with the value if it contains the given number of digits, or an
+ * error if it does not.
  *
  * @public
  */

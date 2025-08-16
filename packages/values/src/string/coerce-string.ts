@@ -8,14 +8,14 @@ import { type Result, ok, rule } from '@mixor/core';
  * Use this function with caution, as it can lead to unexpected behavior for complex non-primitive
  * types like objects or arrays.
  *
- * @param value - The value to coerce.
  * @returns The coerced string value.
  *
  * @public
  */
-const coerceString = rule(
-  (value: unknown): Result<string, never> =>
-    typeof value !== 'string' ? ok(String(value)) : ok(value),
-);
+const coerceString = () =>
+  rule(
+    (value: unknown): Result<string, never> =>
+      typeof value !== 'string' ? ok(String(value)) : ok(value),
+  );
 
 export { coerceString };

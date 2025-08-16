@@ -22,13 +22,15 @@ const NotString: NotString = {
 };
 
 /**
- * Value rule that validates that the value is a string.
+ * Creates a value rule function that validates that the value is a string.
  *
- * @param value - The unknown value to validate.
- * @returns A result indicating whether the value is a string.
+ * @returns A rule function that validates that the value is a string.
+ * This function returns a Result type with the value if it is a string, or an
+ * error if it is not.
  *
  * @public
  */
-const isString = rule((value: unknown) => (typeof value === 'string' ? ok(value) : err(NotString)));
+const isString = () =>
+  rule((value: unknown) => (typeof value === 'string' ? ok(value) : err(NotString)));
 
 export { isString };

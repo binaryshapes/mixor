@@ -28,13 +28,18 @@ const InvalidEmoji: InvalidEmoji = {
 const emojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji_Component})+$/u;
 
 /**
- * Value rule that validates that the value is a valid emoji.
+ * Creates a value rule function that validates string values are valid emojis.
  *
- * @param value - The string value to validate.
- * @returns A result indicating whether the value is a valid emoji.
+ * @remarks
+ * An emoji is a string that contains only emojis. i.e. 🍕, 🍔, 🍟, etc.
+ *
+ * @returns A rule function that validates that the value is a valid emoji.
+ * This function returns a Result type with the value if it is a valid emoji, or an error if it
+ * is not.
  *
  * @public
  */
-const emoji = rule((value: string) => (emojiRegex.test(value) ? ok(value) : err(InvalidEmoji)));
+const emoji = () =>
+  rule((value: string) => (emojiRegex.test(value) ? ok(value) : err(InvalidEmoji)));
 
 export { emoji };
