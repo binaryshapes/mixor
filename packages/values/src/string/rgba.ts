@@ -25,13 +25,19 @@ const InvalidRGBA: InvalidRGBA = {
 const rgbaRegex = /^rgba?\((\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3}),\s*([01]|0\.\d+)\)$/;
 
 /**
- * Value rule that validates that the value is a valid RGBA color.
+ * Creates a value rule function that validates string values are valid RGBA colors.
  *
- * @param value - The string value to validate.
- * @returns A result indicating whether the value is a valid RGBA color.
+ * @remarks
+ * An RGBA color is a string that represents a color in the format `rgba(r, g, b, a)`,
+ * where `r`, `g`, `b` are the red, green, and blue components of the color, and `a` is the
+ * alpha channel.
+ *
+ * @returns A rule function that validates that the value is a valid RGBA color.
+ * This function returns a Result type with the value if it is a valid RGBA color, or an
+ * error if it is not.
  *
  * @public
  */
-const rgba = rule((value: string) => (rgbaRegex.test(value) ? ok(value) : err(InvalidRGBA)));
+const rgba = () => rule((value: string) => (rgbaRegex.test(value) ? ok(value) : err(InvalidRGBA)));
 
 export { rgba };

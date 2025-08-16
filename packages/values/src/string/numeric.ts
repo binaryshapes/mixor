@@ -25,13 +25,17 @@ const NotNumeric: NotNumeric = {
 const num = /^[0-9]+$/;
 
 /**
- * Value rule that validates that the value is a numeric string.
+ * Creates a value rule function that validates string values are numeric.
  *
- * @param value - The string value to validate.
- * @returns A result indicating whether the value is a numeric string.
+ * @remarks
+ * A numeric string is a string that contains only digits.
+ *
+ * @returns A rule function that validates that the value is a numeric string.
+ * This function returns a Result type with the value if it is a numeric string, or an
+ * error if it is not.
  *
  * @public
  */
-const numeric = rule((value: string) => (num.test(value) ? ok(value) : err(NotNumeric)));
+const numeric = () => rule((value: string) => (num.test(value) ? ok(value) : err(NotNumeric)));
 
 export { numeric };
