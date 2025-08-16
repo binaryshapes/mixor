@@ -22,16 +22,16 @@ const NotUppercase: NotUppercase = {
 };
 
 /**
- * Creates a value rule function that validates string values contain at least one uppercase letter.
+ * Creates a rule function that checks whether a string contains at least one uppercase letter.
  *
  * @remarks
- * A string is considered okay if it contains the given number of uppercase letters. i.e.
- * `hasUppercaseLetter(2)` will return true if the string contains at least two uppercase letters.
+ * A string is considered valid if it contains the given number of uppercase letters. For
+ * example, `hasUppercaseLetter(2)` will accept strings that contain at least two
+ * uppercase letters.
  *
  * @param n - Minimum number of uppercase letters to check for.
- * @returns A rule function that validates that the value contains the given number of uppercase
- * letters. This function returns a Result type with the value if it contains the given number of
- * uppercase letters, or an error if it does not.
+ * @returns A rule function that returns a Result containing the value if it contains
+ * the required number of uppercase letters, or an error otherwise.
  *
  * @public
  */

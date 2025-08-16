@@ -25,14 +25,14 @@ const NotHexadecimal: NotHexadecimal = {
 const hex = /^[0-9a-fA-F]+$/;
 
 /**
- * Creates a value rule function that validates string values are valid hexadecimal strings.
+ * Creates a rule function that checks whether a string is a valid hexadecimal string.
  *
  * @remarks
- * A hexadecimal string is a string that contains only hexadecimal characters. i.e. 0-9, A-F, a-f.
+ * A valid hexadecimal string contains only hexadecimal characters (0-9, A-F, a-f).
+ * Strings that don't match this format are rejected.
  *
- * @returns A rule function that validates that the value is a valid hexadecimal string.
- * This function returns a Result type with the value if it is a valid hexadecimal string, or an
- * error if it is not.
+ * @returns A rule function that returns a Result containing the value if it is a valid
+ * hexadecimal string, or an error otherwise.
  *
  * @public
  */

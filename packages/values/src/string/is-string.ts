@@ -22,11 +22,10 @@ const NotString: NotString = {
 };
 
 /**
- * Creates a value rule function that validates that the value is a string.
+ * Creates a rule function that checks whether a value is a string.
  *
- * @returns A rule function that validates that the value is a string.
- * This function returns a Result type with the value if it is a string, or an
- * error if it is not.
+ * @returns A rule function that returns a Result containing the value if it is a string,
+ * or an error otherwise.
  *
  * @public
  */
