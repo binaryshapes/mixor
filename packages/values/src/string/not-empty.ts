@@ -22,14 +22,13 @@ const IsEmpty: IsEmpty = {
 };
 
 /**
- * Creates a value rule function that validates string values are not empty.
+ * Creates a rule function that checks whether a string is not empty.
  *
  * @remarks
- * A string is considered empty if it is empty after trimming whitespace.
+ * A string is considered valid if it contains characters after trimming whitespace.
  *
- * @returns A rule function that validates that the value is not empty.
- * This function returns a Result type with the value if it is not empty, or an
- * error if it is empty.
+ * @returns A rule function that returns a Result containing the value if it is not
+ * empty, or an error otherwise.
  *
  * @public
  */
