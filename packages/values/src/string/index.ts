@@ -32,5 +32,6 @@ export * from './rgba';
 export * from './slug';
 export * from './starts-with';
 export * from './string';
+export * from './ulid';
 export * from './uppercase';
 export * from './uuid';
