@@ -22,15 +22,14 @@ const TooLong: TooLong = {
 };
 
 /**
- * Creates a value rule function that validates string values have a maximum length.
+ * Creates a rule function that checks whether a string has a maximum length.
  *
  * @remarks
- * A string is considered too long if it has more characters than the maximum length.
+ * A string is considered valid if it has fewer or equal characters than the maximum length.
  *
  * @param maxLength - The maximum length of the value.
- * @returns A rule function that validates that the value has a maximum length.
- * This function returns a Result type with the value if it has a maximum length, or an
- * error if it does not.
+ * @returns A rule function that returns a Result containing the value if it meets
+ * the length requirement, or an error otherwise.
  *
  * @public
  */

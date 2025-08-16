@@ -25,15 +25,14 @@ const NotUpperCase: NotUpperCase = {
 const uppercaseRegex = /^[A-Z]+$/;
 
 /**
- * Creates a value rule function that validates string values contain only uppercase letters.
+ * Creates a rule function that checks whether a string contains only uppercase letters.
  *
  * @remarks
- * An uppercase string is a string that contains only uppercase letters (A-Z).
- * It rejects lowercase letters, numbers, spaces, symbols, and special characters.
+ * A valid uppercase string contains only uppercase letters (A-Z). It rejects lowercase
+ * letters, numbers, spaces, symbols, and special characters.
  *
- * @returns A rule function that validates that the value contains only uppercase letters.
- * This function returns a Result type with the value if it contains only uppercase letters, or an
- * error if it contains other characters.
+ * @returns A rule function that returns a Result containing the value if it contains
+ * only uppercase letters, or an error otherwise.
  *
  * @public
  */
