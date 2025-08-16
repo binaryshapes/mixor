@@ -22,15 +22,14 @@ const NotEndsWith: NotEndsWith = {
 };
 
 /**
- * Creates a value rule function that validates string values end with a specific suffix.
+ * Creates a rule function that checks whether a string ends with a specific suffix.
  *
  * @remarks
  * A string ends with a suffix if the suffix is found at the end of the string.
  *
  * @param suffix - The suffix to check for.
- * @returns A rule function that validates that the value ends with the suffix.
- * This function returns a Result type with the value if it ends with the suffix, or an
- * error if it does not.
+ * @returns A rule function that returns a Result containing the value if it ends with
+ * the suffix, or an error otherwise.
  *
  * @public
  */

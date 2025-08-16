@@ -25,15 +25,14 @@ const NotAlpha: NotAlpha = {
 const alphaRegex = /^[a-zA-Z]+$/;
 
 /**
- * Creates a value rule function that validates string values contain only alphabetic characters.
+ * Creates a rule function that checks whether a string contains only alphabetic characters.
  *
  * @remarks
- * An alphabetic string is a string that contains only letters (a-z, A-Z).
- * It rejects numbers, spaces, symbols, and special characters.
+ * An alphabetic string contains only letters (a-z, A-Z). Strings with numbers, spaces,
+ * symbols, or special characters are rejected.
  *
- * @returns A rule function that validates that the value contains only alphabetic characters.
- * This function returns a Result type with the value if it contains only letters, or an
- * error if it contains other characters.
+ * @returns A rule function that returns a Result containing the value if it contains only
+ * letters, or an error otherwise.
  *
  * @public
  */

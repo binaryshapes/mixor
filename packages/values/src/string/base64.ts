@@ -25,14 +25,14 @@ const NotBase64: NotBase64 = {
 const base64Regex = /^[A-Za-z0-9+/]+={0,2}$/;
 
 /**
- * Creates a value rule function that validates string values are valid base64 strings.
+ * Creates a rule function that checks whether a string is a valid base64 string.
  *
  * @remarks
- * A base64 string is a string that contains only base64 characters. i.e. A-Z, a-z, 0-9, +, /, =.
+ * A valid base64 string contains only base64 characters (A-Z, a-z, 0-9, +, /, =).
+ * Strings that don't match this format are rejected.
  *
- * @returns A rule function that validates that the value is a valid base64 string.
- * This function returns a Result type with the value if it is a valid base64 string, or an
- * error if it is not.
+ * @returns A rule function that returns a Result containing the value if it is a valid
+ * base64 string, or an error otherwise.
  *
  * @public
  */
