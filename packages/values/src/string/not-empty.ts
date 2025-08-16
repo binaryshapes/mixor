@@ -22,13 +22,18 @@ const IsEmpty: IsEmpty = {
 };
 
 /**
- * Value rule that validates that the value is not empty.
+ * Creates a value rule function that validates string values are not empty.
  *
- * @param value - The string value to validate.
- * @returns A result indicating whether the value is not empty.
+ * @remarks
+ * A string is considered empty if it is empty after trimming whitespace.
+ *
+ * @returns A rule function that validates that the value is not empty.
+ * This function returns a Result type with the value if it is not empty, or an
+ * error if it is empty.
  *
  * @public
  */
-const notEmpty = rule((value: string) => (value.trim().length !== 0 ? ok(value) : err(IsEmpty)));
+const notEmpty = () =>
+  rule((value: string) => (value.trim().length !== 0 ? ok(value) : err(IsEmpty)));
 
 export { notEmpty };

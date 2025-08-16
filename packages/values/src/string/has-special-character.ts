@@ -25,10 +25,16 @@ const NotSpecialCharacter: NotSpecialCharacter = {
 const specialCharacterRegex = /[!@#$%^&*()_+\-=\\[\]{};':"\\|,.<>\\/?]/;
 
 /**
- * Value rule that validates that the value at least contains one special character.
+ * Creates a value rule function that validates string values contain at least one special character.
+ *
+ * @remarks
+ * A string is considered okay if it contains the given number of special characters. i.e.
+ * `hasSpecialCharacter(2)` will return true if the string contains at least two special characters.
  *
  * @param n - Minimum number of special characters to check for.
- * @returns A result indicating whether the value contains at least one special character.
+ * @returns A rule function that validates that the value contains the given number of special
+ * characters. This function returns a Result type with the value if it contains the given number of
+ * special characters, or an error if it does not.
  *
  * @public
  */

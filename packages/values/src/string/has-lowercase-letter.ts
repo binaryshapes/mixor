@@ -22,10 +22,16 @@ const NotLowercase: NotLowercase = {
 };
 
 /**
- * Value rule that validates that the value at least contains one lowercase letter.
+ * Creates a value rule function that validates string values contain at least one lowercase letter.
+ *
+ * @remarks
+ * A string is considered okay if it contains the given number of lowercase letters. i.e.
+ * `hasLowercaseLetter(2)` will return true if the string contains at least two lowercase letters.
  *
  * @param n - Minimum number of lowercase letters to check for.
- * @returns A result indicating whether the value contains at least one lowercase letter.
+ * @returns A rule function that validates that the value contains the given number of lowercase
+ * letters. This function returns a Result type with the value if it contains the given number of
+ * lowercase letters, or an error if it does not.
  *
  * @public
  */
