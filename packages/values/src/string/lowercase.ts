@@ -25,15 +25,14 @@ const NotLowerCase: NotLowerCase = {
 const lowercaseRegex = /^[a-z]+$/;
 
 /**
- * Creates a value rule function that validates string values contain only lowercase letters.
+ * Creates a rule function that checks whether a string contains only lowercase letters.
  *
  * @remarks
- * A lowercase string is a string that contains only lowercase letters (a-z).
- * It rejects uppercase letters, numbers, spaces, symbols, and special characters.
+ * A valid lowercase string contains only lowercase letters (a-z). It rejects uppercase
+ * letters, numbers, spaces, symbols, and special characters.
  *
- * @returns A rule function that validates that the value contains only lowercase letters.
- * This function returns a Result type with the value if it contains only lowercase letters, or an
- * error if it contains other characters.
+ * @returns A rule function that returns a Result containing the value if it contains
+ * only lowercase letters, or an error otherwise.
  *
  * @public
  */

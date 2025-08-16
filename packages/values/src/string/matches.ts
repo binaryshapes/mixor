@@ -22,16 +22,16 @@ const StringNotMatch: StringNotMatch = {
 };
 
 /**
- * Creates a value rule function that validates string values match a regular expression pattern.
+ * Creates a rule function that checks whether a string matches a regular expression pattern.
  *
  * @remarks
- * A string is considered okay if it matches the given regular expression pattern. i.e.
- * `matches(/^[a-z]+$/)` will return true if the string contains only lowercase letters.
+ * A string is considered valid if it matches the given regular expression pattern.
+ * For example, `matches(/^[a-z]+$/)` will accept strings that contain only
+ * lowercase letters.
  *
  * @param pattern - The regular expression to match.
- * @returns A rule function that validates that the value matches the given regular expression
- * pattern. This function returns a Result type with the value if it matches the given regular
- * expression pattern, or an error if it does not.
+ * @returns A rule function that returns a Result containing the value if it matches
+ * the pattern, or an error otherwise.
  *
  * @public
  */

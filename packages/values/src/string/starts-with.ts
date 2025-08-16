@@ -22,15 +22,14 @@ const NotStartsWith: NotStartsWith = {
 };
 
 /**
- * Creates a value rule function that validates string values start with a specific prefix.
+ * Creates a rule function that checks whether a string starts with a specific prefix.
  *
  * @remarks
- * A string starts with a prefix if the prefix is found at the beginning of the string.
+ * A string is considered valid if it begins with the specified prefix.
  *
  * @param prefix - The prefix to check for.
- * @returns A rule function that validates that the value starts with the prefix.
- * This function returns a Result type with the value if it starts with the prefix, or an
- * error if it does not.
+ * @returns A rule function that returns a Result containing the value if it starts
+ * with the prefix, or an error otherwise.
  *
  * @public
  */

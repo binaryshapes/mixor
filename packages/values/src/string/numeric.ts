@@ -25,14 +25,14 @@ const NotNumeric: NotNumeric = {
 const num = /^[0-9]+$/;
 
 /**
- * Creates a value rule function that validates string values are numeric.
+ * Creates a rule function that checks whether a string contains only digits.
  *
  * @remarks
- * A numeric string is a string that contains only digits.
+ * A valid numeric string contains only digits (0-9). It rejects letters, spaces,
+ * symbols, and special characters.
  *
- * @returns A rule function that validates that the value is a numeric string.
- * This function returns a Result type with the value if it is a numeric string, or an
- * error if it is not.
+ * @returns A rule function that returns a Result containing the value if it contains
+ * only digits, or an error otherwise.
  *
  * @public
  */

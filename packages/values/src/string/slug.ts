@@ -25,16 +25,14 @@ const InvalidSlug: InvalidSlug = {
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
- * Creates a value rule function that validates string values are valid slugs.
+ * Creates a rule function that checks whether a string is a valid slug.
  *
  * @remarks
- * A slug is a URL-friendly string that contains only lowercase letters, numbers,
- * and hyphens. It must start and end with alphanumeric characters and cannot
- * have consecutive hyphens.
+ * A valid slug contains only lowercase letters, numbers, and hyphens. It must start
+ * and end with alphanumeric characters and cannot have consecutive hyphens.
  *
- * @returns A rule function that validates that the value is a valid slug format.
- * This function returns a Result type with the value if it is a valid slug, or an error
- * if it is not.
+ * @returns A rule function that returns a Result containing the value if it is a valid
+ * slug, or an error otherwise.
  *
  * @public
  */

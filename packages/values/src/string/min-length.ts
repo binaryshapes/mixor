@@ -22,15 +22,14 @@ const TooShort: TooShort = {
 };
 
 /**
- * Creates a value rule function that validates string values have a minimum length.
+ * Creates a rule function that checks whether a string has a minimum length.
  *
  * @remarks
- * A string is considered too short if it has fewer characters than the minimum length.
+ * A string is considered valid if it has more or equal characters than the minimum length.
  *
  * @param minLength - The minimum length of the value.
- * @returns A rule function that validates that the value has a minimum length.
- * This function returns a Result type with the value if it has a minimum length, or an
- * error if it does not.
+ * @returns A rule function that returns a Result containing the value if it meets
+ * the length requirement, or an error otherwise.
  *
  * @public
  */
