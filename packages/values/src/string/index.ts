@@ -32,3 +32,4 @@ export * from './slug';
 export * from './starts-with';
 export * from './string';
 export * from './uppercase';
+export * from './uuid';
