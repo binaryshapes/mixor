@@ -22,16 +22,15 @@ const NotContain: NotContain = {
 };
 
 /**
- * Creates a value rule function that validates string values are contained in a list.
+ * Creates a rule function that checks whether a string is contained in a list.
  *
  * @remarks
- * A string is considered okay if it is contained in the given list. i.e.
- * `contains(['hello', 'world'])` will return true if the string is 'hello' or 'world'.
+ * A string is considered valid if it is contained in the given list. For example,
+ * `contains(['hello', 'world'])` will accept strings that are 'hello' or 'world'.
  *
- * @param list - The list of values to check.
- * @returns A rule function that validates that the value is contained in the given list.
- * This function returns a Result type with the value if it is contained in the given list, or an
- * error if it is not.
+ * @param list - The list of values to check against.
+ * @returns A rule function that returns a Result containing the value if it is in the
+ * list, or an error otherwise.
  *
  * @public
  */
