@@ -23,6 +23,7 @@ export * from './lowercase';
 export * from './matches';
 export * from './max-length';
 export * from './min-length';
+export * from './nanoid';
 export * from './not-empty';
 export * from './numeric';
 export * from './phone-number';
