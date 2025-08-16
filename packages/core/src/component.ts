@@ -455,7 +455,7 @@ const registry = (() => {
       const targetHash = hash(data.tag, target, extra);
 
       // Initialize or increment the reference counter for the component.
-      const ref = refs.has(targetHash) ? (refs.get(targetHash) ?? 0) + 1 : 0;
+      const ref = refs.has(targetHash) ? (refs.get(targetHash) ?? 1) + 1 : 1;
       refs.set(targetHash, ref);
 
       // Generate the id for the component.
