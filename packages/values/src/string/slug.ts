@@ -25,13 +25,13 @@ const InvalidSlug: InvalidSlug = {
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
- * Value rule that validates that the value is a valid slug.
+ * Value rule constructor that validates that the value is a valid slug.
  *
- * @param value - The string value to validate.
- * @returns A result indicating whether the value is a valid slug.
+ * @returns A rule function that validates that return a result indicating whether the value
+ * is a valid slug.
  *
  * @public
  */
-const slug = rule((value: string) => (slugRegex.test(value) ? ok(value) : err(InvalidSlug)));
+const slug = () => rule((value: string) => (slugRegex.test(value) ? ok(value) : err(InvalidSlug)));
 
 export { slug };
