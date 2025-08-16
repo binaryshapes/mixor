@@ -7,15 +7,15 @@ import type { StringValueError } from './string';
  *
  * @internal
  */
-type InvalidDate = StringValueError<'InvalidDateError', 'isoDate'>;
+type InvalidISODate = StringValueError<'InvalidISODateError', 'isoDate'>;
 
 /**
  * Instance of the `InvalidDate` error type.
  *
  * @internal
  */
-const InvalidDate: InvalidDate = {
-  code: 'InvalidDateError',
+const InvalidISODate: InvalidISODate = {
+  code: 'InvalidISODateError',
   context: 'StringValue',
   origin: 'isoDate',
   message: 'Value is not a valid ISO date',
@@ -37,6 +37,6 @@ const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
  * @public
  */
 const isoDate = () =>
-  rule((value: string) => (dateRegex.test(value) ? ok(value) : err(InvalidDate)));
+  rule((value: string) => (dateRegex.test(value) ? ok(value) : err(InvalidISODate)));
 
 export { isoDate };

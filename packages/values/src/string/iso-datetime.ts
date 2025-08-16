@@ -7,15 +7,15 @@ import type { StringValueError } from './string';
  *
  * @internal
  */
-type InvalidDateTime = StringValueError<'InvalidDateTimeError', 'isoDatetime'>;
+type InvalidISODateTime = StringValueError<'InvalidISODateTimeError', 'isoDatetime'>;
 
 /**
  * Instance of the `InvalidDateTime` error type.
  *
  * @internal
  */
-const InvalidDateTime: InvalidDateTime = {
-  code: 'InvalidDateTimeError',
+const InvalidISODateTime: InvalidISODateTime = {
+  code: 'InvalidISODateTimeError',
   context: 'StringValue',
   origin: 'isoDatetime',
   message: 'Value is not a valid ISO date and time',
@@ -29,14 +29,15 @@ const datetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]
  *
  * @remarks
  * A valid ISO date time string follows the format YYYY-MM-DDTHH:MM:SS (e.g., "2021-01-01T12:34:56").
- * It can include milliseconds and timezone information. Strings that don't match this format are rejected.
+ * It can include milliseconds and timezone information. Strings that don't match this format
+ * are rejected.
  *
- * @returns A rule function that returns a Result containing the value if it is a valid ISO date and time,
- * or an error otherwise.
+ * @returns A rule function that returns a Result containing the value if it is a valid ISO date
+ * and time, or an error otherwise.
  *
  * @public
  */
 const isoDatetime = () =>
-  rule((value: string) => (datetimeRegex.test(value) ? ok(value) : err(InvalidDateTime)));
+  rule((value: string) => (datetimeRegex.test(value) ? ok(value) : err(InvalidISODateTime)));
 
 export { isoDatetime };

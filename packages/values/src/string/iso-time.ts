@@ -7,15 +7,15 @@ import type { StringValueError } from './string';
  *
  * @internal
  */
-type InvalidTime = StringValueError<'InvalidTimeError', 'isoTime'>;
+type InvalidISOTime = StringValueError<'InvalidISOTimeError', 'isoTime'>;
 
 /**
  * Instance of the `InvalidTime` error type.
  *
  * @internal
  */
-const InvalidTime: InvalidTime = {
-  code: 'InvalidTimeError',
+const InvalidISOTime: InvalidISOTime = {
+  code: 'InvalidISOTimeError',
   context: 'StringValue',
   origin: 'isoTime',
   message: 'Value is not a valid ISO time',
@@ -37,6 +37,6 @@ const timeRegex = /^\d{2}:\d{2}:\d{2}$/;
  * @public
  */
 const isoTime = () =>
-  rule((value: string) => (timeRegex.test(value) ? ok(value) : err(InvalidTime)));
+  rule((value: string) => (timeRegex.test(value) ? ok(value) : err(InvalidISOTime)));
 
 export { isoTime };
