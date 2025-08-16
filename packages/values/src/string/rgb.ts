@@ -25,13 +25,18 @@ const InvalidRGB: InvalidRGB = {
 const rgbRegex = /^rgb?\((\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})\)$/;
 
 /**
- * Value rule that validates that the value is a valid RGB color.
+ * Creates a value rule function that validates string values are valid RGB colors.
  *
- * @param value - The string value to validate.
- * @returns A result indicating whether the value is a valid RGB color.
+ * @remarks
+ * An RGB color is a string that represents a color in the format `rgb(r, g, b)`,
+ * where `r`, `g`, and `b` are the red, green, and blue components of the color.
+ *
+ * @returns A rule function that validates that the value is a valid RGB color.
+ * This function returns a Result type with the value if it is a valid RGB color, or an
+ * error if it is not.
  *
  * @public
  */
-const rgb = rule((value: string) => (rgbRegex.test(value) ? ok(value) : err(InvalidRGB)));
+const rgb = () => rule((value: string) => (rgbRegex.test(value) ? ok(value) : err(InvalidRGB)));
 
 export { rgb };
