@@ -25,16 +25,14 @@ const NotCapitalized: NotCapitalized = {
 const capitalizedRegex = /^[A-Z][a-z]*$/;
 
 /**
- * Creates a value rule function that validates string values are properly capitalized.
+ * Creates a rule function that checks whether a string is properly capitalized.
  *
  * @remarks
- * A capitalized string is a string where the first letter is uppercase (A-Z) and the rest
- * are lowercase (a-z). It rejects strings that are all lowercase, all uppercase, or
- * have multiple words.
+ * A capitalized string has the first letter uppercase (A-Z) and the rest lowercase (a-z).
+ * Strings that are all lowercase, all uppercase, or have multiple words are rejected.
  *
- * @returns A rule function that validates that the value is properly capitalized.
- * This function returns a Result type with the value if it is properly capitalized, or an
- * error if it is not.
+ * @returns A rule function that returns a Result containing the value if it is properly
+ * capitalized, or an error otherwise.
  *
  * @public
  */
