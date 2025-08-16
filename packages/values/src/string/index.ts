@@ -4,6 +4,7 @@ export * from './base64';
 export * from './capitalized';
 export * from './coerce-string';
 export * from './contains';
+export * from './cuid';
 export * from './emoji';
 export * from './ends-with';
 export * from './has-bigint-format';
