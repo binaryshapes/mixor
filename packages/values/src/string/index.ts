@@ -5,6 +5,7 @@ export * from './capitalized';
 export * from './coerce-string';
 export * from './contains';
 export * from './cuid';
+export * from './cuid2';
 export * from './emoji';
 export * from './ends-with';
 export * from './has-bigint-format';
