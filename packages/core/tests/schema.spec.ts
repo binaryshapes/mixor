@@ -105,6 +105,109 @@ describe('schema', () => {
     });
   });
 
+  describe('Schema Transformation Methods', () => {
+    // Common base schema.
+    const UserSchema = schema({
+      name: value(rule((name: string) => (name.length > 0 ? ok(name) : err('EMPTY_NAME')))),
+      age: value(rule((age: number) => (age >= 0 ? ok(age) : err('INVALID_AGE')))),
+      password: value(rule((pass: string) => (pass.length >= 6 ? ok(pass) : err('WEAK_PASSWORD')))),
+    });
+
+    it('should support pick method', () => {
+      const UserCreate = UserSchema.pick({ name: true, age: true });
+      expect(isSchema(UserCreate)).toBe(true);
+      expect(Object.keys(UserCreate)).toContain('name');
+      expect(Object.keys(UserCreate)).toContain('age');
+      expect(Object.keys(UserCreate)).not.toContain('password');
+
+      // Test validation
+      const result = UserCreate({ name: 'John', age: 25 });
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result)).toEqual({ name: 'John', age: 25 });
+
+      // Typecheck.
+      expectTypeOf(UserCreate.Type).toEqualTypeOf<{ name: string; age: number }>();
+    });
+
+    it('should support omit method', () => {
+      const UserCreate = UserSchema.omit({ password: true });
+      expect(isSchema(UserCreate)).toBe(true);
+      expect(Object.keys(UserCreate)).toContain('name');
+      expect(Object.keys(UserCreate)).toContain('age');
+      expect(Object.keys(UserCreate)).not.toContain('password');
+
+      // Test validation
+      const result = UserCreate({ name: 'John', age: 25 });
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result)).toEqual({ name: 'John', age: 25 });
+
+      // Typecheck.
+      expectTypeOf(UserCreate.Type).toEqualTypeOf<{ name: string; age: number }>();
+    });
+
+    it('should support partial method', () => {
+      const UserSchema = schema({
+        name: value(rule((name: string) => (name.length > 0 ? ok(name) : err('EMPTY_NAME')))),
+        age: value(rule((age: number) => (age >= 0 ? ok(age) : err('INVALID_AGE')))),
+      });
+
+      const PartialUser = UserSchema.partial();
+      expect(isSchema(PartialUser)).toBe(true);
+
+      // Test validation with undefined fields
+      const result = PartialUser({ name: 'John', age: undefined });
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result)).toEqual({ name: 'John', age: undefined });
+
+      // Typecheck.
+      expectTypeOf(PartialUser.Type).toEqualTypeOf<{
+        name?: string | undefined;
+        age?: number | undefined;
+      }>();
+    });
+
+    it('should support extend method', () => {
+      const ExtendedUser = UserSchema.extend({
+        email: value(
+          rule((email: string) => (email.includes('@') ? ok(email) : err('INVALID_EMAIL'))),
+        ),
+        isActive: value(rule((active: boolean) => ok(active))),
+      });
+
+      expect(isSchema(ExtendedUser)).toBe(true);
+      expect(Object.keys(ExtendedUser)).toContain('name');
+      expect(Object.keys(ExtendedUser)).toContain('age');
+      expect(Object.keys(ExtendedUser)).toContain('email');
+      expect(Object.keys(ExtendedUser)).toContain('isActive');
+
+      // Test validation
+      const result = ExtendedUser({
+        name: 'John',
+        age: 25,
+        password: '123456!R@nd0m',
+        email: 'john@example.com',
+        isActive: true,
+      });
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result)).toEqual({
+        name: 'John',
+        age: 25,
+        password: '123456!R@nd0m',
+        email: 'john@example.com',
+        isActive: true,
+      });
+
+      // Typecheck.
+      expectTypeOf(ExtendedUser.Type).toEqualTypeOf<{
+        name: string;
+        age: number;
+        password: string;
+        email: string;
+        isActive: boolean;
+      }>();
+    });
+  });
+
   describe('Edge Cases & Error Handling', () => {
     it('should throw error for non-value fields', () => {
       expect(() => {
