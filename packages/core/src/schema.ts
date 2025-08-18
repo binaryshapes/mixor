@@ -41,7 +41,12 @@ type EnsureAllValues<T> = Prettify<{
  * @public
  */
 type SchemaValues<S> = UndefinedToOptional<{
-  [K in keyof S]: S[K] extends Value<infer T, Any> ? T : never;
+  [K in keyof S]: S[K] extends Value<infer T, Any>
+    ? // Some values are objects of values, so we need to recursively infer the object type.
+      T extends Record<string, Value<Any, Any>>
+      ? SchemaValues<T>
+      : T
+    : never;
 }>;
 
 /**
