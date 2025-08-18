@@ -12,7 +12,7 @@ import { type Component, component, isComponent } from './component';
 import type { Any } from './generics';
 import { assert } from './logger';
 import { pipe } from './pipe';
-import { type Result } from './result';
+import { type Result, ok } from './result';
 
 /**
  * Defines the shape of a value function. Must return a result with known error type.
@@ -57,6 +57,20 @@ type Value<T, E> = Component<
     (input: T, mode?: 'all'): Result<T, E[]>;
     // Strict mode returns a single error.
     (input: T, mode: 'strict'): Result<T, E>;
+    /**
+     * Makes the value optional (undefined is allowed).
+     * @returns A new value that accepts undefined values.
+     */
+    optional(): Value<T | undefined, E>;
+
+    /**
+     * Makes the value nullable (null is allowed).
+     * @returns A new value that accepts null values.
+     */
+    nullable(): Value<T | null, E>;
+
+    isOptional: boolean;
+    isNullable: boolean;
   }
 >;
 
@@ -88,15 +102,41 @@ const value = <R extends Rule<Any, Any>[]>(...rules: R) => {
   type T = R extends Rule<infer TT, Any>[] ? TT : never;
   type E = R extends Rule<Any, infer EE>[] ? EE : never;
 
-  // Defensive assertion (should never happen).
+  // Defensive assertion to check if all rules are valid (should never happen).
   assert(rules.every(isRule), 'Invalid rules');
 
-  return component(
+  // Create the base value component with the rule pipeline.
+  const baseValue = component(
     'Value',
-    (value: T, mode: ErrorMode = config.defaultErrorMode) =>
-      pipe(mode, ...(rules as unknown as [Any]))(value),
+    (value: T, mode: ErrorMode = config.defaultErrorMode) => {
+      if (
+        (baseValue.isOptional && value === undefined) ||
+        (baseValue.isNullable && value === null)
+      ) {
+        return ok(value);
+      }
+
+      return pipe(mode, ...(rules as unknown as [Any]))(value);
+    },
     rules,
   ).addChildren(...rules) as Value<T, E>;
+
+  // Add optional and nullable methods and properties to the base value component.
+  Object.assign(baseValue, {
+    isOptional: false,
+    isNullable: false,
+    optional: () => {
+      baseValue.isOptional = true;
+      return baseValue;
+    },
+
+    nullable: () => {
+      baseValue.isNullable = true;
+      return baseValue;
+    },
+  });
+
+  return baseValue;
 };
 
 /**
