@@ -84,6 +84,10 @@ function env<F>(schema: Schema<F>) {
           'subType',
           'injectable',
           'tree',
+          'pick',
+          'omit',
+          'partial',
+          'extend',
         ].includes(key),
     );
 
