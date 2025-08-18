@@ -100,6 +100,28 @@ describe('Value', () => {
       const UserEmail = value(EmailNotEmpty);
       expect(isValue(UserEmail)).toBe(true);
     });
+
+    it('should support optional value', () => {
+      const EmailNotEmpty = helpers.createEmailRule();
+      const UserEmail = value(EmailNotEmpty).optional();
+      expect(UserEmail.isOptional).toBe(true);
+      expect(UserEmail.isNullable).toBe(false);
+
+      const result = UserEmail(undefined);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result)).toBe(undefined);
+    });
+
+    it('should support nullable value', () => {
+      const EmailNotEmpty = helpers.createEmailRule();
+      const UserEmail = value(EmailNotEmpty).nullable();
+      expect(UserEmail.isOptional).toBe(false);
+      expect(UserEmail.isNullable).toBe(true);
+
+      const result = UserEmail(null);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result)).toBe(null);
+    });
   });
 
   describe('Type safety', () => {
