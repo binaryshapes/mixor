@@ -117,7 +117,9 @@ type ComponentSubType =
   | 'symbol'
   | 'date'
   | 'url'
-  | 'array';
+  | 'array'
+  | 'object'
+  | 'enum';
 
 /**
  * Type representing the allowed shape of a component.
