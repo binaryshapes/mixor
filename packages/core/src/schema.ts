@@ -9,7 +9,7 @@
 import { config } from './_config';
 import type { ApplyErrorMode, ErrorMode } from './_err';
 import { type Component, component, isComponent } from './component';
-import type { Any, Prettify } from './generics';
+import type { Any, Prettify, UndefinedToOptional } from './generics';
 import { panic } from './panic';
 import { type Result, err, isOk, ok } from './result';
 import { type Value, isValue } from './value';
@@ -40,7 +40,7 @@ type EnsureAllValues<T> = Prettify<{
  *
  * @public
  */
-type SchemaValues<S> = Prettify<{
+type SchemaValues<S> = UndefinedToOptional<{
   [K in keyof S]: S[K] extends Value<infer T, Any> ? T : never;
 }>;
 
