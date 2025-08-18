@@ -58,6 +58,51 @@ type SchemaErrors<S, Mode extends ErrorMode> = Prettify<{
 }>;
 
 /**
+ * Creates a schema with only the picked fields.
+ *
+ * @typeParam S - The original schema fields.
+ * @typeParam K - The keys to pick.
+ *
+ * @internal
+ */
+type PickSchema<S, K extends keyof S> = Prettify<{
+  [P in K]: S[P];
+}>;
+
+/**
+ * Creates a schema with the omitted fields removed.
+ *
+ * @typeParam S - The original schema fields.
+ * @typeParam K - The keys to omit.
+ *
+ * @internal
+ */
+type OmitSchema<S, K extends keyof S> = Prettify<{
+  [P in keyof S as P extends K ? never : P]: S[P];
+}>;
+
+/**
+ * Makes all fields in the schema optional.
+ *
+ * @typeParam S - The original schema fields.
+ *
+ * @internal
+ */
+type PartialSchema<S> = Prettify<{
+  [K in keyof S]: S[K] extends Value<infer T, infer E> ? Value<T | undefined, E> : never;
+}>;
+
+/**
+ * Extends the schema with additional fields.
+ *
+ * @typeParam S - The original schema fields.
+ * @typeParam E - The additional fields to extend with.
+ *
+ * @internal
+ */
+type ExtendSchema<S, E extends SchemaFields> = Prettify<S & E>;
+
+/**
  * This function ensures to executes all value validators defined in the schema.
  * The result is a record of the values and errors.
  * Uses the centralized error mode concept from {@link ErrorMode}.
@@ -81,6 +126,37 @@ type SchemaFunction<F, V = SchemaValues<F>> = {
    * @returns A result containing the validated value or an error.
    */
   <Mode extends ErrorMode = 'all'>(value: V, mode?: Mode): Result<V, SchemaErrors<F, Mode>>;
+
+  /**
+   * Creates a new schema with only the specified fields.
+   *
+   * @param keys - Object with keys to pick (values should be true).
+   * @returns A new schema with only the picked fields.
+   */
+  pick<K extends keyof F>(keys: Record<K, true>): Schema<PickSchema<F, K>>;
+
+  /**
+   * Creates a new schema with the specified fields removed.
+   *
+   * @param keys - Object with keys to omit (values should be true).
+   * @returns A new schema with the omitted fields removed.
+   */
+  omit<K extends keyof F>(keys: Record<K, true>): Schema<OmitSchema<F, K>>;
+
+  /**
+   * Creates a new schema with all fields made optional.
+   *
+   * @returns A new schema with all fields optional.
+   */
+  partial(): Schema<PartialSchema<F>>;
+
+  /**
+   * Extends the schema with additional fields.
+   *
+   * @param additionalFields - Additional fields to add to the schema.
+   * @returns A new schema with the extended fields.
+   */
+  extend<E extends SchemaFields>(additionalFields: EnsureAllValues<E>): Schema<ExtendSchema<F, E>>;
 } & {
   [K in keyof F]: F[K] extends Value<Any, Any> ? F[K] : never;
 };
@@ -94,6 +170,45 @@ type SchemaFunction<F, V = SchemaValues<F>> = {
  * @public
  */
 type Schema<F> = Component<'Schema', SchemaFunction<F>>;
+
+/**
+ * Prototype for the schema object that provides the schema transformation methods.
+ *
+ * @param fields - The schema fields.
+ * @returns The schema prototype.
+ *
+ * @internal
+ */
+const SchemaPrototype = <F>(fields: EnsureAllValues<F>) => ({
+  pick: (keys: Record<keyof F, true>) =>
+    schema(
+      Object.fromEntries(
+        Object.entries(keys)
+          .filter(([, shouldPick]) => shouldPick)
+          .map(([key]) => [key, (fields as Any)[key]]),
+      ),
+    ),
+
+  omit: (keys: Record<keyof F, true>) =>
+    schema(
+      Object.fromEntries(
+        Object.entries(fields).filter(([key]) => !(key in keys) || !keys[key as keyof typeof keys]),
+      ) as Any,
+    ),
+
+  partial: () =>
+    schema(
+      Object.fromEntries(
+        Object.entries(fields).map(([key, field]) => [
+          key,
+          (field as Any).optional(),
+        ]),
+      ) as Any,
+    ),
+
+  extend: <E extends SchemaFields>(additionalFields: EnsureAllValues<E>) =>
+    schema({ ...(fields as Any), ...(additionalFields as Any) }),
+});
 
 /**
  * Panic error for the schema module.
@@ -170,6 +285,9 @@ const schema = <F extends SchemaFields>(fields: EnsureAllValues<F>): Schema<F> =
 
   // Create a component schema.
   const sch = component('Schema', schemaValidator, fields) as Schema<F>;
+
+  // Add schema transformation methods using the prototype.
+  Object.assign(sch, SchemaPrototype(fields));
 
   // Add field functions as properties.
   for (const [fieldName, fieldFn] of Object.entries(fields)) {
