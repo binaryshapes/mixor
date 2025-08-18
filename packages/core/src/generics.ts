@@ -271,6 +271,22 @@ type MergeUnion<T> =
  */
 type FlatArray<T> = T extends Array<infer U> ? U : T;
 
+/**
+ * Converts all undefined values in a type to optional values.
+ *
+ * @typeParam T - The type to convert.
+ * @returns The converted type.
+ *
+ * @public
+ */
+type UndefinedToOptional<T> = Prettify<
+  {
+    [K in keyof T as undefined extends T[K] ? K : never]?: Exclude<T[K], undefined>;
+  } & {
+    [K in keyof T as undefined extends T[K] ? never : K]: T[K];
+  }
+>;
+
 export type {
   // General purpose types.
   Any,
@@ -289,4 +305,5 @@ export type {
   IfReadonly,
   PreserveReadonly,
   FlatArray,
+  UndefinedToOptional,
 };
