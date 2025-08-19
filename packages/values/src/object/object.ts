@@ -1,4 +1,12 @@
-import { type Any, type SchemaErrors, type Value, rule, schema, value } from '@mixor/core';
+import {
+  type Any,
+  type SchemaErrors,
+  type SchemaValues,
+  type Value,
+  rule,
+  schema,
+  value,
+} from '@mixor/core';
 
 /**
  * Creates an object value with automatic type inference.
@@ -13,7 +21,18 @@ import { type Any, type SchemaErrors, type Value, rule, schema, value } from '@m
  *
  * @public
  */
-const object = <T extends Record<string, Value<Any, Any>>>(fields: T) =>
-  value(rule(schema(fields))).subType('object') as Value<T, SchemaErrors<T, 'strict'>>;
+const object = <T extends Record<string, Value<Any, Any>>>(fields: T) => {
+  // Create a unique schema instance for each call.
+  const schemaInstance = schema(fields);
+
+  // Create a unique rule instance for each call.
+  const ruleInstance = rule((value: Any) => schemaInstance(value)).subType('object');
+
+  // Create a unique value instance for each call.
+  return value(ruleInstance).subType('object') as unknown as Value<
+    SchemaValues<T>,
+    SchemaErrors<T, 'all'>
+  >;
+};
 
 export { object };

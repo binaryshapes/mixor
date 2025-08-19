@@ -19,7 +19,14 @@ type NumberValueError<C extends string, O extends string> = ResultError<C, 'Numb
  *
  * @public
  */
-const number = <T extends Rule<number, Any>[]>(...rules: T) => value<T>(...rules).subType('number');
+const number = <T extends Rule<number, Any>[]>(...rules: T) => {
+  // Apply the subType "number" to the rules.
+  for (const rule of rules) {
+    rule.subType('number');
+  }
+
+  return value<T>(...rules).subType('number');
+};
 
 export type { NumberValueError };
 export { number };

@@ -19,7 +19,14 @@ type StringValueError<C extends string, O extends string> = ResultError<C, 'Stri
  *
  * @public
  */
-const string = <T extends Rule<string, Any>[]>(...rules: T) => value<T>(...rules).subType('string');
+const string = <T extends Rule<string, Any>[]>(...rules: T) => {
+  // Apply the subType "string" to the rules.
+  for (const rule of rules) {
+    rule.subType('string');
+  }
+
+  return value<T>(...rules).subType('string');
+};
 
 export type { StringValueError };
 export { string };
