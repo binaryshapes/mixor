@@ -99,8 +99,8 @@ const enumerateArray = <T, L = T>(values: T[]): Value<L, InvalidEnum> => {
         return err(InvalidEnum);
       }
       return ok(value);
-    }),
-  ).subType('enum');
+    }).subType('enum'),
+  );
 };
 
 /**
@@ -149,8 +149,8 @@ const enumerateEnum = <T extends Record<string, string | number>>(
         return err(InvalidEnum);
       }
       return ok(value);
-    }),
-  ).subType('enum');
+    }).subType('enum'),
+  );
 };
 
 /**
@@ -162,12 +162,10 @@ const enumerateEnum = <T extends Record<string, string | number>>(
  *
  * @public
  */
-const enumerate: EnumerateFunction = (input: Any) => {
-  // Detect if input is an array or enum object.
-  if (Array.isArray(input)) {
-    return enumerateArray(input as (string | number)[]);
-  }
-  return enumerateEnum(input as Record<string, string | number>);
-};
+const enumerate: EnumerateFunction = (input: Any) =>
+  (Array.isArray(input)
+    ? enumerateArray(input as (string | number)[])
+    : enumerateEnum(input as Record<string, string | number>)
+  ).subType('enum');
 
 export { enumerate, EnumerateError };
