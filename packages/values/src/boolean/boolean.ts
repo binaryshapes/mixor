@@ -7,6 +7,7 @@ import { ok, rule, value } from '@mixor/core';
  *
  * @public
  */
-const boolean = () => value(rule((value: boolean) => ok(Boolean(value)))).subType('boolean');
+const boolean = () =>
+  value(rule((value: boolean) => ok(Boolean(value))).subType('boolean')).subType('boolean');
 
 export { boolean };
