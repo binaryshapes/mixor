@@ -25,16 +25,21 @@ import { type Result } from './result';
  * @internal
  */
 type Infer<T, Tag extends string> =
-  // If the tag represents a Schema, Value or Rule, infer the type of the function.
-  Tag extends 'Schema' | 'Value' | 'Rule'
-    ? T extends (...args: [infer F]) => Any
-      ? F
+  // If the tag represents a Value, infer the return type of the function.
+  Tag extends 'Value'
+    ? T extends (...args: Any) => Result<infer R, Any>
+      ? R
       : T
-    : // If the tag represents an Object, return the prettified type.
-      Tag extends 'Object' | 'Criteria' | 'Event'
-      ? Prettify<T>
-      : // Otherwise, return the type as is (no inference needed, the type is already known).
-        T;
+    : // If the tag represents a Schema or Rule, infer the type of the function.
+      Tag extends 'Schema' | 'Rule'
+      ? T extends (...args: [infer F]) => Any
+        ? F
+        : T
+      : // If the tag represents an Object, return the prettified type.
+        Tag extends 'Object' | 'Criteria' | 'Event'
+        ? Prettify<T>
+        : // Otherwise, return the type as is (no inference needed, the type is already known).
+          T;
 
 /**
  * List of non-injectable component types.
@@ -843,4 +848,4 @@ const isComponent = (maybeComponent: Any, tag?: ComponentTag) =>
   registry.exists(maybeComponent) && (tag ? registry.get(maybeComponent).tag === tag : true);
 
 export type { Component };
-export { component, supportedComponents, tracer, isComponent, ComponentError, buildTree };
+export { component, supportedComponents, tracer, isComponent, ComponentError, buildTree, registry };
