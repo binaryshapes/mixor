@@ -10,6 +10,7 @@ export * from './flow';
 export * from './logger';
 export * from './panic';
 export * from './pipe';
+export * from './task';
 export * from './result';
 export * from './schema';
 export * from './specification';
