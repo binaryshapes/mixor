@@ -18,11 +18,10 @@
  * @public
  */
 class PanicError<S extends string, T extends string> extends Error {
-  readonly code: `${S}:${T}`;
+  readonly code: `${S}.${T}`;
   constructor(scope: S, tag: T, message: string) {
     super(message);
-    this.name = 'Panic';
-    this.code = `${scope}:${tag}`;
+    this.code = `${scope}.${tag}`;
   }
 
   /**
