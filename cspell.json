@@ -39,7 +39,8 @@
     "FFAA",
     "verylongstring",
     "securepass",
-    "invalidpass"
+    "invalidpass",
+    "orpc"
   ],
   "import": []
 }
