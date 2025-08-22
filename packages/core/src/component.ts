@@ -11,9 +11,11 @@ import { EventEmitter } from 'node:events';
 
 import { config } from './_config';
 import type { Any, Prettify } from './generics';
-import { assert, warn } from './logger';
+import { assert } from './logger';
 import { panic } from './panic';
 import { type Result } from './result';
+
+// TODO: move the inference rules and the injectable criteria outside of the component module
 
 /**
  * Infer the type of a component.
@@ -36,7 +38,7 @@ type Infer<T, Tag extends string> =
         ? F
         : T
       : // If the tag represents an Object, return the prettified type.
-        Tag extends 'Object' | 'Criteria' | 'Event'
+        Tag extends 'Object' | 'Criteria' | 'Event' | 'Contract'
         ? Prettify<T>
         : // Otherwise, return the type as is (no inference needed, the type is already known).
           T;
@@ -58,6 +60,7 @@ const nonInjectableList = [
   'Schema',
   'Specification',
   'Value',
+  'Task',
 ] as const;
 
 /**
@@ -65,7 +68,15 @@ const nonInjectableList = [
  *
  * @internal
  */
-const injectableList = ['Port', 'Adapter', 'Service', 'Container', 'Object', 'Criteria'] as const;
+const injectableList = [
+  'Port',
+  'Adapter',
+  'Service',
+  'Container',
+  'Object',
+  'Criteria',
+  'Contract',
+] as const;
 
 /**
  * List of tracer events.
@@ -135,12 +146,12 @@ type ComponentSubType =
  *
  * @internal
  */
-type ComponentType<Tag extends ComponentTag> = Tag extends 'Object' | 'Criteria'
+type ComponentType<Tag extends ComponentTag> = Tag extends 'Object' | 'Criteria' | 'Contract'
   ? Record<string, Any>
   : Tag extends ComponentNonInjectable
     ? Tag extends 'Event'
       ? (...args: Any) => Any
-      : Tag extends 'Flow' | 'Query' | 'Command'
+      : Tag extends 'Flow' | 'Query' | 'Command' | 'Task'
         ? (...args: Any) => Result<Any, Any> | Promise<Result<Any, Any>>
         : (...args: Any) => Result<Any, Any>
     : (...args: Any) => Any;
@@ -361,15 +372,15 @@ const trace = (component: Component<Any, Any>) => {
       const input = { type: parseArgs(args), values: args };
       const start = process.hrtime.bigint();
       const traceId = randomUUID();
-      const elementId = id;
+      const componentId = id;
 
-      tracer.emit('start', { traceId, elementId, start, input });
+      tracer.emit('start', { traceId, componentId, start, input });
 
       const emitPerf = (finish: bigint, output: Any, isAsync: boolean) => {
         tracer.emit('finish', { finish, output });
         tracer.emit('performance', {
           traceId,
-          elementId,
+          componentId,
           durationMs: Number(finish - start) / 1_000_000,
           start,
           finish,
@@ -382,7 +393,7 @@ const trace = (component: Component<Any, Any>) => {
       const emitError = (finish: bigint, error: Error, isAsync: boolean) => {
         tracer.emit('error', {
           traceId,
-          elementId,
+          componentId,
           error,
           durationMs: Number(finish - start) / 1_000_000,
           start,
@@ -635,7 +646,6 @@ function buildTree(
 
   // Prevent infinite recursion in case of circular dependencies.
   if (visited.has(componentId)) {
-    warn(`Duplicated children component detected: "${componentId}"`);
     return {
       component,
       info,
