@@ -626,7 +626,7 @@ function container(
  *
  * @public
  */
-const registry = {
+const pool = {
   /**
    * Clears all global registry to free memory.
    * Only recommended to use in tests.
@@ -655,4 +655,4 @@ const registry = {
 };
 
 export type { Container, Service, Adapter, Port, ElementType };
-export { container, service, adapter, port, registry, ContainerError };
+export { container, service, adapter, port, pool, ContainerError };
