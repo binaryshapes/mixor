@@ -2,6 +2,7 @@ export * from './aggregate';
 export * from './builder';
 export * from './component';
 export * from './container';
+export * from './contract';
 export * from './criteria';
 export * from './doc';
 export * from './env';
