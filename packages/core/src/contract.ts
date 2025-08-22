@@ -75,7 +75,35 @@ type ContractSignature<I = Any, O = Any, C = Any> = {
   /**
    * The context defined in the contract.
    */
-  context?: C;
+  context: C;
+};
+
+/**
+ * Defines the shape of the handler function for a given contract.
+ *
+ * @typeParam C - The contract type.
+ *
+ * @public
+ */
+type ContractHandler<C extends Contract<Any, Any, Any>> = {
+  (
+    args: {
+      input: C['signature']['input'];
+    } & (C['signature']['context'] extends never | undefined
+      ? Record<never, never>
+      : { context: C['signature']['context'] }),
+  ): Promise<C['signature']['output']>;
+};
+
+/**
+ * Defines the shape of the caller function for a given contract.
+ *
+ * @typeParam C - The contract type.
+ *
+ * @public
+ */
+type ContractCaller<C extends Contract<Any, Any, Any>> = {
+  (input: C['signature']['input']): Promise<C['signature']['output']>;
 };
 
 /**
@@ -184,5 +212,5 @@ function contract() {
   return c as Contract;
 }
 
-export type { Contract };
+export type { Contract, ContractCaller, ContractHandler };
 export { contract };
