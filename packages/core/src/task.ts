@@ -7,27 +7,16 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { type Component, component } from './component';
+import type { Contract, ContractCaller, ContractHandler } from './contract';
 import type { Any } from './generics';
 import type { PanicError } from './panic';
-import { type Result, isErr } from './result';
-import type { Schema, SchemaErrors, SchemaValues } from './schema';
+import { type Result, isErr, isOk } from './result';
+import { isSchema } from './schema';
 
 /**
- * A function that can be used as a task.
- * Can be either sync or async and must return a Result.
+ * A function that can be used to handle expected errors (result errors).
  *
- * @typeParam I - The type of the input schema.
- * @typeParam O - The type of the output schema.
- * @typeParam E - The type of the error schema.
- *
- * @internal
- */
-type Callable<I, O, E> = (input: I) => Promise<Result<O, E>>;
-
-/**
- * A function that can be used to handle expected errors (Result.err).
- *
- * @typeParam E - The type of the error schema.
+ * @typeParam E - The type of the error schema. Must be a SchemaErrors.
  *
  * @internal
  */
@@ -42,48 +31,26 @@ type ErrorHandler<E> = (errors: E) => Result<never, Any>;
 type FallbackHandler = (error: PanicError<Any, Any>) => void;
 
 /**
- * Task state interface for managing retry attempts and configuration.
+ * Task internal state type for managing retry attempts and configuration.
  *
  * @internal
  */
-interface TaskState {
+type TaskState = {
   maxRetries: number;
   retryDelay: number;
   currentAttempt: number;
   lastError?: Any;
-  inputSchema?: Schema<Any>;
-  outputSchema?: Schema<Any>;
-  handlerFn?: Callable<Any, Any, Any>;
+  contract: Contract<Any, Any, Any>;
+  handlerFn?: ContractHandler<Contract<Any, Any, Any>>;
   errorHandler?: ErrorHandler<Any>;
   fallbackHandler?: FallbackHandler;
-}
+};
 
-/**
- * Task constructor interface that provides a fluent API for building tasks.
- * Each method returns the task instance for method chaining.
- *
- * @typeParam I - The type of the input schema.
- * @typeParam O - The type of the output schema.
- * @typeParam E - The type of the error schema.
- *
- * @public
- */
-interface TaskBuilder<I = never, O = never, E = never> {
+interface TaskBuilder<C extends Contract<Any, Any, Any>> extends ContractCaller<C> {
   /**
-   * Sets the input schema for the task.
-   *
-   * @param i - The schema to validate input data.
-   * @returns The task instance for method chaining.
+   * Internal state of the task.
    */
-  input: <IF>(i: Schema<IF>) => TaskBuilder<IF, O, E | SchemaErrors<IF, 'strict'>>;
-
-  /**
-   * Sets the output schema for the task.
-   *
-   * @param o - The schema to validate output data.
-   * @returns The task instance for method chaining.
-   */
-  output: <OF>(o: Schema<OF>) => TaskBuilder<I, OF, E | SchemaErrors<OF, 'strict'>>;
+  state: TaskState;
 
   /**
    * Sets the handler function that processes the input and produces output.
@@ -91,9 +58,7 @@ interface TaskBuilder<I = never, O = never, E = never> {
    * @param fn - The function that handles the business logic.
    * @returns The task instance for method chaining.
    */
-  handler: <HF extends Callable<SchemaValues<I>, SchemaValues<O>, E>>(
-    fn: HF,
-  ) => TaskBuilder<I, O, E>;
+  handler: <HF extends ContractHandler<C>>(fn: HF) => Task<C>;
 
   /**
    * Sets the error handler for expected errors (Result.err).
@@ -101,7 +66,7 @@ interface TaskBuilder<I = never, O = never, E = never> {
    * @param fn - The function that handles expected errors.
    * @returns The task instance for method chaining.
    */
-  errors: (fn: ErrorHandler<E>) => TaskBuilder<I, O, E>;
+  errors: (fn: ErrorHandler<C['signature']['errors']>) => Task<C>;
 
   /**
    * Sets the fallback handler for unexpected errors (throws).
@@ -109,7 +74,7 @@ interface TaskBuilder<I = never, O = never, E = never> {
    * @param fn - The function that handles cleanup for unexpected errors.
    * @returns The task instance for method chaining.
    */
-  fallback: (fn: FallbackHandler) => TaskBuilder<I, O, E>;
+  fallback: (fn: FallbackHandler) => Task<C>;
 
   /**
    * Sets the maximum number of retry attempts for the task.
@@ -117,7 +82,7 @@ interface TaskBuilder<I = never, O = never, E = never> {
    * @param retries - The maximum number of retry attempts.
    * @returns The task instance for method chaining.
    */
-  retries: (retries: number) => TaskBuilder<I, O, E>;
+  retries: (retries: number) => Task<C>;
 
   /**
    * Sets the delay between retry attempts in milliseconds.
@@ -125,14 +90,7 @@ interface TaskBuilder<I = never, O = never, E = never> {
    * @param delay - The delay in milliseconds between retry attempts.
    * @returns The task instance for method chaining.
    */
-  retryDelay: (delay: number) => TaskBuilder<I, O, E>;
-
-  /**
-   * Builds the final callable task function.
-   *
-   * @returns A function that can be called with input data and returns a Result.
-   */
-  build(): Task<I, O, E>;
+  retryDelay: (delay: number) => Task<C>;
 }
 
 /**
@@ -146,12 +104,7 @@ interface TaskBuilder<I = never, O = never, E = never> {
  *
  * @public
  */
-type Task<I = never, O = never, E = never> = Component<
-  'Task',
-  {
-    (input: SchemaValues<I>): Promise<Result<SchemaValues<O>, E>>;
-  }
->;
+type Task<C extends Contract<Any, Any, Any>> = Component<'Task', TaskBuilder<C>>;
 
 /**
  * Helper function for delay that works in both Node.js and browser.
@@ -171,133 +124,147 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * function before calling build(). The build() method returns the final callable
  * task function.
  *
+ * @param contract - The {@link Contract} to build the task for.
  * @returns A task builder instance with fluent API for configuration.
  *
  * @public
  */
-function task() {
+function task<C extends Contract<Any, Any, Any>>(contract: C) {
   // Create a task builder with method chaining.
-  const taskInstance = {
-    _state: {
+  const taskBuilder = {
+    state: {
       maxRetries: 0,
       retryDelay: 1000,
       currentAttempt: 0,
+      contract,
     } as TaskState,
 
-    input: (schema: Schema<Any>) => ((taskInstance._state.inputSchema = schema), taskInstance),
+    handler: (fn: ContractHandler<Any>) => ((taskBuilder.state.handlerFn = fn), taskFn),
 
-    output: (schema: Schema<Any>) => ((taskInstance._state.outputSchema = schema), taskInstance),
+    // For EXPECTED errors (Result.err) - business logic.
+    errors: (fn: ErrorHandler<Any>) => ((taskBuilder.state.errorHandler = fn), taskFn),
 
-    handler: (fn: Callable<Any, Any, Any>) => ((taskInstance._state.handlerFn = fn), taskInstance),
-
-    // For EXPECTED errors (Result.err) - business logic
-    errors: (fn: ErrorHandler<Any>) => ((taskInstance._state.errorHandler = fn), taskInstance),
-
-    // For UNEXPECTED errors (throws) - side-effect for cleanup
-    fallback: (fn: FallbackHandler) => ((taskInstance._state.fallbackHandler = fn), taskInstance),
+    // For UNEXPECTED errors (throws) - side-effect for cleanup.
+    fallback: (fn: FallbackHandler) => ((taskBuilder.state.fallbackHandler = fn), taskFn),
 
     retries: (maxRetries: number) => {
       if (maxRetries < 0) {
         throw new Error('Retries must be a non-negative number');
       }
-      taskInstance._state.maxRetries = maxRetries;
-      return taskInstance;
+      taskBuilder.state.maxRetries = maxRetries;
+      return taskFn;
     },
 
     retryDelay: (delayMs: number) => {
       if (delayMs < 0) {
         throw new Error('Retry delay must be a non-negative number');
       }
-      taskInstance._state.retryDelay = delayMs;
-      return taskInstance;
+      taskBuilder.state.retryDelay = delayMs;
+      return taskFn;
     },
+  };
 
-    build: () =>
-      component(
-        'Task',
-        async (input: Any): Promise<Result<Any, Any>> => {
-          const state = taskInstance._state;
+  // The task function should be the exported component.
+  const taskFn = component(
+    'Task',
+    async (input: Any) => {
+      const state = taskBuilder.state as TaskState;
 
-          // Validate required components
-          if (!state.inputSchema) {
-            throw new Error('Input schema not set');
+      if (!state.handlerFn) {
+        throw new Error('Handler function not set');
+      }
+
+      const { maxRetries, retryDelay } = state;
+      let lastError: Any;
+      let attempt = 0;
+
+      while (attempt <= maxRetries) {
+        try {
+          let inputResult: Any;
+          // Validate input.
+          if (isSchema(state.contract.signature.input)) {
+            inputResult = state.contract.signature.input(input);
+
+            if (isErr(inputResult)) {
+              return inputResult;
+            }
+          } else {
+            inputResult = input;
           }
-          if (!state.outputSchema) {
-            throw new Error('Output schema not set');
+
+          if (isErr(inputResult)) {
+            // EXPECTED error - use errorHandler if configured.
+            if (state.errorHandler) {
+              return state.errorHandler(inputResult.error);
+            }
+            return inputResult;
           }
-          if (!state.handlerFn) {
-            throw new Error('Handler function not set');
+
+          // Execute handler.
+          const handlerResult = await state.handlerFn({
+            input: isOk(inputResult) ? inputResult.value : inputResult,
+            context: contract.signature.context,
+          });
+
+          // Check if handler was successful.
+          if (isErr(handlerResult)) {
+            // EXPECTED error from handler - use errorHandler if configured.
+            if (state.errorHandler) {
+              return state.errorHandler(handlerResult.error);
+            }
+            return handlerResult;
           }
 
-          const { maxRetries, retryDelay } = state;
-          let lastError: Any;
-          let attempt = 0;
-
-          while (attempt <= maxRetries) {
-            try {
-              // Validate input
-              const inputResult = state.inputSchema(input);
-              if (isErr(inputResult)) {
-                // EXPECTED error - use errorHandler if configured
-                if (state.errorHandler) {
-                  return state.errorHandler(inputResult.error);
-                }
-                return inputResult;
+          // Validate output.
+          if (isSchema(state.contract.signature.output)) {
+            const outputResult = state.contract.signature.output(
+              isOk(handlerResult) ? handlerResult.value : handlerResult,
+            );
+            if (isErr(outputResult)) {
+              // EXPECTED validation error - use errorHandler if configured.
+              if (state.errorHandler) {
+                return state.errorHandler(outputResult.error);
               }
-
-              // Execute handler
-              const handlerResult = await state.handlerFn(inputResult.value);
-
-              // Check if handler was successful
-              if (isErr(handlerResult)) {
-                // EXPECTED error from handler - use errorHandler if configured
-                if (state.errorHandler) {
-                  return state.errorHandler(handlerResult.error);
-                }
-                return handlerResult;
-              }
-
-              // Validate output
-              const outputResult = state.outputSchema(handlerResult.value);
-              if (isErr(outputResult)) {
-                // EXPECTED validation error - use errorHandler if configured
-                if (state.errorHandler) {
-                  return state.errorHandler(outputResult.error);
-                }
-                return outputResult;
-              }
-
               return outputResult;
-            } catch (error) {
-              // UNEXPECTED error (throw) - use fallbackHandler if configured for cleanup
-              lastError = error;
-              attempt++;
-
-              // If we still have retries left, wait and retry
-              if (attempt <= maxRetries) {
-                const delayMs = retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
-                await delay(delayMs);
-                continue;
-              }
-
-              // No more retries, handle with fallback for cleanup then throw
-              if (state.fallbackHandler) {
-                state.fallbackHandler(lastError);
-              }
-
-              throw lastError;
             }
           }
 
-          throw lastError;
-        },
-        {
-          state: taskInstance._state,
-        },
-      ),
-  };
+          return handlerResult;
+        } catch (error) {
+          // UNEXPECTED error (throw) - use fallbackHandler if configured for cleanup.
+          lastError = error;
+          attempt++;
 
-  return taskInstance as unknown as TaskBuilder;
+          // If we still have retries left, wait and retry.
+          if (attempt <= maxRetries) {
+            const delayMs = retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
+            await delay(delayMs);
+            continue;
+          }
+
+          // No more retries, handle with fallback for cleanup then throw.
+          if (state.fallbackHandler) {
+            state.fallbackHandler(lastError);
+          }
+
+          throw lastError;
+        }
+      }
+
+      throw lastError;
+    },
+    {
+      state: taskBuilder.state,
+    },
+  );
+
+  // Add the task builder methods to the run function.
+  Object.assign(taskFn, taskBuilder);
+
+  // Make contract as a child of the task.
+  taskFn.addChildren(contract);
+
+  return taskFn as Task<C>;
 }
 
 export type { Task };
