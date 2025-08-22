@@ -162,6 +162,16 @@ type SchemaFunction<F, V = SchemaValues<F>> = {
    * @returns A new schema with the extended fields.
    */
   extend<E extends SchemaFields>(additionalFields: EnsureAllValues<E>): Schema<ExtendSchema<F, E>>;
+
+  /**
+   * Returns the fields and their types of the schema.
+   *
+   * @remarks
+   * Useful for introspection and debugging.
+   *
+   * @returns An object with the fields and their types.
+   */
+  fields(): Record<keyof F, string>;
 } & {
   [K in keyof F]: F[K] extends Value<Any, Any> ? F[K] : never;
 };
@@ -213,6 +223,13 @@ const SchemaPrototype = <F>(fields: EnsureAllValues<F>) => ({
 
   extend: <E extends SchemaFields>(additionalFields: EnsureAllValues<E>) =>
     schema({ ...(fields as Any), ...(additionalFields as Any) }),
+
+  fields: () =>
+    Object.fromEntries(
+      Object.entries(fields).map(([key, field]) => {
+        return [key, (field as Value<Any, Any>).info().subType];
+      }),
+    ),
 });
 
 /**
