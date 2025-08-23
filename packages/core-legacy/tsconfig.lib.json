@@ -1,0 +1,3 @@
+{
+  "extends": "@nuxo/typescript/node.lib.json"
+}
