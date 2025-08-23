@@ -1,21 +1,10 @@
 {
-  "name": "@mixor/core",
+  "name": "@nuxo/core",
   "version": "1.0.0",
-  "description": "Mixor core library",
+  "description": "Core package with all abstractions, design patterns and utilities for Nuxo",
   "author": "Carlos Cosming",
   "license": "MIT",
-  "keywords": [
-    "result",
-    "flow",
-    "pipe",
-    "builder",
-    "dependency-injection",
-    "aggregate-root",
-    "value-objects",
-    "specification",
-    "events",
-    "schema"
-  ],
+  "keywords": [],
   "files": [
     "dist"
   ],
@@ -30,7 +19,6 @@
       "require": "./dist/index.cjs"
     }
   },
-  "sideEffects": false,
   "scripts": {
     "build": "moonx build -s -u",
     "format": "moonx format",

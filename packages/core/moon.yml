@@ -1,4 +1,4 @@
-id: '@mixor/core'
+id: '@nuxo/core'
 language: typescript
 type: library
 tags:
@@ -6,8 +6,8 @@ tags:
   - vitest
 
 project:
-  name: Mixor core library
-  description: Mixor core library with abstractions, design patterns and utilities
+  name: Nuxo core
+  description: Core package with all abstractions, design patterns and utilities for Nuxo
   owner: binaryshapes
   maintainers:
     - Carlos Cosming
@@ -16,5 +16,5 @@ project:
     public: true
     repository:
       type: git
-      url: https://github.com/binaryshapes/mixor
+      url: https://github.com/binaryshapes/nuxo
       directory: packages/core
