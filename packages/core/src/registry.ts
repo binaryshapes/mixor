@@ -6,10 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { createHash } from 'node:crypto';
+import util from 'node:util';
 
 import type { Any } from './generics';
 import { assert } from './logger';
-import { panic } from './panic';
+import { Panic } from './panic';
 
 /**
  * Type representing the type of registry object.
@@ -73,7 +74,7 @@ type RegistryTreeNode<T> = {
  *
  * @public
  */
-class RegistryError extends panic<'Registry', 'InvalidTarget' | 'AlreadyRegistered' | 'NotFound'>(
+class RegistryError extends Panic<'Registry', 'InvalidTarget' | 'AlreadyRegistered' | 'NotFound'>(
   'Registry',
 ) {}
 
@@ -97,6 +98,11 @@ class Registry {
    * Reference counter of registered objects.
    */
   private static refs = new Map<string, number>();
+
+  // Fancy Log
+  public static [util.inspect.custom]() {
+    return Array.from(this.catalog.values()).map((item) => item);
+  }
 
   /**
    * Hash a set of arguments.
@@ -135,6 +141,7 @@ class Registry {
    *
    * @param target - The target to add.
    * @param tag - The tag of the target.
+   * @param uniqueness - The uniqueness attributes to be considered in the hash.
    * @param type - The type of the target.
    * @param subType - The sub type of the target.
    * @throws A {@link RegistryError} if the target is already registered.
@@ -144,6 +151,7 @@ class Registry {
   static add<Target, Tag extends string>(
     target: Target,
     tag: Tag,
+    uniqueness: Any,
     type?: RegistryTargetType,
     subType?: RegistryTargetSubType,
   ) {
@@ -159,7 +167,7 @@ class Registry {
     // This is the more deterministic way to create an id in buildtime without depending on
     // the a persistent layer (like a database or a file system to store the generated ids).
     // Add the target the internal hash.
-    const targetHash = Registry.hash(target);
+    const targetHash = Registry.hash(target, uniqueness);
 
     // Initialize or increment the reference counter for the target.
     const ref = Registry.refs.has(targetHash) ? (Registry.refs.get(targetHash) ?? 1) + 1 : 1;
@@ -243,7 +251,7 @@ class Registry {
    * @public
    */
   static get items(): RegistryInfo<Any>[] {
-    return Array.from(Registry.catalog.values()).map((item) => this.get(item));
+    return Array.from(this.catalog.values()).map((item) => item.info);
   }
 
   /**
