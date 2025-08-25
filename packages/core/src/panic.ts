@@ -1,11 +1,11 @@
-/*
- * This file is part of the Mixor project.
- *
+/**
+ * This file is part of the Nuxo project.
  * Copyright (c) 2025, Binary Shapes.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import { error } from './logger';
 
 /**
  * A panic represents a runtime error that is not recoverable.
@@ -19,9 +19,14 @@
  */
 class PanicError<S extends string, T extends string> extends Error {
   readonly code: `${S}.${T}`;
-  constructor(scope: S, tag: T, message: string) {
-    super(message);
+  readonly hint?: string;
+
+  constructor(scope: S, tag: T, message: string, hint?: string) {
+    const errorMessage = `${message} ${hint ? `\n${hint}` : ''}`;
+    error(errorMessage);
+    super(errorMessage);
     this.code = `${scope}.${tag}`;
+    this.hint = hint;
   }
 
   /**
@@ -46,12 +51,12 @@ class PanicError<S extends string, T extends string> extends Error {
  *
  * @public
  */
-function panic<S extends string, T extends string>(scope: S) {
+function Panic<S extends string, T extends string>(scope: S) {
   return class extends PanicError<S, T> {
-    constructor(tag: T, message: string) {
-      super(scope, tag, message);
+    constructor(tag: T, message: string, hint?: string) {
+      super(scope, tag, message, hint);
     }
   };
 }
 
-export { panic, PanicError };
+export { Panic, PanicError };
