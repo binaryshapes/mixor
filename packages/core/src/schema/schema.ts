@@ -274,7 +274,7 @@ class SchemaBuilder<F> {
     }
 
     // Create the main schema validation function.
-    const schemaFn = (value: SchemaValues<F>, mode = Config.defaultFailureMode) => {
+    const schemaFn = (value: SchemaValues<F>, mode = Config.defaultErrorMode) => {
       if (mode === 'strict') {
         // Stop at first error mode - more performant for early validation.
         const result: Record<string, Any> = {};

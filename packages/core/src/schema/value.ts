@@ -116,7 +116,7 @@ class ValueBuilder<T, E> {
 
     const valueBuilder = new ValueBuilder<T, E>(rules, isOptional, isNullable);
 
-    const valueFn = (value: T, mode: ErrorMode = Config.defaultFailureMode) => {
+    const valueFn = (value: T, mode: ErrorMode = Config.defaultErrorMode) => {
       if (
         (valueBuilder.isOptional && value === undefined) ||
         (valueBuilder.isNullable && value === null)
