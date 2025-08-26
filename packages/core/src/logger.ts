@@ -1,6 +1,5 @@
-/*
- * This file is part of the Mixor project.
- *
+/**
+ * This file is part of the Nuxo project.
  * Copyright (c) 2025, Binary Shapes.
  *
  * This source code is licensed under the MIT license found in the
@@ -12,7 +11,7 @@
  *
  * @internal
  */
-type LoggMode = 'error' | 'warning' | 'success' | 'print';
+type LogMode = 'error' | 'warning' | 'success' | 'print';
 
 /**
  * Colors for the console.
@@ -30,11 +29,11 @@ const colors = {
 };
 
 /**
- * The configs of the logger that are used to print the message.
+ * The presets of the logger that are used to print the message.
  *
  * @internal
  */
-const configs: Record<LoggMode, { icon: string; prefix: string; color: keyof typeof colors }> = {
+const pressets: Record<LogMode, { icon: string; prefix: string; color: keyof typeof colors }> = {
   error: {
     icon: '🔴',
     prefix: 'ERROR',
@@ -58,30 +57,44 @@ const configs: Record<LoggMode, { icon: string; prefix: string; color: keyof typ
 };
 
 /**
- * Format a message with a config.
- *
- * @param message - The message to format.
- * @param config - The config of the message.
- *
- * @returns The formatted message.
- *
- * @internal
- */
-const format = (message: string, config: LoggMode) =>
-  `${colors[configs[config].color]}${configs[config].icon} ${configs[config].prefix}: ${message}\x1b[0m`;
-
-/**
  * Print a message to the console.
  *
  * @param message - The message to print.
- * @param config - The config of the message.
+ * @param mode - The mode of the message.
  *
  * @returns void
  *
  * @internal
  */
-const print = <T extends LoggMode>(message: string, config: T) =>
-  console.log(format(message, config));
+const print = <T extends LogMode>(message: string, mode: T) => console.log(format(message, mode));
+
+/**
+ * Format a message with a config.
+ *
+ * @param message - The message to format.
+ * @param mode - The config of the message.
+ *
+ * @returns The formatted message.
+ *
+ * @public
+ */
+const format = (message: string, mode: LogMode) => {
+  const preset = pressets[mode];
+  return `${colors[preset.color]}${preset.icon} ${preset.prefix + ':'} ${message}\x1b[0m`;
+};
+
+/**
+ * Format a message with a color.
+ *
+ * @param message - The message to format.
+ * @param color - The color of the message.
+ *
+ * @returns The formatted message.
+ *
+ * @public
+ */
+const formatColor = (message: string, color: keyof typeof colors) =>
+  `${colors[color]}${message}\x1b[0m`;
 
 /**
  * Assert a condition.
@@ -119,4 +132,31 @@ const error = (message: string) => print(message, 'error');
  */
 const warn = (message: string) => print(message, 'warning');
 
-export { assert, error, print, warn };
+/**
+ * Print a message to the console.
+ *
+ * @param message - The message to print.
+ *
+ * @returns void
+ *
+ * @public
+ */
+const log = (message: string) => print(message, 'print');
+
+/**
+ * Logger namespace with all the logger methods.
+ *
+ * @public
+ */
+const Logger = {
+  assert,
+  error,
+  format,
+  formatColor,
+  log,
+  print,
+  warn,
+};
+
+export { assert, error, format, formatColor, log, print, warn };
+export default Logger;
