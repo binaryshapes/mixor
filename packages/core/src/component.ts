@@ -8,6 +8,7 @@
 import util from 'util';
 
 import type { Any } from './generics';
+import Logger from './logger';
 import { Registry, type RegistryInfo, type RegistryTargetSubType } from './registry';
 
 /**
@@ -175,13 +176,20 @@ class ComponentBuilder<
   static create(tag: string, target: Any, uniqueness: Any) {
     const component = new ComponentBuilder(tag, target, uniqueness);
 
-    // Adding the component to the target and changing the name.
+    // Adding the component to the target and changing the name using the tag.
     combine(target, component);
     Object.defineProperty(target, 'name', { value: tag });
     Object.defineProperty(target.constructor, 'name', { value: tag });
 
-    // Fancy log.
-    (target as Any)[util.inspect.custom] = () => `Component<${tag}>: ${target.info.id}`;
+    // For printing the component in a fancy way.
+    (target as Any)[util.inspect.custom] = () => {
+      const id = Logger.formatColor(`${target.info.id}\t`, 'magenta');
+      const info = Logger.formatColor(
+        `${target.info.meta.name}, ${target.info.meta.description}`,
+        'green',
+      );
+      return `${id} ${info}`;
+    };
 
     return target;
   }
