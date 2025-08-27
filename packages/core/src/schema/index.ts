@@ -7,4 +7,5 @@
  */
 export * from './rule';
 export * from './schema';
+export * from './struct';
 export * from './value';
