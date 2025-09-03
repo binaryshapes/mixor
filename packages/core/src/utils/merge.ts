@@ -8,10 +8,10 @@
 import type { Any } from './generics';
 
 /**
- * Merges the target into the component.
+ * Merges the objects into the target.
  *
- * @param target - The target to merge.
- * @param objects - The objects to merge.
+ * @param target - The target to merge into.
+ * @param objects - The objects to merge into the target.
  * @returns The merged object.
  *
  * @public
@@ -19,8 +19,9 @@ import type { Any } from './generics';
 const merge = (target: Any, ...objects: Any[]) => {
   // loop through all the rest objects.
   objects.forEach((obj) => {
-    // Adding to the target all component properties.
+    // If the object is a function, merge the prototype.
     Object.assign(target, obj);
+    Object.setPrototypeOf(target, obj);
 
     // Copying all component prototype properties to the target.
     const proto = Object.getPrototypeOf(obj);
