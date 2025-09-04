@@ -8,34 +8,59 @@
 import type { Any } from './generics';
 
 /**
- * Merges the objects into the target.
+ * Merges all the given instances into the specified target.
  *
- * @param target - The target to merge into.
- * @param objects - The objects to merge into the target.
- * @returns The merged object.
+ * @remarks
+ * For the given target, it will return a proxy which preserves the original target behavior with
+ * all properties and methods for the given instances.
+ *
+ * @param target - The target to merge.
+ * @param instances - The instances to merge.
+ * @returns The merged target with the instances properties and methods.
  *
  * @public
  */
-const merge = (target: Any, ...objects: Any[]) => {
-  // loop through all the rest objects.
-  objects.forEach((obj) => {
-    // If the object is a function, merge the prototype.
-    Object.assign(target, obj);
-    Object.setPrototypeOf(target, obj);
+function merge(target: Any, ...instances: Any[]) {
+  const proxy = new Proxy(target, {
+    get(target, prop, receiver) {
+      if (prop in target) {
+        return Reflect.get(target, prop, receiver);
+      }
 
-    // Copying all component prototype properties to the target.
-    const proto = Object.getPrototypeOf(obj);
-    Object.getOwnPropertyNames(proto).forEach((name) => {
-      if (name !== 'constructor') {
-        const descriptor = Object.getOwnPropertyDescriptor(proto, name);
-        if (descriptor) {
-          Object.defineProperty(target, name, descriptor);
+      for (const inst of instances) {
+        if (prop in inst) {
+          const value = (inst as Any)[prop];
+          if (typeof value === 'function') {
+            return (...args: Any[]) => {
+              const result = value.apply(inst, args);
+              // If the result is the instance, return the proxy.
+              return result === inst ? proxy : result;
+            };
+          }
+          return value;
         }
       }
-    });
+
+      return undefined;
+    },
+    set(target, prop, value, receiver) {
+      if (prop in target) {
+        return Reflect.set(target, prop, value, receiver);
+      }
+      for (const inst of instances) {
+        if (prop in inst) {
+          (inst as Any)[prop] = value;
+          return true;
+        }
+      }
+      return false;
+    },
+    apply(target, thisArg, argArray) {
+      return target.apply(thisArg, argArray);
+    },
   });
 
-  return target;
-};
+  return proxy;
+}
 
 export { merge };
