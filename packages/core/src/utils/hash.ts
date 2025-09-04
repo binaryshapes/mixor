@@ -9,6 +9,9 @@ import { createHash } from 'crypto';
 
 import type { Any } from '../utils';
 
+// FIXME: This is a workaround to avoid the native code being included in the hash.
+const NATIVE_CODE = 'function () { [native code] }';
+
 /**
  * Checks if the given object is a class.
  *
@@ -40,8 +43,12 @@ const isObjectFunction = (object: unknown) =>
  * @public
  */
 function safeStringify(object: Any): string {
+  // Transform arrays we iterate over the items and filter the native code.
   if (Array.isArray(object)) {
-    return object.map((item) => safeStringify(item)).join(',');
+    return object
+      .map((item) => safeStringify(item))
+      .filter((item) => item !== NATIVE_CODE)
+      .join(',');
   }
 
   // For classes, we need to use the constructor string.
