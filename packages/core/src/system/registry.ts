@@ -28,6 +28,20 @@ type Register<Target extends Registrable, Tag extends string> = Target &
   RegisterBuilder<Target, Tag>;
 
 /**
+ * Registry module panic error.
+ *
+ * - NotFound: The registry item not found in the cache.
+ * - NameAlreadySet: The register name is already set.
+ * - DescriptionAlreadySet: The register description is already set.
+ *
+ * @public
+ */
+class RegistryPanic extends Panic<
+  'Registry',
+  'NotFound' | 'NameAlreadySet' | 'DescriptionAlreadySet'
+>('Registry') {}
+
+/**
  * The register builder is a class that helps to build a register by providing a set of methods to
  * set the values related to a specific register.
  *
@@ -111,6 +125,12 @@ class RegisterBuilder<Target extends Registrable, Tag extends string> {
    * @returns The register builder.
    */
   public setName(name: string) {
+    if (this.name && this.name !== name) {
+      throw new RegistryPanic(
+        'NameAlreadySet',
+        `The register name is already set with: ${this.name}`,
+      );
+    }
     this.name = name;
     return this;
   }
@@ -122,19 +142,16 @@ class RegisterBuilder<Target extends Registrable, Tag extends string> {
    * @returns The register builder.
    */
   public setDescription(description: string) {
+    if (this.description && this.description !== description) {
+      throw new RegistryPanic(
+        'DescriptionAlreadySet',
+        `The register description is already set with: ${this.description}`,
+      );
+    }
     this.description = description;
     return this;
   }
 }
-
-/**
- * Registry module panic error.
- *
- * - NotFound: The registry item not found in the cache.
- *
- * @public
- */
-class RegistryPanic extends Panic<'Registry', 'NotFound'>('Registry') {}
 
 /**
  * Registry class for storing and managing registry items.
