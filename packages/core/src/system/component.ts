@@ -1,0 +1,384 @@
+/**
+ * This file is part of the Nuxo project.
+ * Copyright (c) 2025, Binary Shapes.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+import util from 'node:util';
+
+import { type Result } from '../result';
+import { type Any, type Prettify, merge } from '../utils';
+import { Logger } from './logger';
+import { type Register, type Registrable, Registry } from './registry';
+
+/**
+ * Component info type.
+ *
+ * @typeParam MetaExtra - The extra metadata (if necessary).
+ *
+ * @internal
+ */
+type ComponentInfo<MetaExtra extends Record<string, Any> = Record<never, never>> = {
+  /**
+   * Child components identifiers.
+   */
+  childrenIds: string[];
+
+  /**
+   * Traced flag of the component. If true, the component will be traced.
+   */
+  traced: boolean;
+
+  /**
+   * Type of the component.
+   *
+   * @remarks
+   * It is used to type introspection of the component in runtime.
+   */
+  type: string;
+
+  /**
+   * Metadata of the component.
+   */
+  meta: Prettify<
+    {
+      /**
+       * Context where the component is used.
+       */
+      context: string;
+
+      /**
+       * Human-readable name of the component.
+       */
+      name: string;
+
+      /**
+       * Description of the component's purpose.
+       */
+      description: string;
+    } & MetaExtra
+  >;
+};
+
+/**
+ * Represents a node in the registry object dependency tree.
+ *
+ * @typeParam T - The object type.
+ *
+ * @internal
+ */
+type ComponentTreeNode<T> = {
+  /**
+   * The object instance.
+   */
+  readonly self: T;
+
+  /**
+   * Child nodes in the tree.
+   */
+  readonly children: ComponentTreeNode<T>[];
+
+  /**
+   * Depth level in the tree (0 for root).
+   */
+  readonly depth: number;
+
+  /**
+   * Path from root to this node.
+   */
+  readonly path: string[];
+};
+
+/**
+ * Helper type to infer the types of a component target.
+ *
+ * @typeParam Target - The target of the component.
+ * @returns The types of the component target.
+ *
+ * @internal
+ */
+type ComponentTypes<Target extends Registrable> = Target extends (
+  ...args: Any[]
+) => Result<infer R, infer E>
+  ? {
+      /**
+       * Self of the component target.
+       */
+      Self: Target;
+
+      /**
+       * Value of the component target.
+       */
+      Value: Exclude<R, undefined>;
+
+      /**
+       * Return of the component target.
+       */
+      Return: ReturnType<Target>;
+
+      /**
+       * Error of the component target.
+       */
+      Error: E;
+    }
+  : {
+      /**
+       * Self of the component target.
+       */
+      Self: Target;
+    };
+
+/**
+ * Represents a component.
+ *
+ * @remarks
+ * Exposes all properties, methods and types of the component for the given target.
+ *
+ * @typeParam Target - The target of the component.
+ * @typeParam MetaExtra - The extra metadata (if necessary).
+ *
+ * @public
+ */
+type Component<
+  Target extends Registrable,
+  MetaExtra extends Record<string, Any> = Record<never, never>,
+> = Target &
+  ComponentBuilder<Target, MetaExtra> &
+  Register<Target, Any> & { Type: ComponentTypes<Target> };
+
+/**
+ * Represents a component builder.
+ *
+ * @remarks
+ * This class is used to build a component.
+ *
+ * @typeParam Target - The target of the component.
+ * @typeParam MetaExtra - The extra metadata (if necessary).
+ *
+ * @internal
+ */
+class ComponentBuilder<
+  Target extends Registrable,
+  MetaExtra extends Record<string, Any> = Record<never, never>,
+> {
+  // Fixed name of the component builder.
+  public static name = 'Component';
+
+  /**
+   * Unique id of the component.
+   * This id is generated based on the tag, the register id and the reference count.
+   */
+  public readonly id: string;
+
+  /**
+   * Tag of the component. Should be the same as the tag of the register.
+   */
+  public readonly tag: string;
+
+  /**
+   * Constructor of the component builder.
+   *
+   * @param register - The register related to the component.
+   */
+  public constructor(register: Register<Target, Any>) {
+    register.refCount++;
+    this.tag = register.tag;
+    this.id = `${register.tag.toLowerCase()}:${register.registerId}:${register.refCount}`;
+  }
+
+  /**
+   * Set/Override the component metadata.
+   *
+   * @param meta - The metadata to set.
+   * @returns The component for method chaining.
+   */
+  public meta(meta: ComponentInfo<MetaExtra>['meta']) {
+    Registry.info.set(this.id, { ...this.info, meta: { ...this.info?.meta, ...meta } });
+    return this;
+  }
+
+  /**
+   * Add the given childrens components to the component. Necessary for dependency tree building.
+   *
+   * @param children - The children components to add.
+   * @returns The component for method chaining.
+   */
+  public addChildren(...children: Component<Any>[]) {
+    Registry.info.set(this.id, {
+      ...this.info,
+      childrenIds: [...(this.info?.childrenIds ?? []), ...children.map((c) => c.id)],
+    });
+    return this;
+  }
+
+  /**
+   * Set the type of the component.
+   *
+   * @param type - The type to set.
+   * @returns The component for method chaining.
+   */
+  public type(type: string) {
+    Registry.info.set(this.id, { ...this.info, type });
+    return this;
+  }
+
+  /**
+   * Set the traced flag of the component.
+   *
+   * @remarks
+   * This activates the internal tracing system of the component.
+   *
+   * @param traced - The traced flag to set.
+   * @returns The component for method chaining.
+   */
+  public traced(traced: boolean) {
+    Registry.info.set(this.id, { ...this.info, traced });
+    return this;
+  }
+
+  /**
+   * Get the info related to the component.
+   *
+   * @returns The component data information.
+   */
+  public get info() {
+    return Registry.info.get(this.id) as unknown as ComponentInfo<MetaExtra>;
+  }
+
+  /**
+   * Build a dependency tree for the given component id.
+   *
+   * @returns A tree node representing the component and its dependencies.
+   */
+  public tree() {
+    return ComponentBuilder.buildTree(this.id) as ComponentTreeNode<
+      Prettify<ComponentInfo<MetaExtra>>
+    >;
+  }
+
+  // public [util.inspect.custom]() {
+  //   return 'hello';
+  // }
+
+  /**
+   * Build a dependency tree for the given component id.
+   *
+   * @param id - The ID of the component to build the tree for.
+   * @param depth - Current depth in the tree.
+   * @param path - Current path from root.
+   * @param visited - Set of visited component IDs to prevent cycles.
+   * @returns A tree node representing the component and its dependencies.
+   */
+  private static buildTree(
+    id: string,
+    depth = 0,
+    path: string[] = [],
+    visited: Set<string> = new Set(),
+  ): ComponentTreeNode<Any> {
+    const info = Registry.info.get(id);
+
+    if (!info) {
+      throw new Error(`Object not found: ${id}`);
+    }
+
+    // Prevent infinite recursion in case of circular dependencies.
+    if (visited.has(id)) {
+      return {
+        self: info,
+        children: [],
+        depth,
+        path: [...path, id],
+      } satisfies ComponentTreeNode<Any>;
+    }
+
+    visited.add(id);
+    const currentPath = [...path, id];
+
+    // Build children trees.
+    const children = info.childrenIds
+      ? info.childrenIds
+          .map((childId: string) => {
+            const childTarget = Registry.info.get(childId);
+
+            // This should never happen, but we assert it to be sure.
+            Logger.assert(
+              !!childTarget,
+              `Child target not found: ${childId}. Maybe you tree is corrupted.`,
+            );
+
+            // Build the child tree.
+            return ComponentBuilder.buildTree(childId, depth + 1, currentPath, visited);
+          })
+          .filter(
+            (child: ComponentTreeNode<Any> | null): child is ComponentTreeNode<Any> =>
+              child !== null,
+          )
+      : [];
+
+    return {
+      self: info,
+      children,
+      depth,
+      path: currentPath,
+    };
+  }
+}
+
+/**
+ * Creates a new component for the given registry item.
+ *
+ * @typeParam Target - The target of the component.
+ * @typeParam Extra - The extra metadata (if necessary).
+ *
+ * @param tag - The tag of the component.
+ * @param target - The target of the component.
+ * @param uniqueness - The uniqueness of the component.
+ * @returns The new component.
+ *
+ * @public
+ */
+const component = <
+  Target extends Registrable,
+  Tag extends string,
+  Extra extends Record<string, Any> = Record<never, never>,
+>(
+  tag: Tag,
+  target: Target,
+  ...uniqueness: Registrable[]
+) => {
+  const reg = Registry.create(target, tag, ...uniqueness);
+  const com = new ComponentBuilder(reg);
+  const tar = merge(target, reg, com, ...uniqueness);
+
+  // Fancy inspect.
+  (target as Any)[util.inspect.custom] = () => ({
+    ...com,
+    // Show the register info without the target.
+    ...Object.entries(reg)
+      .filter(([key]) => key !== 'target')
+      .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {}),
+    ...com.info,
+  });
+
+  return tar as Component<Target, Extra>;
+};
+
+/**
+ * Guard function to check if the given object is a component.
+ *
+ * @param maybeComponent - The object to check.
+ * @param tag - The tag to check the component against (optional).
+ * @returns True if the object is a component, false otherwise.
+ *
+ * @public
+ */
+const isComponent = (maybeComponent: Any, tag?: string): maybeComponent is Component<Any, Any> =>
+  // Should have a register id and be in the registry.
+  !!maybeComponent.registerId &&
+  Registry.cache.has(maybeComponent.registerId) &&
+  // Should have a tag and it should match the given tag.
+  (tag && !!maybeComponent.tag ? maybeComponent.tag === tag : true);
+
+export { component, isComponent };
+export type { Component };
