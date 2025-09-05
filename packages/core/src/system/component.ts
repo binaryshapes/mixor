@@ -199,7 +199,7 @@ class ComponentBuilder<
   }
 
   /**
-   * Add the given childrens components to the component. Necessary for dependency tree building.
+   * Add the given children components to the component. Necessary for dependency tree building.
    *
    * @param children - The children components to add.
    * @returns The component for method chaining.
@@ -256,10 +256,6 @@ class ComponentBuilder<
       Prettify<ComponentInfo<MetaExtra>>
     >;
   }
-
-  // public [util.inspect.custom]() {
-  //   return 'hello';
-  // }
 
   /**
    * Build a dependency tree for the given component id.
@@ -349,6 +345,8 @@ const component = <
 ) => {
   const reg = Registry.create(target, tag, ...uniqueness);
   const com = new ComponentBuilder(reg);
+
+  // Merge the target, the register, the component and the uniqueness as a single object.
   const tar = merge(target, reg, com, ...uniqueness);
 
   // Fancy inspect.
@@ -360,6 +358,9 @@ const component = <
       .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {}),
     ...com.info,
   });
+
+  // This is a workaround to avoid the native code being included in the hash.
+  target.toString = () => com.id;
 
   return tar as Component<Target, Extra>;
 };
