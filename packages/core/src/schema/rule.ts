@@ -5,9 +5,9 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Component, component, isComponent } from '../component';
-import type { Any } from '../generics';
 import type { ResultFunction } from '../result';
+import { type Component, component, isComponent } from '../system';
+import { type Any } from '../utils';
 
 /**
  * Extra metadata for the rule component.
@@ -17,12 +17,26 @@ import type { ResultFunction } from '../result';
  * @internal
  */
 type RuleMeta<T> = {
-  /** The example input for the rule that is valid. */
+  /**
+   * The example input for the rule that is valid.
+   */
   validExample: T;
 
-  /** The example input for the rule that is invalid. */
+  /**
+   * The example input for the rule that is invalid.
+   */
   invalidExample: T;
 };
+
+/**
+ * The function type for the rule.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ *
+ * @internal
+ */
+type RuleFn<T, E> = ResultFunction<T, E>;
 
 /**
  * Rule component type.
@@ -32,7 +46,7 @@ type RuleMeta<T> = {
  *
  * @public
  */
-type Rule<T, E> = Component<'Rule', ResultFunction<T, E>, RuleMeta<T>, T>;
+type Rule<T, E> = Component<RuleFn<T, E>, RuleMeta<T>>;
 
 /**
  * Creates a new rule.
@@ -46,7 +60,7 @@ type Rule<T, E> = Component<'Rule', ResultFunction<T, E>, RuleMeta<T>, T>;
  *
  * @public
  */
-const rule = <T, E>(ruleFn: ResultFunction<T, E>) => component('Rule', ruleFn) as Rule<T, E>;
+const rule = <T, E>(ruleFn: RuleFn<T, E>) => component('Rule', ruleFn) as Rule<T, E>;
 
 /**
  * Guard function to check if the given object is a rule component.
