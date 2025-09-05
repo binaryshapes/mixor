@@ -5,19 +5,11 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Component, component } from '../component';
-import Config from '../config';
-import type { Any, Prettify, UndefinedToOptional } from '../generics';
-import { Panic } from '../panic';
-import { type ApplyErrorMode, type ErrorMode, type Result, err, isOk, ok } from '../result';
+import { type Result, err, isOk, ok } from '../result';
+import type { ApplyErrorMode, Component, ErrorMode } from '../system';
+import { Config, Panic, component } from '../system';
+import type { Any, Prettify, UndefToOptional } from '../utils';
 import { type Value, isValue } from './value';
-
-/**
- * A schema is a record of field names and their corresponding validation functions.
- *
- * @internal
- */
-type SchemaFields = Record<string, Value<Any, Any>>;
 
 /**
  * Type constraint to ensure all properties in a record are Value types.
@@ -32,13 +24,20 @@ type EnsureAllValues<T> = Prettify<{
 }>;
 
 /**
+ * A schema is a record of field names and their corresponding validation functions.
+ *
+ * @internal
+ */
+type SchemaFields = Record<string, Value<Any, Any>>;
+
+/**
  * The type of the values of the schema.
  *
  * @typeParam S - The schema fields.
  *
  * @internal
  */
-type SchemaValues<S> = UndefinedToOptional<{
+type SchemaValues<S> = UndefToOptional<{
   [K in keyof S]: S[K] extends Value<infer T, Any>
     ? // Some values are objects of values, so we need to recursively infer the object type.
       T extends Record<string, Value<Any, Any>>
@@ -122,19 +121,6 @@ type SchemaFunction<F, V = SchemaValues<F>> = {
 };
 
 /**
- * Infer the type of the schema function.
- *
- * @remarks
- * This type is usefull if you want to use the schema as a parameter of another function.
- *
- * @typeParam S - The schema component.
- *
- * @public
- */
-type SchemaType<S extends Component<'Schema', Any>> =
-  S extends SchemaFunction<Any, Any> ? ReturnType<S> : never;
-
-/**
  * A schema that provides both object validation and individual field validation.
  * It follows the same pattern as Value, being both a function and an object with properties.
  *
@@ -143,10 +129,12 @@ type SchemaType<S extends Component<'Schema', Any>> =
  * @public
  */
 type Schema<F> = Component<
-  'Schema',
-  SchemaFunction<F> & SchemaBuilder<F>,
-  { example: SchemaValues<F> },
-  SchemaValues<F>
+  SchemaFunction<F> &
+    SchemaBuilder<F> & {
+      ErrorType: SchemaErrors<F, 'strict' | 'all'>;
+      ResultType: Result<SchemaValues<F>, SchemaErrors<F, 'strict' | 'all'>>;
+    },
+  { example: SchemaValues<F> }
 >;
 
 /**
@@ -165,7 +153,25 @@ class SchemaError extends Panic<'Schema', 'FieldIsNotValue'>('Schema') {}
  * @internal
  */
 class SchemaBuilder<F> {
-  private constructor(public readonly fields: EnsureAllValues<F>) {}
+  // Fixed name of the schema builder.
+  public static name = 'Schema';
+
+  /**
+   * The fields of the schema.
+   *
+   * @remarks
+   * This fields are used to build the schema and introspect the schema in runtime.
+   */
+  private readonly fields: Value<Any, Any>[];
+
+  /**
+   * Creates a new schema builder.
+   *
+   * @param fields - The schema fields.
+   */
+  private constructor(fields: EnsureAllValues<F>) {
+    this.fields = fields as Value<Any, Any>[];
+  }
 
   /**
    * Types of the schema.
@@ -173,25 +179,22 @@ class SchemaBuilder<F> {
    * @remarks
    * Useful for introspection and debugging in runtime.
    *
-   * This types are obtained from the component info (`value.info.subType`)
-   * and the rules (`value.rules.map((r) => r.info.subType)`).
-   *
    * @returns An object with the fields and their types.
    */
   public get types() {
     return Object.fromEntries(
       Object.entries(this.fields).map(([key, field]) => {
         const value = field as Value<Any, Any>;
-        let subType = value.info.subType ?? 'unknown';
+        let type = value.info.type ?? 'unknown';
 
-        // If the subType is unknown in the value, we check the rules to find the
+        // If the type is unknown in the value, we check the rules to find the
         // first non-unknown subType.
-        if (subType === 'unknown') {
-          const ruleTypes = value.rules.map((r) => r.info.subType).filter(Boolean) as string[];
-          subType = ruleTypes.length > 0 ? ruleTypes[0] : 'unknown';
+        if (type === 'unknown') {
+          const ruleTypes = value.rules.map((r) => r.info.type).filter(Boolean) as string[];
+          type = ruleTypes.length > 0 ? ruleTypes[0] : 'unknown';
         }
 
-        return [key, subType];
+        return [key, type];
       }),
     ) as Prettify<Record<keyof F, string>>;
   }
@@ -265,12 +268,16 @@ class SchemaBuilder<F> {
    */
   static create<F extends SchemaFields>(fields: EnsureAllValues<F>): Schema<F> {
     // Validate that all fields are values during schema creation.
-    if (
-      Object.values(fields).some((f) => {
-        return !isValue(f);
-      })
-    ) {
-      throw new SchemaError('FieldIsNotValue', 'All fields must be values.');
+    const invalidFields = Object.keys(fields)
+      .map((f) => [f, !isValue(fields[f as keyof typeof fields])])
+      .filter(([, isValue]) => isValue)
+      .map(([f]) => f);
+
+    if (invalidFields.length > 0) {
+      throw new SchemaError(
+        'FieldIsNotValue',
+        `All fields must be values, but the following fields are not: ${invalidFields.join(', ')}`,
+      );
     }
 
     // Create the main schema validation function.
@@ -287,7 +294,7 @@ class SchemaBuilder<F> {
             result[fieldName] = fieldResult.value;
           } else {
             // In strict mode, return immediately on first error.
-            return err({ [fieldName]: fieldResult.error });
+            return err({ [fieldName]: fieldResult.error } as Any);
           }
         }
 
@@ -315,7 +322,7 @@ class SchemaBuilder<F> {
           },
         );
 
-        return hasErrors ? err(errors) : ok(result);
+        return hasErrors ? err(errors as Any) : ok(result);
       }
     };
 
@@ -323,19 +330,9 @@ class SchemaBuilder<F> {
     const schemaBuilder = new SchemaBuilder(fields);
 
     // Add to the schema function the schema builder as a prototype.
-    const baseSchema = component('Schema', Object.setPrototypeOf(schemaFn, schemaBuilder), fields);
+    const baseSchema = component('Schema', schemaFn, schemaBuilder, fields);
 
-    // Add field functions as properties to the schema function.
-    for (const [fieldName, fieldFn] of Object.entries(fields)) {
-      Object.defineProperty(baseSchema, fieldName, {
-        value: fieldFn,
-        writable: false,
-        enumerable: true,
-      });
-
-      // Adding field value as a child of the schema component.
-      baseSchema.addChildren(fieldFn);
-    }
+    baseSchema.addChildren(...Object.values(fields));
 
     return baseSchema as Schema<F>;
   }
@@ -355,4 +352,4 @@ const schema = <F extends SchemaFields>(fields: EnsureAllValues<F>): Schema<F> =
   SchemaBuilder.create(fields);
 
 export { SchemaError, schema };
-export type { Schema, SchemaType };
+export type { Schema };
