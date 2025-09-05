@@ -5,14 +5,10 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { Panic } from 'src/panic';
-
-import { type Component, component, isComponent } from '../component';
-import Config from '../config';
-import type { Any } from '../generics';
-import { assert } from '../logger';
-import { pipe } from '../pipe';
-import { type ErrorMode, type Result, ok } from '../result';
+import { pipe } from '../funcs';
+import { type Result, ok } from '../result';
+import { type Component, Config, type ErrorMode, Panic, component, isComponent } from '../system';
+import { type Any } from '../utils';
 import { type Rule, isRule } from './rule';
 
 /**
@@ -28,6 +24,16 @@ type ValueMeta<T> = {
 };
 
 /**
+ * A rule list for the value.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ *
+ * @internal
+ */
+type ValueRules<T, E> = Rule<T, E>[];
+
+/**
  * Base value type that can be either a validator or a builder.
  * Uses the centralized error mode concept from {@link ErrorMode}.
  *
@@ -37,7 +43,6 @@ type ValueMeta<T> = {
  * @public
  */
 type Value<T, E> = Component<
-  'Value',
   {
     // All mode returns an array of errors (default mode).
     (input: T, mode?: 'all'): Result<T, E[]>;
@@ -45,8 +50,7 @@ type Value<T, E> = Component<
     // Strict mode returns a single error.
     (input: T, mode: 'strict'): Result<T, E>;
   } & ValueBuilder<T, E>,
-  ValueMeta<T>,
-  T
+  ValueMeta<T>
 >;
 
 /**
@@ -59,7 +63,10 @@ type Value<T, E> = Component<
  *
  * @public
  */
-class ValueError extends Panic<'Value', 'UndefinedValue' | 'NullValue'>('Value') {}
+class ValueError extends Panic<
+  'Value',
+  'UndefinedValue' | 'NullValue' | 'InvalidType' | 'InvalidRule' | 'RuleTypeNotDefined'
+>('Value') {}
 
 /**
  * Builder for the value component.
@@ -70,11 +77,38 @@ class ValueError extends Panic<'Value', 'UndefinedValue' | 'NullValue'>('Value')
  * @internal
  */
 class ValueBuilder<T, E> {
-  private constructor(
-    public readonly rules: Rule<T, E>[],
-    public readonly isOptional: boolean,
-    public readonly isNullable: boolean,
-  ) {}
+  // Fixed name of the value builder.
+  public static name = 'Value';
+
+  /**
+   * The rules of the value.
+   */
+  public rules: ValueRules<T, E>;
+
+  /**
+   * Whether the value is optional.
+   *
+   * @remarks
+   * By default is required (false).
+   */
+  public isOptional = false;
+
+  /**
+   * Whether the value is nullable.
+   *
+   * @remarks
+   * By default is required (false).
+   */
+  public isNullable = false;
+
+  /**
+   * Create a new value builder.
+   *
+   * @param rules - The rules of the value builder.
+   */
+  private constructor(rules: ValueRules<T, E>) {
+    this.rules = rules;
+  }
 
   /**
    * Make the value optional.
@@ -82,11 +116,8 @@ class ValueBuilder<T, E> {
    * @returns The new value builder.
    */
   public optional() {
-    return ValueBuilder.create<T | undefined, E>(
-      this.rules as Rule<T | undefined, E>[],
-      true,
-      this.isNullable,
-    );
+    this.isOptional = true;
+    return this as unknown as Value<T | undefined, E>;
   }
 
   /**
@@ -95,26 +126,36 @@ class ValueBuilder<T, E> {
    * @returns The new value builder.
    */
   public nullable() {
-    return ValueBuilder.create<T | null, E>(
-      this.rules as Rule<T | null, E>[],
-      this.isOptional,
-      true,
-    );
+    this.isNullable = true;
+    return this as unknown as Value<T | null, E>;
   }
 
   /**
    * Create a new value builder.
    *
    * @param rules - The rules to compose the value component.
-   * @param isOptional - Whether the value is optional.
-   * @param isNullable - Whether the value is nullable.
    * @returns The new value builder.
    */
-  static create<T, E>(rules: Rule<T, E>[], isOptional = false, isNullable = false) {
+  static create<T, E>(rules: ValueRules<T, E>) {
     // Defensive assertion to check if all rules are valid (should never happen).
-    assert(rules.every(isRule), 'A value component must be composed only by rules.');
+    if (!rules.every(isRule)) {
+      throw new ValueError('InvalidRule', 'A value must be composed only by rules.');
+    }
 
-    const valueBuilder = new ValueBuilder<T, E>(rules, isOptional, isNullable);
+    // All rules should have the type defined.
+    if (!rules.every((rule) => !!rule.info?.type)) {
+      throw new ValueError('RuleTypeNotDefined', 'All rules must have the type defined.');
+    }
+
+    // All types in the rules should be the same.
+    const type = rules[0]?.info?.type as string;
+    const sameType = rules.every((rule) => rule.info?.type === type);
+
+    if (!sameType) {
+      throw new ValueError('InvalidType', 'Multiple types are not supported for a value.');
+    }
+
+    const valueBuilder = new ValueBuilder<T, E>(rules);
 
     const valueFn = (value: T, mode: ErrorMode = Config.defaultErrorMode) => {
       if (
@@ -135,40 +176,44 @@ class ValueBuilder<T, E> {
       }
 
       // Running the rules.
-      return pipe(mode, ...(rules as unknown as [Any]))(value);
+      return pipe(mode, ...(rules as [Any]))(value);
     };
 
-    // Create the base value component with the rule pipeline.
-    const baseValue = component('Value', Object.setPrototypeOf(valueFn, valueBuilder), rules);
+    const valueComponent = component('Value', valueFn, valueBuilder) as Value<T, E>;
 
-    // Add the rules to the base value component.
-    baseValue.addChildren(...rules);
+    // Applying the type to the value component.
+    valueComponent.type(type);
 
-    return baseValue as Value<T, E>;
+    // Adding the rules as children of the value component.
+    valueComponent.addChildren(...rules);
+
+    return valueComponent;
   }
 }
 
 /**
  * Creates a value component.
  *
- * @param rules - The rules to compose the value component.
+ * @remarks
+ * A value is a {@link Component} function composed by a list of rules. It returns a {@link Result}
+ * depending if the value is valid or not. It can be optional and nullable. By default is required.
+ * The value automatically adds the rules as children to the value, and inherits his type.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ *
+ * @param rules - The rules to compose the value.
  * @returns The value component.
  *
  * @public
  */
-const value = <R extends Rule<Any, Any>[]>(...rules: R) => {
-  type T = R extends Rule<infer TT, Any>[] ? TT : never;
-  type E = R extends Rule<Any, infer EE>[] ? EE : never;
-
-  // Return the base value component.
-  return ValueBuilder.create<T, E>(rules);
-};
+const value = <T, E>(...rules: ValueRules<T, E>) => ValueBuilder.create<T, E>(rules);
 
 /**
- * Guard function to check if a object is a value component.
+ * Guard function to check if an object is a value.
  *
  * @param maybeValue - The object to check.
- * @returns True if the object is a value component, false otherwise.
+ * @returns True if the object is a value, false otherwise.
  *
  * @public
  */
