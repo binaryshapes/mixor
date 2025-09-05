@@ -9,9 +9,6 @@ import { createHash } from 'crypto';
 
 import type { Any } from '../utils';
 
-// FIXME: This is a workaround to avoid the native code being included in the hash.
-const NATIVE_CODE = 'function () { [native code] }';
-
 /**
  * Checks if the given object is a class.
  *
@@ -45,10 +42,7 @@ const isObjectFunction = (object: unknown) =>
 function safeStringify(object: Any): string {
   // Transform arrays we iterate over the items and filter the native code.
   if (Array.isArray(object)) {
-    return object
-      .map((item) => safeStringify(item))
-      .filter((item) => item !== NATIVE_CODE)
-      .join(',');
+    return object.map((item) => safeStringify(item)).join(',');
   }
 
   // For classes, we need to use the constructor string.
@@ -57,13 +51,21 @@ function safeStringify(object: Any): string {
   }
 
   if (typeof object === 'object' && !!object) {
-    return JSON.stringify(
+    const r = JSON.stringify(
       Object.entries(object as Any)
-        .map(([key, value]) =>
-          typeof value === 'object' ? safeStringify(value) : `${key}:${String(value)}`,
-        )
-        .join(''),
+        .map(([, value]) => {
+          // Nested objects.
+          if (typeof value === 'object' && !!value) {
+            return String(Object.values(value));
+          }
+
+          // Otherwise we use the string representation.
+          return String(value);
+        })
+        .join(','),
     );
+
+    return r;
   }
 
   // This fallback is safe for arrays, functions and other primitives.
@@ -95,7 +97,8 @@ type HashResult = {
  * @public
  */
 function hash(...objects: Any[]): HashResult {
-  const keys = objects.map((object) => safeStringify(object));
+  // Remove duplicates.
+  const keys = Array.from(new Set(objects.map((object) => safeStringify(object))));
 
   return {
     hash: createHash('sha256').update(keys.join('')).digest('hex'),
