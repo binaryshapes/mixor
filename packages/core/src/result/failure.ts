@@ -45,19 +45,6 @@ type Failure<Code extends string> = StructShape<FailureValues, Code>;
 type FailureBuilder<Code extends string> = Struct<Failure<Code>>;
 
 /**
- * Global failure struct.
- *
- * @remarks
- * This is the only struct that is used to create a failure instance.
- *
- * @internal
- */
-const failureStruct = struct('Failure', {
-  message: string(),
-  origin: string(),
-});
-
-/**
  * Create a failure builder with the given code.
  *
  * @remarks
@@ -72,8 +59,15 @@ const failureStruct = struct('Failure', {
  *
  * @public
  */
-const failure = <Code extends string>(code: Code) =>
-  failureStruct(code) as unknown as FailureBuilder<Code>;
+const failure = <Code extends string>(code: Code) => {
+  // The failure has always the same struct values.
+  const failureStruct = struct('Failure', {
+    message: string(),
+    origin: string(),
+  });
+
+  return failureStruct(code) as FailureBuilder<Code>;
+};
 
 export { failure };
 export type { Failure };
