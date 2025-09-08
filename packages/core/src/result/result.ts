@@ -5,6 +5,8 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+import { type Any } from '../utils';
+import { type Failure } from './failure';
 
 /**
  * A function that returns a result.
@@ -81,7 +83,7 @@ function ok<T>(value: T): Result<T, never> {
  *
  * @public
  */
-function err<E>(error: E): Result<never, E> {
+function err<E extends Failure<Any> | string>(error: E): Result<never, E> {
   return {
     _id: 'Result',
     _tag: 'Err',
