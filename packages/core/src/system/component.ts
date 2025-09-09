@@ -205,9 +205,16 @@ class ComponentBuilder<
    * @returns The component for method chaining.
    */
   public addChildren(...children: Component<Any>[]) {
+    const invalid = children.filter((val) => !isComponent(val));
+
+    Logger.assert(invalid.length === 0, 'All children must be components');
+
     Registry.info.set(this.id, {
       ...this.info,
-      childrenIds: [...(this.info?.childrenIds ?? []), ...children.map((c) => c.id)],
+      childrenIds: [
+        ...(this.info?.childrenIds ?? []),
+        ...children.filter((val) => isComponent(val)).map((c) => c.id),
+      ],
     });
     return this;
   }
@@ -360,7 +367,9 @@ const component = <
   });
 
   // This is a workaround to avoid the native code being included in the hash.
-  target.toString = () => com.id;
+  Object.defineProperty(target, 'toString', {
+    value: () => com.id,
+  });
 
   return tar as Component<Target, Extra>;
 };
