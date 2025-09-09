@@ -7,7 +7,7 @@
  */
 import { type Result, err, isOk, ok } from '../result';
 import type { ApplyErrorMode, Component, ErrorMode } from '../system';
-import { Config, Panic, component } from '../system';
+import { Config, Panic, component, isComponent } from '../system';
 import type { Any, Prettify, UndefToOptional } from '../utils';
 import { type Value, isValue } from './value';
 
@@ -351,5 +351,16 @@ class SchemaBuilder<F> {
 const schema = <F extends SchemaFields>(fields: EnsureAllValues<F>): Schema<F> =>
   SchemaBuilder.create(fields);
 
-export { SchemaError, schema };
+/**
+ * Guard function to check if the given object is a schema.
+ *
+ * @param maybeSchema - The object to check.
+ * @returns True if the object is a schema, false otherwise.
+ *
+ * @public
+ */
+const isSchema = (maybeSchema: Any): maybeSchema is Schema<Any> =>
+  isComponent(maybeSchema, 'Schema');
+
+export { SchemaError, isSchema, schema };
 export type { Schema };
