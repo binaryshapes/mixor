@@ -43,6 +43,7 @@ type ValueRules<T, E> = Rule<T, E>[];
  * @public
  */
 type Value<T, E> = Component<
+  'Value',
   {
     // All mode returns an array of errors (default mode).
     (input: T, mode?: 'all'): Result<T, E[]>;
