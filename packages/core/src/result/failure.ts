@@ -42,7 +42,7 @@ type Failure<Code extends string> = StructShape<FailureValues, Code>;
  *
  * @internal
  */
-type FailureBuilder<Code extends string> = Struct<Failure<Code>>;
+type FailureBuilder<Code extends string> = Struct<'Failure', Failure<Code>>;
 
 /**
  * Create a failure builder with the given code.
@@ -66,7 +66,7 @@ const failure = <Code extends string>(code: Code) => {
     origin: string(),
   });
 
-  return failureStruct(code) as FailureBuilder<Code>;
+  return failureStruct(code) as unknown as FailureBuilder<Code>;
 };
 
 export { failure };
