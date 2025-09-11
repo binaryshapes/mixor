@@ -13,7 +13,11 @@ import { Panic } from './panic';
  *
  * @public
  */
-type Registrable = Record<string, Any> | ((...args: Any[]) => Any) | ((...args: Any[]) => Any)[];
+type Registrable =
+  | Record<string, Any>
+  | Record<string, Any>[]
+  | ((...args: Any[]) => Any)
+  | ((...args: Any[]) => Any)[];
 
 /**
  * A Register is a wrapper around a target. It is used to store the target in the registry and

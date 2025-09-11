@@ -7,7 +7,6 @@
  */
 import util from 'node:util';
 
-import { type Result } from '../result';
 import { type Any, type Prettify, merge } from '../utils';
 import { Logger } from './logger';
 import { type Register, type Registrable, Registry } from './registry';
@@ -91,45 +90,6 @@ type ComponentTreeNode<T> = {
 };
 
 /**
- * Helper type to infer the types of a component target.
- *
- * @typeParam Target - The target of the component.
- * @returns The types of the component target.
- *
- * @internal
- */
-type ComponentTypes<Target extends Registrable> = Target extends (
-  ...args: Any[]
-) => Result<infer R, infer E>
-  ? {
-      /**
-       * Self of the component target.
-       */
-      Self: Target;
-
-      /**
-       * Value of the component target.
-       */
-      Value: Exclude<R, undefined>;
-
-      /**
-       * Return of the component target.
-       */
-      Return: ReturnType<Target>;
-
-      /**
-       * Error of the component target.
-       */
-      Error: E;
-    }
-  : {
-      /**
-       * Self of the component target.
-       */
-      Self: Target;
-    };
-
-/**
  * Represents a component.
  *
  * @remarks
@@ -142,10 +102,9 @@ type ComponentTypes<Target extends Registrable> = Target extends (
  */
 type Component<
   Target extends Registrable,
+  Type = Target,
   MetaExtra extends Record<string, Any> = Record<never, never>,
-> = Target &
-  ComponentBuilder<Target, MetaExtra> &
-  Register<Target, Any> & { Type: ComponentTypes<Target> };
+> = { Type: Type } & Target & ComponentBuilder<Target, MetaExtra> & Register<Target, Any>;
 
 /**
  * Represents a component builder.
