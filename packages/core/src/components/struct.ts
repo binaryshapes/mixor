@@ -7,7 +7,7 @@
  */
 import { type Value } from '../schema';
 import { type Component, component, isComponent } from '../system';
-import type { Any } from '../utils';
+import type { Any, PrimitiveTypeExtended } from '../utils';
 
 /**
  * Defines the struct values.
@@ -27,7 +27,7 @@ type StructValues = Record<string, Value<Any, Any>>;
  * @internal
  */
 type StructTypes<Values extends StructValues> = {
-  [key in keyof Values]: Values[key]['Type']['Value'];
+  [key in keyof Values]: Values[key]['Type'];
 };
 
 /**
@@ -68,9 +68,15 @@ type StructShape<Values extends StructValues, Code extends string> = {
  *
  * @public
  */
-type Struct<Shape extends StructShape<Any, Any>> = Component<{
-  (): Shape;
-}>;
+type Struct<Tag extends string, Shape extends StructShape<Any, Any>> = Component<
+  Tag,
+  {
+    (): Shape;
+  },
+  {
+    [K in keyof Shape as Shape[K] extends PrimitiveTypeExtended ? K : never]: Shape[K];
+  }
+>;
 
 /**
  * Struct builder function that creates struct components with specific codes.
@@ -84,9 +90,9 @@ type Struct<Shape extends StructShape<Any, Any>> = Component<{
  *
  * @internal
  */
-type StructBuilder<Values extends StructValues> = <Code extends string>(
+type StructBuilder<Values extends StructValues> = <Tag extends string, Code extends string>(
   code: Code,
-) => Struct<StructShape<Values, Code>>;
+) => Struct<Tag, StructShape<Values, Code>>;
 
 /**
  * Creates a struct component.
@@ -106,9 +112,7 @@ type StructBuilder<Values extends StructValues> = <Code extends string>(
 const struct = <Tag extends string, Values extends StructValues>(tag: Tag, values: Values) => {
   // The struct function is a factory function that creates a struct component.
   const structFn = <Code extends string>(code: Code) => {
-    const data = {
-      code,
-    };
+    const data = { code };
 
     Object.entries(values).forEach(([key]) => {
       Object.defineProperty(data, key, {
@@ -144,8 +148,10 @@ const struct = <Tag extends string, Values extends StructValues>(tag: Tag, value
  *
  * @public
  */
-const isStruct = (maybeStruct: Any, code: string): maybeStruct is Struct<StructShape<Any, Any>> =>
-  isComponent(maybeStruct, code);
+const isStruct = (
+  maybeStruct: Any,
+  code: string,
+): maybeStruct is Struct<Any, StructShape<Any, Any>> => isComponent(maybeStruct, code);
 
 export { isStruct, struct };
 export type { Struct, StructShape };
