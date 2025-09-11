@@ -50,6 +50,7 @@ type Value<T, E> = Component<
     // Strict mode returns a single error.
     (input: T, mode: 'strict'): Result<T, E>;
   } & ValueBuilder<T, E>,
+  T,
   ValueMeta<T>
 >;
 

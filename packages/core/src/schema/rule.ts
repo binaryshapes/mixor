@@ -46,7 +46,7 @@ type RuleFn<T, E> = ResultFunction<T, E>;
  *
  * @public
  */
-type Rule<T, E> = Component<RuleFn<T, E>, RuleMeta<T>>;
+type Rule<T, E> = Component<RuleFn<T, E>, T, RuleMeta<T>>;
 
 /**
  * Creates a new rule.
