@@ -95,16 +95,21 @@ type ComponentTreeNode<T> = {
  * @remarks
  * Exposes all properties, methods and types of the component for the given target.
  *
+ * @typeParam Tag - The tag of the component.
  * @typeParam Target - The target of the component.
+ * @typeParam Type - The type of the component.
  * @typeParam MetaExtra - The extra metadata (if necessary).
  *
  * @public
  */
 type Component<
+  Tag extends string,
   Target extends Registrable,
   Type = Target,
   MetaExtra extends Record<string, Any> = Record<never, never>,
-> = { Type: Type } & Target & ComponentBuilder<Target, MetaExtra> & Register<Target, Any>;
+> = { Type: Type; Tag: Tag } & Target &
+  ComponentBuilder<Tag, Target, MetaExtra> &
+  Register<Target, Any>;
 
 /**
  * Represents a component builder.
@@ -112,12 +117,14 @@ type Component<
  * @remarks
  * This class is used to build a component.
  *
+ * @typeParam Tag - The tag of the component.
  * @typeParam Target - The target of the component.
  * @typeParam MetaExtra - The extra metadata (if necessary).
  *
  * @internal
  */
 class ComponentBuilder<
+  Tag extends string,
   Target extends Registrable,
   MetaExtra extends Record<string, Any> = Record<never, never>,
 > {
@@ -133,7 +140,7 @@ class ComponentBuilder<
   /**
    * Tag of the component. Should be the same as the tag of the register.
    */
-  public readonly tag: string;
+  public readonly tag: Tag;
 
   /**
    * Constructor of the component builder.
@@ -163,7 +170,7 @@ class ComponentBuilder<
    * @param children - The children components to add.
    * @returns The component for method chaining.
    */
-  public addChildren(...children: Component<Any>[]) {
+  public addChildren(...children: Component<Any, Any>[]) {
     const invalid = children.filter((val) => !isComponent(val));
 
     Logger.assert(invalid.length === 0, 'All children must be components');
@@ -290,6 +297,7 @@ class ComponentBuilder<
 /**
  * Creates a new component for the given registry item.
  *
+ * @typeParam Tag - The tag of the component.
  * @typeParam Target - The target of the component.
  * @typeParam Extra - The extra metadata (if necessary).
  *
@@ -301,8 +309,8 @@ class ComponentBuilder<
  * @public
  */
 const component = <
-  Target extends Registrable,
   Tag extends string,
+  Target extends Registrable,
   Extra extends Record<string, Any> = Record<never, never>,
 >(
   tag: Tag,
@@ -330,7 +338,7 @@ const component = <
     value: () => com.id,
   });
 
-  return tar as Component<Target, Extra>;
+  return tar as Component<Tag, Target, Extra>;
 };
 
 /**
