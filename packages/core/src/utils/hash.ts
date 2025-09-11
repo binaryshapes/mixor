@@ -5,7 +5,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 
 import type { Any } from '../utils';
 
@@ -51,7 +51,7 @@ function safeStringify(object: Any): string {
   }
 
   if (typeof object === 'object' && !!object) {
-    const r = JSON.stringify(
+    return JSON.stringify(
       Object.entries(object as Any)
         .map(([, value]) => {
           // Nested objects.
@@ -64,8 +64,6 @@ function safeStringify(object: Any): string {
         })
         .join(','),
     );
-
-    return r;
   }
 
   // This fallback is safe for arrays, functions and other primitives.
@@ -92,18 +90,18 @@ type HashResult = {
  * Create a hash using the sha256 algorithm for the given objects.
  *
  * @param objects - The arguments to hash.
- * @returns The hash of the arguments.
+ * @returns A {@link HashResult} with the stringified hash and the keys used to create it.
  *
  * @public
  */
 function hash(...objects: Any[]): HashResult {
-  // Remove duplicates.
-  const keys = Array.from(new Set(objects.map((object) => safeStringify(object))));
+  // Remove duplicates and replace spaces and new lines, slashes and other special characters.
+  const keys = Array.from(new Set(objects.map((object) => safeStringify(object)))).map((key) =>
+    key.replace(/[\s\n/\\]/g, ''),
+  );
+  const hash = createHash('sha256').update(keys.join('')).digest('hex');
 
-  return {
-    hash: createHash('sha256').update(keys.join('')).digest('hex'),
-    keys,
-  };
+  return { hash, keys };
 }
 
 export { hash, isClass, isObjectFunction, safeStringify };
