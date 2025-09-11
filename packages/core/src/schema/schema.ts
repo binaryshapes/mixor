@@ -12,19 +12,7 @@ import type { Any, Prettify, UndefToOptional } from '../utils';
 import { type Value, isValue } from './value';
 
 /**
- * Type constraint to ensure all properties in a record are Value types.
- * This preserves type inference while enforcing the constraint.
- *
- * @typeParam T - The record type to validate.
- *
- * @internal
- */
-type EnsureAllValues<T> = Prettify<{
-  [K in keyof T]: T[K] extends Value<Any, Any> ? T[K] : never;
-}>;
-
-/**
- * A schema is a record of field names and their corresponding validation functions.
+ * A schema is a record values.
  *
  * @internal
  */
@@ -42,7 +30,7 @@ type SchemaValues<S> = UndefToOptional<{
     ? // Some values are objects of values, so we need to recursively infer the object type.
       T extends Record<string, Value<Any, Any>>
       ? SchemaValues<T>
-      : T
+      : S[K]['Type']
     : never;
 }>;
 
@@ -67,8 +55,8 @@ type SchemaErrors<S, Mode extends ErrorMode> = Prettify<{
  *
  * @internal
  */
-type PickSchema<S, K extends keyof S> = Prettify<{
-  [P in K]: S[P];
+type PickSchema<S, Picked extends keyof S> = Prettify<{
+  [P in Picked]: S[P];
 }>;
 
 /**
@@ -79,8 +67,8 @@ type PickSchema<S, K extends keyof S> = Prettify<{
  *
  * @internal
  */
-type OmitSchema<S, K extends keyof S> = Prettify<{
-  [P in keyof S as P extends K ? never : P]: S[P];
+type OmitSchema<S, Omitted extends keyof S> = Prettify<{
+  [P in keyof S as P extends Omitted ? never : P]: S[P];
 }>;
 
 /**
@@ -129,11 +117,9 @@ type SchemaFunction<F, V = SchemaValues<F>> = {
  * @public
  */
 type Schema<F> = Component<
-  SchemaFunction<F> &
-    SchemaBuilder<F> & {
-      ErrorType: SchemaErrors<F, 'strict' | 'all'>;
-      ResultType: Result<SchemaValues<F>, SchemaErrors<F, 'strict' | 'all'>>;
-    },
+  'Schema',
+  SchemaFunction<F> & SchemaBuilder<F>,
+  SchemaValues<F>,
   { example: SchemaValues<F> }
 >;
 
@@ -162,15 +148,15 @@ class SchemaBuilder<F> {
    * @remarks
    * This fields are used to build the schema and introspect the schema in runtime.
    */
-  private readonly fields: Value<Any, Any>[];
+  private readonly fields: SchemaFields;
 
   /**
    * Creates a new schema builder.
    *
    * @param fields - The schema fields.
    */
-  private constructor(fields: EnsureAllValues<F>) {
-    this.fields = fields as Value<Any, Any>[];
+  private constructor(fields: SchemaFields) {
+    this.fields = fields;
   }
 
   /**
@@ -205,14 +191,14 @@ class SchemaBuilder<F> {
    * @param keys - Object with keys to pick (values should be true).
    * @returns A new schema with only the picked fields.
    */
-  public pick(keys: Partial<Record<keyof F, true>>) {
+  public pick<Pick extends keyof F>(keys: Partial<Record<Pick, true>>) {
     return SchemaBuilder.create(
       Object.fromEntries(
         Object.entries(keys)
           .filter(([, shouldPick]) => shouldPick)
           .map(([key]) => [key, (this.fields as Any)[key]]),
       ),
-    ) as unknown as Schema<PickSchema<F, keyof F>>;
+    ) as unknown as Schema<PickSchema<F, Pick>>;
   }
 
   /**
@@ -221,14 +207,14 @@ class SchemaBuilder<F> {
    * @param keys - Object with keys to omit (values should be true).
    * @returns A new schema with the omitted fields removed.
    */
-  public omit(keys: Record<keyof F, true>) {
+  public omit<Omit extends keyof F>(keys: Partial<Record<Omit, true>>) {
     return SchemaBuilder.create(
       Object.fromEntries(
         Object.entries(this.fields).filter(
           ([key]) => !(key in keys) || !keys[key as keyof typeof keys],
         ),
       ) as Any,
-    ) as unknown as Schema<OmitSchema<F, keyof F>>;
+    ) as unknown as Schema<OmitSchema<F, Omit>>;
   }
 
   /**
@@ -253,7 +239,7 @@ class SchemaBuilder<F> {
    * @param additionalFields - Additional fields to add to the schema.
    * @returns A new schema with the extended fields.
    */
-  public extend<E extends SchemaFields>(additionalFields: EnsureAllValues<E>) {
+  public extend<E extends SchemaFields>(additionalFields: E) {
     return SchemaBuilder.create({
       ...(this.fields as Any),
       ...(additionalFields as Any),
@@ -266,7 +252,7 @@ class SchemaBuilder<F> {
    * @param fields - The schema fields.
    * @returns A new schema.
    */
-  static create<F extends SchemaFields>(fields: EnsureAllValues<F>): Schema<F> {
+  static create<F extends SchemaFields>(fields: F): Schema<F> {
     // Validate that all fields are values during schema creation.
     const invalidFields = Object.keys(fields)
       .map((f) => [f, !isValue(fields[f as keyof typeof fields])])
@@ -330,11 +316,10 @@ class SchemaBuilder<F> {
     const schemaBuilder = new SchemaBuilder(fields);
 
     // Add to the schema function the schema builder as a prototype.
-    const baseSchema = component('Schema', schemaFn, schemaBuilder, fields);
-
-    baseSchema.addChildren(...Object.values(fields));
-
-    return baseSchema as Schema<F>;
+    return component('Schema', schemaFn, schemaBuilder, fields).addChildren(
+      // Adding the fields as children.
+      ...Object.values(fields),
+    ) as Schema<F>;
   }
 }
 
@@ -348,8 +333,7 @@ class SchemaBuilder<F> {
  *
  * @public
  */
-const schema = <F extends SchemaFields>(fields: EnsureAllValues<F>): Schema<F> =>
-  SchemaBuilder.create(fields);
+const schema = <F extends SchemaFields>(fields: F) => SchemaBuilder.create(fields) as Schema<F>;
 
 /**
  * Guard function to check if the given object is a schema.
