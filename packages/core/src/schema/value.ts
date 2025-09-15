@@ -56,6 +56,25 @@ type Value<T, E> = Component<
 >;
 
 /**
+ * Value constructor overload type.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ *
+ * @remarks
+ * This is a type that represents the constructor of a value. It is used to create custom value
+ * constructor functions like: string, number, boolean, etc.
+ *
+ * @public
+ */
+interface ValueConstructor<T> {
+  // No rules, must use a default rule.
+  (): Value<T, never>;
+  // With specific rules.
+  <E>(...rules: Rule<T, E>[]): Value<T, E>;
+}
+
+/**
  * Error thrown inside the value component.
  *
  * @remarks
@@ -223,4 +242,4 @@ const isValue = (maybeValue: Any): maybeValue is Value<Any, Any> =>
   isComponent(maybeValue, 'Value');
 
 export { isValue, value };
-export type { Value };
+export type { Value, ValueConstructor };
