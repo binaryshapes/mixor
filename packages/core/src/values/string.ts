@@ -6,7 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { ok } from '../result';
-import { rule, value } from '../schema';
+import { type Rule, type ValueConstructor, rule, value } from '../schema';
+import { type Any } from '../utils';
 
 /**
  * String constructor rule.
@@ -17,9 +18,9 @@ import { rule, value } from '../schema';
  * @internal
  */
 const stringConstructor = rule((value: string) => ok(value))
-  .type('string')
   .setName('StringConstructor')
-  .setDescription('A value constructor that represents a string');
+  .setDescription('A value constructor that represents a string')
+  .type('string');
 
 /**
  * Creates a string value.
@@ -28,13 +29,16 @@ const stringConstructor = rule((value: string) => ok(value))
  * This is a value component that represents a string. It is used to validate and coerce
  * strings.
  *
+ * @typeParam T - The rules to apply to the string value.
+ *
+ * @param rules - The rules to apply to the string value.
  * @returns A string value component.
  *
  * @public
  */
-const string = () =>
-  value(stringConstructor)
+const string = ((...rules: Rule<string, Any>[]) =>
+  value(...(rules.length === 0 ? [stringConstructor] : rules))
     .setName('String')
-    .setDescription('A value component that represents a string');
+    .setDescription('A value component that represents a string')) as ValueConstructor<string>;
 
 export { string };
