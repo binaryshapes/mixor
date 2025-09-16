@@ -12,26 +12,32 @@ import type { Any, Prettify, UndefToOptional } from '../utils';
 import { type Value, isValue } from './value';
 
 /**
- * A schema is a record values.
+ * A nested schema fields is a record of values.
  *
  * @internal
  */
-type SchemaFields = Record<string, Value<Any, Any>>;
+type SchemaRecord = Record<string, Value<Any, Any> | Record<string, Value<Any, Any>>>;
+
+/**
+ * A schema is a record values. Can be nested.
+ *
+ * @internal
+ */
+type SchemaFields = Record<string, Value<Any, Any> | SchemaRecord>;
 
 /**
  * The type of the values of the schema.
  *
  * @typeParam S - The schema fields.
  *
- * @internal
+ * @public
  */
 type SchemaValues<S> = UndefToOptional<{
-  [K in keyof S]: S[K] extends Value<infer T, Any>
-    ? // Some values are objects of values, so we need to recursively infer the object type.
-      T extends Record<string, Value<Any, Any>>
-      ? SchemaValues<T>
-      : S[K]['Type']
-    : never;
+  [K in keyof S]: S[K] extends SchemaRecord
+    ? SchemaValues<S[K]>
+    : S[K] extends Value<Any, Any>
+      ? S[K]['Type']
+      : never;
 }>;
 
 /**
@@ -41,7 +47,7 @@ type SchemaValues<S> = UndefToOptional<{
  * @typeParam S - The schema fields.
  * @typeParam Mode - The error mode.
  *
- * @internal
+ * @public
  */
 type SchemaErrors<S, Mode extends ErrorMode> = Prettify<{
   [K in keyof S]: S[K] extends Value<Any, infer E> ? ApplyErrorMode<E, Mode> : never;
@@ -90,7 +96,7 @@ type PartialSchema<S> = Prettify<{
  *
  * @internal
  */
-type ExtendSchema<S, E extends SchemaFields> = Prettify<S & E>;
+type ExtendSchema<S, E> = Prettify<S & E>;
 
 /**
  * This function ensures to executes all value validators defined in the schema.
@@ -118,7 +124,7 @@ type SchemaFunction<F, V = SchemaValues<F>> = {
  */
 type Schema<F> = Component<
   'Schema',
-  SchemaFunction<F> & SchemaBuilder<F>,
+  SchemaFunction<F> & SchemaBuilder<F> & { Error: SchemaErrors<F, 'strict' | 'all'> },
   SchemaValues<F>,
   { example: SchemaValues<F> }
 >;
@@ -148,14 +154,14 @@ class SchemaBuilder<F> {
    * @remarks
    * This fields are used to build the schema and introspect the schema in runtime.
    */
-  private readonly fields: SchemaFields;
+  private readonly fields: Any;
 
   /**
    * Creates a new schema builder.
    *
    * @param fields - The schema fields.
    */
-  private constructor(fields: SchemaFields) {
+  private constructor(fields: F) {
     this.fields = fields;
   }
 
@@ -239,7 +245,7 @@ class SchemaBuilder<F> {
    * @param additionalFields - Additional fields to add to the schema.
    * @returns A new schema with the extended fields.
    */
-  public extend<E extends SchemaFields>(additionalFields: E) {
+  public extend<E>(additionalFields: E) {
     return SchemaBuilder.create({
       ...(this.fields as Any),
       ...(additionalFields as Any),
@@ -347,4 +353,4 @@ const isSchema = (maybeSchema: Any): maybeSchema is Schema<Any> =>
   isComponent(maybeSchema, 'Schema');
 
 export { SchemaError, isSchema, schema };
-export type { Schema };
+export type { Schema, SchemaErrors, SchemaValues };
