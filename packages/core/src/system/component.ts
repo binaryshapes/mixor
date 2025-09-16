@@ -9,6 +9,7 @@ import util from 'node:util';
 
 import { type Any, type Prettify, merge } from '../utils';
 import { Logger } from './logger';
+import { Panic } from './panic';
 import { type Register, type Registrable, Registry } from './registry';
 
 /**
@@ -110,6 +111,15 @@ type Component<
 > = { Type: Type; Tag: Tag } & Target &
   ComponentBuilder<Tag, Target, MetaExtra> &
   Register<Target, Any>;
+
+/**
+ * Panic error for the component module.
+ *
+ * - NotFound - Raised when a component was not found in the register.
+ *
+ * @public
+ */
+class ComponentError extends Panic<'Component', 'NotFound'>('Component') {}
 
 /**
  * Represents a component builder.
@@ -248,7 +258,7 @@ class ComponentBuilder<
     const info = Registry.info.get(id);
 
     if (!info) {
-      throw new Error(`Object not found: ${id}`);
+      throw new ComponentError('NotFound', 'Component not found');
     }
 
     // Prevent infinite recursion in case of circular dependencies.
@@ -357,5 +367,5 @@ const isComponent = (maybeComponent: Any, tag?: string): maybeComponent is Compo
   // Should have a tag and it should match the given tag.
   (tag && !!maybeComponent.tag ? maybeComponent.tag === tag : true);
 
-export { component, isComponent };
+export { ComponentError, component, isComponent };
 export type { Component };
