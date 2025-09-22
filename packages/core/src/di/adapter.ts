@@ -6,7 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { type Component, type Registrable, component } from '../system';
-import type { Any } from '../utils';
 import type { Port, PortShape } from './port';
 
 /**
@@ -16,14 +15,7 @@ import type { Port, PortShape } from './port';
  *
  * @public
  */
-type Adapter<P extends Port<PortShape>> = Component<
-  'Adapter',
-  P['Type'] & {
-    dependencies?: Port<Any>[];
-  },
-  // Inherit the type of the port.
-  Port<P>['Type']
->;
+type Adapter<P extends Port<PortShape>> = Component<'Adapter', P['Type']>;
 
 /**
  * Creates a new adapter with the specified port and builder function.
@@ -42,7 +34,7 @@ type Adapter<P extends Port<PortShape>> = Component<
 const adapter = <P extends PortShape>(port: Port<P>, build: Port<P>['Type']) =>
   component('Adapter', build as Registrable, port)
     // Adding the port as a child.
-    .addChildren(...Object.values(port)) as Adapter<Port<P>>;
+    .addChildren(port) as Adapter<Port<P>>;
 
 export { adapter };
 export type { Adapter };
