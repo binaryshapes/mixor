@@ -6,3 +6,4 @@
  * LICENSE file in the root directory of this source tree.
  */
 export * from './struct';
+export * from './task';
