@@ -56,7 +56,14 @@ function safeStringify(object: Any): string {
         .map(([, value]) => {
           // Nested objects.
           if (typeof value === 'object' && !!value) {
-            return String(Object.values(value));
+            const str = String(Object.values(value));
+
+            // replace all commas with empty string
+            if (str.replaceAll(',', '').length === 0) {
+              return '';
+            }
+
+            return str;
           }
 
           // Otherwise we use the string representation.
@@ -96,11 +103,14 @@ type HashResult = {
  */
 function hash(...objects: Any[]): HashResult {
   // Remove duplicates and replace spaces and new lines, slashes and other special characters.
-  const keys = Array.from(new Set(objects.map((object) => safeStringify(object)))).map((key) =>
-    key.replace(/[\s\n/\\]/g, ''),
-  );
-  const hash = createHash('sha256').update(keys.join('')).digest('hex');
+  const keys = Array.from(new Set(objects.map((object) => safeStringify(object))))
+    .map((key) =>
+      // Clean the key from spaces, quotes, new lines, slashes and other special characters
+      key.replace(/[\s\n/\\"]/g, ''),
+    )
+    .filter((key) => key.length > 0);
 
+  const hash = createHash('sha256').update(keys.join('')).digest('hex');
   return { hash, keys };
 }
 
