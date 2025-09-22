@@ -5,16 +5,63 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { isSchema } from '../schema';
-import { type Component, Panic, type Registrable, component, isComponent } from '../system';
+import { type Failure, type Result } from '../result';
+import { type Schema, type SchemaErrors, type SchemaValues, isSchema } from '../schema';
+import { type Component, Panic, component, isComponent } from '../system';
 import type { Any } from '../utils';
 
 /**
- * Type representing the contract input and output types.
+ * Type representing the contract handler function.
  *
- * @internal
+ * @typeParam C - The contract type.
+ *
+ * @public
  */
-type ContractIO = Component<'Schema', Registrable>;
+type ContractHandler<C> =
+  C extends Contract<infer I, infer O, infer E, infer Ctx>
+    ? I extends Schema<infer II>
+      ? O extends Schema<infer OO>
+        ? (
+            input: SchemaValues<II>,
+            context: Ctx extends never | undefined ? never : Ctx,
+          ) => Promise<
+            Result<
+              SchemaValues<OO>,
+              {
+                input: SchemaErrors<II, 'strict'>;
+                output: SchemaErrors<OO, 'strict'>;
+                handler: E;
+              }
+            >
+          >
+        : never
+      : never
+    : never;
+
+/**
+ * Type representing the contract caller function.
+ *
+ * @typeParam C - The contract type.
+ *
+ * @public
+ */
+type ContractCaller<C> =
+  C extends Contract<infer I, infer O, infer E, Any>
+    ? I extends Schema<infer II>
+      ? O extends Schema<infer OO>
+        ? (input: SchemaValues<II>) => Promise<
+            Result<
+              SchemaValues<OO>,
+              {
+                input: SchemaErrors<II, 'strict'>;
+                output: SchemaErrors<OO, 'strict'>;
+                handler: E;
+              }
+            >
+          >
+        : never
+      : never
+    : never;
 
 /**
  * Contract type.
@@ -29,11 +76,14 @@ type ContractIO = Component<'Schema', Registrable>;
  *
  * @public
  */
-type Contract<I extends ContractIO, O extends ContractIO, C = never> = Component<
+type Contract<I, O, E, C> = Component<
   'Contract',
-  ContractBuilder<I, O, C>,
-  {
-    (input: I extends { Type: infer U } ? U : never): O extends { Type: infer U } ? U : never;
+  ContractBuilder<I, O, E, C> & {
+    Error: {
+      input: I extends Schema<infer II> ? SchemaErrors<II, 'strict'> : never;
+      output: O extends Schema<infer OO> ? SchemaErrors<OO, 'strict'> : never;
+      handler: E;
+    };
   }
 >;
 
@@ -43,7 +93,7 @@ type Contract<I extends ContractIO, O extends ContractIO, C = never> = Component
  * - InvalidInput: The input is not a schema.
  * - InvalidOutput: The output is not a schema.
  *
- * @internal
+ * @public
  */
 class ContractError extends Panic<'Contract', 'InvalidInput' | 'InvalidOutput'>('Contract') {}
 
@@ -51,15 +101,16 @@ class ContractError extends Panic<'Contract', 'InvalidInput' | 'InvalidOutput'>(
  * Builder for the contract component.
  *
  * @remarks
- * This class is used to build the contract component.
+ * Provides a fluent API for configuring the contract.
  *
  * @typeParam I - The input type parameter.
  * @typeParam O - The output type parameter.
+ * @typeParam E - The errors type parameter.
  * @typeParam C - The context type parameter.
  *
  * @internal
  */
-class ContractBuilder<I extends ContractIO, O extends ContractIO, C = never> {
+class ContractBuilder<I, O, E = never, C = never> {
   public static name = 'Contract';
 
   /**
@@ -69,10 +120,12 @@ class ContractBuilder<I extends ContractIO, O extends ContractIO, C = never> {
     input: I | undefined;
     output: O | undefined;
     context: C | undefined;
+    errors: E | undefined;
   } = {
     input: undefined,
     output: undefined,
     context: undefined,
+    errors: undefined,
   };
 
   /**
@@ -82,14 +135,14 @@ class ContractBuilder<I extends ContractIO, O extends ContractIO, C = never> {
    * @param i - The contract input.
    * @returns The contract instance with the input set.
    */
-  public input<IP extends ContractIO>(i: IP) {
+  public input<IP>(i: Schema<IP>) {
     if (!isSchema(i)) {
       throw new ContractError('InvalidInput', 'Input must be a schema');
     }
     this.signature.input = i as unknown as I;
 
     // Hacky way to add the input as a child.
-    return (this as unknown as Contract<IP, O, C>).addChildren(i);
+    return (this as unknown as Contract<Schema<IP>, O, E, C>).addChildren(i);
   }
 
   /**
@@ -99,14 +152,26 @@ class ContractBuilder<I extends ContractIO, O extends ContractIO, C = never> {
    * @param o - The contract output.
    * @returns The contract instance with the output set.
    */
-  public output<OP extends ContractIO>(o: OP) {
+  public output<OP>(o: Schema<OP>) {
     if (!isSchema(o)) {
       throw new ContractError('InvalidOutput', 'Output must be a schema');
     }
     this.signature.output = o as unknown as O;
 
     // Hacky way to add the output as a child.
-    return (this as unknown as Contract<I, OP, C>).addChildren(o);
+    return (this as unknown as Contract<I, Schema<OP>, E, C>).addChildren(o);
+  }
+
+  /**
+   * Set the contract errors.
+   *
+   * @typeParam E - The errors type parameter.
+   * @param e - The contract errors.
+   * @returns The contract instance with the errors set.
+   */
+  public errors<EE extends Failure<Any> | string>(...e: EE[]) {
+    this.signature.errors = e as unknown as E;
+    return this as unknown as Contract<I, O, EE, C>;
   }
 
   /**
@@ -116,9 +181,9 @@ class ContractBuilder<I extends ContractIO, O extends ContractIO, C = never> {
    * @param c - The contract context.
    * @returns The contract instance with the context set.
    */
-  public context<SP>(c: SP) {
+  public context<Ctx>(c: Ctx) {
     this.signature.context = c as unknown as C;
-    return this as unknown as Contract<I, O, SP>;
+    return this as unknown as Contract<I, O, E, Ctx>;
   }
 }
 
@@ -133,16 +198,8 @@ class ContractBuilder<I extends ContractIO, O extends ContractIO, C = never> {
  *
  * @public
  */
-function contract<I extends ContractIO, O extends ContractIO, C = never>() {
-  const builder = new ContractBuilder<I, O, C>();
-
-  const ct = component(
-    'Contract',
-    Object.setPrototypeOf(() => builder, builder),
-  );
-
-  return ct as unknown as Contract<I, O, C>;
-}
+const contract = <I, O, E, C>() =>
+  component('Contract', new ContractBuilder<I, O, E, C>()) as Contract<I, O, E, C>;
 
 /**
  * Guard function to check if the given object is a contract.
@@ -152,8 +209,8 @@ function contract<I extends ContractIO, O extends ContractIO, C = never>() {
  *
  * @public
  */
-const isContract = (maybeContract: Any): maybeContract is Contract<Any, Any, Any> =>
+const isContract = (maybeContract: Any): maybeContract is Contract<Any, Any, Any, Any> =>
   isComponent(maybeContract, 'Contract');
 
 export { contract, isContract };
-export type { Contract };
+export type { Contract, ContractCaller, ContractHandler };
