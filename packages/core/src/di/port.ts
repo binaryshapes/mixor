@@ -5,32 +5,35 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Value, isSchema, isValue } from '../schema';
-import { type Component, Panic, type Registrable, component } from '../system';
+import { isSchema, isValue } from '../schema';
+import { type Component, Panic, component } from '../system';
 import { type Any } from '../utils';
-import { isContract } from './contract';
+import { type Contract, type ContractHandler, isContract } from './contract';
 
 /**
- * Port shape.
+ * Defines a valid shape of a port.
  *
  * @remarks
- * A port structure is a record of contracts, schemas, or values.
+ * A port shape is a record of contracts, schemas, or values.
  *
  * @public
  */
-type PortShape = Record<string, Component<'Contract' | 'Schema', Registrable> | Value<Any, Any>>;
+type PortShape = Record<string, { Type: Any; Tag: 'Schema' | 'Value' | 'Contract' }>;
 
 /**
- * Port type.
+ * Port component type.
+ *
+ * @typeParam T - The shape of the port.
  *
  * @public
  */
-type Port<T extends PortShape = PortShape> = Component<
+type Port<T extends PortShape> = Component<
   'Port',
   T,
   {
-    // Inherit the type of the port shape (contracts, schemas, or values).
-    [K in keyof T]: T[K]['Type'];
+    [K in keyof T]: T[K] extends Contract<Any, Any, Any, Any>
+      ? ContractHandler<T[K]>
+      : T[K]['Type'];
   }
 >;
 
@@ -38,10 +41,11 @@ type Port<T extends PortShape = PortShape> = Component<
  * Panic error for the port module.
  *
  * - InvalidShape: The port shape is not valid.
+ * - InvalidComponent: The port component is not valid.
  *
  * @public
  */
-class PortError extends Panic<'Port', 'InvalidShape'>('Port') {}
+class PortError extends Panic<'Port', 'InvalidShape' | 'InvalidComponent'>('Port') {}
 
 /**
  * Creates a new port with the specified shape.
@@ -57,7 +61,7 @@ class PortError extends Panic<'Port', 'InvalidShape'>('Port') {}
  * @public
  */
 function port<T extends PortShape>(shape: T) {
-  if (typeof shape !== 'object') {
+  if (typeof shape !== 'object' || shape === null) {
     throw new PortError('InvalidShape', 'A port shape must be an object');
   }
 
@@ -67,7 +71,7 @@ function port<T extends PortShape>(shape: T) {
   );
 
   if (!isValid) {
-    throw new PortError('InvalidShape', 'A port just can contain contracts, values or schemas');
+    throw new PortError('InvalidComponent', 'A port just can contain contracts, values or schemas');
   }
 
   return component('Port', shape).addChildren(...Object.values(shape)) as Port<T>;
