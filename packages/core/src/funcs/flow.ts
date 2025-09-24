@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { type Result, isErr, isOk, ok } from '../result';
-import { type Any, type MergeUnion } from '../utils';
+import type { Any, MergeUnion, Prettify, PrimitiveTypeExtended } from '../utils';
 
 /**
  * A function that can be used as a step in a flow.
@@ -59,10 +59,23 @@ type FlowValue<T> = MergeUnion<T>;
  */
 type FlowStep = {
   kind: 'sync' | 'async';
-  fn: FlowFunction;
   operator: FlowOperator;
   mapping: FlowMapping;
+  fn: FlowFunction;
 };
+
+/**
+ * Binds a new property to the input object.
+ * If the value is a primitive or array, the result is the value.
+ * If the value is an object, the result is the object with the new property added.
+ *
+ * @internal
+ */
+type Bind<O, K extends string, V> = V extends never
+  ? O
+  : O extends PrimitiveTypeExtended
+    ? Prettify<Record<K, V>>
+    : MergeUnion<O & Record<K, V>>;
 
 /**
  * Operator functions that handle different mapping behaviors.
@@ -111,9 +124,9 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
 
     this.steps.push({
       kind: isAsync ? 'async' : 'sync',
-      fn: (v) => (logicFn ? logicFn(v) : fn(v)),
       operator,
       mapping,
+      fn: (v) => (logicFn ? logicFn(v) : fn(v)),
     });
 
     return isAsync ? (this as Flow<I, O, E, 'async'>) : (this as Flow<I, O, E, A>);
@@ -243,6 +256,41 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
       return v;
     };
     return this.addStep('check', 'success', fns, checkLogic) as Any;
+  }
+
+  /**
+   * Binds a new property to the input object.
+   *
+   * @param key - The key for the new property.
+   * @param fn - The function that computes the value for the new property.
+   * @returns a new typed version of the flow which includes the new step.
+   */
+  bind<K extends string, V, F>(
+    key: K,
+    fn: (v: FlowValue<O>) => Result<V, F>,
+  ): Flow<I, Bind<FlowValue<O>, K, V>, E | F, A>;
+  bind<K extends string, V, F>(
+    key: K,
+    fn: (v: FlowValue<O>) => Promise<Result<V, F>>,
+  ): Flow<I, Bind<FlowValue<O>, K, V>, E | F, 'async'>;
+  bind(key: string, fn: Any) {
+    const isBindable = (v: Any) => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+    const bindLogic = (v: Any) => {
+      const result = fn(v.value);
+
+      if (result instanceof Promise) {
+        return result.then((r) =>
+          isOk(r) ? ok({ ...(isBindable(v.value) ? { ...v.value } : {}), [key]: r.value }) : r,
+        );
+      }
+
+      return isOk(result)
+        ? ok({ ...(isBindable(v.value) ? { ...v.value } : {}), [key]: result.value })
+        : result;
+    };
+
+    return this.addStep('bind', 'success', fn, bindLogic) as Any;
   }
 }
 
