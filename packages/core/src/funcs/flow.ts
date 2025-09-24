@@ -69,11 +69,7 @@ const mappings: Record<FlowMapping, (v: Any, step: FlowStep) => Any> = {
    * @param step - The step to process.
    * @returns The processed value.
    */
-  success: (v: Any, step: FlowStep) => {
-    if (!isOk(v)) return v;
-
-    return step.fn(v.value);
-  },
+  success: (v: Any, step: FlowStep) => (isOk(v) ? step.fn(v) : v),
 
   /**
    * Processes error values only.
@@ -81,7 +77,7 @@ const mappings: Record<FlowMapping, (v: Any, step: FlowStep) => Any> = {
    * @param step - The step to process.
    * @returns The processed value.
    */
-  error: (v: Any, step: FlowStep) => (isErr(v) ? step.fn(v.error) : v),
+  error: (v: Any, step: FlowStep) => (isErr(v) ? step.fn(v) : v),
 
   /**
    * Processes both success and error values.
@@ -89,8 +85,7 @@ const mappings: Record<FlowMapping, (v: Any, step: FlowStep) => Any> = {
    * @param step - The step to process.
    * @returns The processed value.
    */
-  both: (v: Any, step: FlowStep) =>
-    isOk(v) ? (step.fn as Any).onOk(v.value) : (step.fn as Any).onErr(v.error),
+  both: (v: Any, step: FlowStep) => step.fn(v),
 };
 
 /**
@@ -110,17 +105,23 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
    * @param operator - The operator type for the step.
    * @param mapping - The mapping of the step.
    * @param fn - The function to add to the flow.
+   * @param logicFn - The logic to add to the flow.
    * @returns a new typed version of the flow which includes the new step.
    */
-  private addStep(operator: FlowOperator, mapping: FlowMapping, fn: Any) {
+  private addStep(
+    operator: FlowOperator,
+    mapping: FlowMapping,
+    fn: Any,
+    logicFn?: (...args: Any[]) => Any,
+  ) {
     const isAsync = fn.constructor.name === 'AsyncFunction';
 
     this.steps.push({
       kind: isAsync ? 'async' : 'sync',
-      fn,
+      fn: (v) => (logicFn ? logicFn(v) : fn(v)),
       operator,
       mapping,
-    } satisfies FlowStep);
+    });
 
     return isAsync ? (this as Flow<I, O, E, 'async'>) : (this as Flow<I, O, E, A>);
   }
@@ -133,8 +134,8 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
    * @returns A function that processes the flow with the correct input and output types.
    */
   public build() {
-    // Determine if the flow is async by checking if any step is async.
-    const isAsync = this.steps.some((step) => step.kind === 'async');
+    // Checking if any step is async (omit tap steps which are side effects).
+    const isAsync = this.steps.some((step) => step.kind === 'async' && step.operator !== 'tap');
 
     // Build the flow function.
     const buildFlow = isAsync
@@ -167,7 +168,8 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
   public map<B, F>(fn: (v: FlowValue<O>) => Result<B, F>): Flow<I, B, E | F, A>;
   public map<B, F>(fn: (v: FlowValue<O>) => Promise<Result<B, F>>): Flow<I, B, E | F, 'async'>;
   public map(fn: Any) {
-    return this.addStep('map', 'success', fn) as Any;
+    const mapLogic = (v: Any) => fn(v.value);
+    return this.addStep('map', 'success', fn, mapLogic) as Any;
   }
 
   /**
@@ -183,7 +185,8 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
   public mapErr<B, F>(fn: (e: E) => Result<B, F>): Flow<I, O | B, F, A>;
   public mapErr<B, F>(fn: (e: E) => Promise<Result<B, F>>): Flow<I, O | B, F, 'async'>;
   public mapErr(fn: Any) {
-    return this.addStep('mapErr', 'error', fn) as Any;
+    const mapErrLogic = (v: Any) => fn(v.error);
+    return this.addStep('mapErr', 'error', fn, mapErrLogic) as Any;
   }
 
   /**
@@ -203,7 +206,21 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
     onErr: (e: E) => Promise<Result<B, F>>;
   }): Flow<I, B, F, 'async'>;
   public mapBoth(fn: Any) {
-    return this.addStep('mapBoth', 'both', fn) as Any;
+    const mapBothLogic = (v: Any) => (isOk(v) ? fn.onOk(v.value) : fn.onErr(v.error));
+    return this.addStep('mapBoth', 'both', fn, mapBothLogic) as Any;
+  }
+
+  /**
+   * Performs a side effect on the flow value.
+   *
+   * @param fn - The function to apply to the flow value.
+   * @returns a new typed version of the flow which includes the new step.
+   */
+  public tap(fn: (v: FlowValue<O>) => void): Flow<I, O, E, A>;
+  public tap(fn: (v: FlowValue<O>) => Promise<void>): Flow<I, O, E, 'async'>;
+  public tap(fn: Any) {
+    const tapLogic = (v: Any) => (fn(v.value), v);
+    return this.addStep('tap', 'success', fn, tapLogic) as Any;
   }
 }
 
