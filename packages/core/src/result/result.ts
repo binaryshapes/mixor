@@ -156,5 +156,21 @@ function isResult(result: unknown): result is Result<unknown, unknown> {
  */
 const unwrap = <T, E>(result: Result<T, E>) => (isOk(result) ? result.value : result.error);
 
-export { err, isErr, isOk, isResult, ok, unwrap };
+/**
+ * Creates a assert function that returns a result.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ * @param fn - The predicate function to validate the value.
+ * @param error - The error to return if the predicate returns false.
+ * @returns A assert function that returns a result.
+ *
+ * @public
+ */
+const assert =
+  <T, E extends Failure<Any> | string>(fn: (v: T) => boolean, error: E) =>
+  (v: T): Result<T, E> =>
+    fn(v) ? ok(v) : err(error);
+
+export { assert, err, isErr, isOk, isResult, ok, unwrap };
 export type { Err, Ok, Result, ResultFunction };
