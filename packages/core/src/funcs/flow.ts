@@ -28,7 +28,15 @@ type FlowMapping = 'success' | 'error' | 'both';
  *
  * @internal
  */
-type FlowOperator = 'tap' | 'ifThen' | 'ifThenElse' | 'bind' | 'map' | 'mapErr' | 'mapBoth';
+type FlowOperator =
+  | 'tap'
+  | 'ifThen'
+  | 'ifThenElse'
+  | 'bind'
+  | 'map'
+  | 'mapErr'
+  | 'mapBoth'
+  | 'check';
 
 /**
  * Standardized the value of the flow. Basically to ensure the shape of the value in flows with
@@ -63,28 +71,13 @@ type FlowStep = {
  * @internal
  */
 const mappings: Record<FlowMapping, (v: Any, step: FlowStep) => Any> = {
-  /**
-   * Processes success values only.
-   * @param v - The value to process.
-   * @param step - The step to process.
-   * @returns The processed value.
-   */
+  // Processes success values only.
   success: (v: Any, step: FlowStep) => (isOk(v) ? step.fn(v) : v),
 
-  /**
-   * Processes error values only.
-   * @param v - The value to process.
-   * @param step - The step to process.
-   * @returns The processed value.
-   */
+  // Processes error values only.
   error: (v: Any, step: FlowStep) => (isErr(v) ? step.fn(v) : v),
 
-  /**
-   * Processes both success and error values.
-   * @param v - The value to process.
-   * @param step - The step to process.
-   * @returns The processed value.
-   */
+  // Processes both success and error values.
   both: (v: Any, step: FlowStep) => step.fn(v),
 };
 
@@ -221,6 +214,35 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
   public tap(fn: Any) {
     const tapLogic = (v: Any) => (fn(v.value), v);
     return this.addStep('tap', 'success', fn, tapLogic) as Any;
+  }
+
+  /**
+   * Validates a predicate on the success value of the flow.
+   * If the predicate returns true, the original value is returned unchanged.
+   * If the predicate returns false, an error is returned.
+   *
+   * @remarks
+   * This operator is useful for validation checks where you want to ensure
+   * a condition is met without transforming the value.
+   *
+   * @param predicate - The predicate function to validate the success value.
+   * @returns a new typed version of the flow which includes the new step.
+   */
+  public check<B, F>(...fns: ((v: FlowValue<O>) => Result<B, F>)[]): Flow<I, O, E | F, A>;
+  public check<B, F>(
+    ...fns: ((v: FlowValue<O>) => Promise<Result<B, F>>)[]
+  ): Flow<I, O, E | F, 'async'>;
+  public check(...fns: Any[]) {
+    const checkLogic = (v: Any) => {
+      for (const fn of fns) {
+        const result = fn(v.value);
+        if (isErr(result)) {
+          return result;
+        }
+      }
+      return v;
+    };
+    return this.addStep('check', 'success', fns, checkLogic) as Any;
   }
 }
 
