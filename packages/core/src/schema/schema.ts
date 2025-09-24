@@ -11,6 +11,8 @@ import { Config, Panic, component, isComponent } from '../system';
 import type { Any, Prettify, UndefToOptional } from '../utils';
 import { type Value, isValue } from './value';
 
+// TODO: Add support for standard schema (https://github.com/standard-schema/standard-schema).
+
 /**
  * A nested schema fields is a record of values.
  *
@@ -33,11 +35,7 @@ type SchemaFields = Record<string, Value<Any, Any> | SchemaRecord>;
  * @public
  */
 type SchemaValues<S> = UndefToOptional<{
-  [K in keyof S]: S[K] extends SchemaRecord
-    ? SchemaValues<S[K]>
-    : S[K] extends Value<Any, Any>
-      ? S[K]['Type']
-      : never;
+  [K in keyof S]: S[K] extends Value<Any, Any> ? S[K]['Type'] : Schema<S[K]>['Type'];
 }>;
 
 /**
@@ -154,7 +152,7 @@ class SchemaBuilder<F> {
    * @remarks
    * This fields are used to build the schema and introspect the schema in runtime.
    */
-  private readonly fields: Any;
+  public readonly fields: F;
 
   /**
    * Creates a new schema builder.
@@ -175,7 +173,7 @@ class SchemaBuilder<F> {
    */
   public get types() {
     return Object.fromEntries(
-      Object.entries(this.fields).map(([key, field]) => {
+      Object.entries(this.fields as Any).map(([key, field]) => {
         const value = field as Value<Any, Any>;
         let type = value.info.type ?? 'unknown';
 
@@ -216,7 +214,7 @@ class SchemaBuilder<F> {
   public omit<Omit extends keyof F>(keys: Partial<Record<Omit, true>>) {
     return SchemaBuilder.create(
       Object.fromEntries(
-        Object.entries(this.fields).filter(
+        Object.entries(this.fields as Any).filter(
           ([key]) => !(key in keys) || !keys[key as keyof typeof keys],
         ),
       ) as Any,
@@ -231,7 +229,7 @@ class SchemaBuilder<F> {
   public partial() {
     return SchemaBuilder.create(
       Object.fromEntries(
-        Object.entries(this.fields).map(([key, field]) => [
+        Object.entries(this.fields as Any).map(([key, field]) => [
           key,
           (field as Any).optional(),
         ]),
@@ -265,6 +263,7 @@ class SchemaBuilder<F> {
       .filter(([, isValue]) => isValue)
       .map(([f]) => f);
 
+    // TODO: Nested objects of values are not supported yet. Should be supported.
     if (invalidFields.length > 0) {
       throw new SchemaError(
         'FieldIsNotValue',
