@@ -36,7 +36,7 @@ type FlowOperator =
   | 'map'
   | 'mapErr'
   | 'mapBoth'
-  | 'check';
+  | 'assert';
 
 /**
  * Standardized the value of the flow. Basically to ensure the shape of the value in flows with
@@ -230,23 +230,23 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
   }
 
   /**
-   * Validates a predicate on the success value of the flow.
+   * Asserts a predicate on the success value of the flow.
    * If the predicate returns true, the original value is returned unchanged.
-   * If the predicate returns false, an error is returned.
+   * If any predicate returns false, the flow returns an error.
    *
    * @remarks
-   * This operator is useful for validation checks where you want to ensure
+   * This operator is useful for assertion checks where you want to ensure
    * a condition is met without transforming the value.
    *
-   * @param predicate - The predicate function to validate the success value.
+   * @param predicate - The predicate function to assert the success value.
    * @returns a new typed version of the flow which includes the new step.
    */
-  public check<B, F>(...fns: ((v: FlowValue<O>) => Result<B, F>)[]): Flow<I, O, E | F, A>;
-  public check<B, F>(
+  public assert<B, F>(...fns: ((v: FlowValue<O>) => Result<B, F>)[]): Flow<I, O, E | F, A>;
+  public assert<B, F>(
     ...fns: ((v: FlowValue<O>) => Promise<Result<B, F>>)[]
   ): Flow<I, O, E | F, 'async'>;
-  public check(...fns: Any[]) {
-    const checkLogic = (v: Any) => {
+  public assert(...fns: Any[]) {
+    const assertLogic = (v: Any) => {
       for (const fn of fns) {
         const result = fn(v.value);
         if (isErr(result)) {
@@ -255,7 +255,7 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
       }
       return v;
     };
-    return this.addStep('check', 'success', fns, checkLogic) as Any;
+    return this.addStep('assert', 'success', fns, assertLogic) as Any;
   }
 
   /**
