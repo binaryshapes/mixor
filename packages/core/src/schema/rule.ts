@@ -5,7 +5,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import type { ResultFunction } from '../result';
+import { type Failure, type ResultFunction, assert } from '../result';
 import { type Component, component, isComponent } from '../system';
 import { type Any } from '../utils';
 
@@ -55,12 +55,20 @@ type Rule<T, E> = Component<'Rule', RuleFn<T, E>, T, RuleMeta<T>>;
  * A rule is a {@link Component} function that validates a value and returns a {@link Result}
  * depending if the value is valid or not.
  *
- * @param ruleFn - The rule function.
+ * @param fn - The rule function.
+ * @param error - The error to return if the rule fails.
  * @returns The new rule.
  *
  * @public
  */
-const rule = <T, E>(ruleFn: RuleFn<T, E>) => component('Rule', ruleFn) as Rule<T, E>;
+const rule = <T, E extends Failure<Any> | string>(fn: (v: T) => boolean, error: E) =>
+  component(
+    'Rule',
+    // The rule is just a wrapper around the assert function.
+    assert(fn, error as Any),
+    // The rule has the original function and error for registration purposes.
+    { fn, error },
+  ) as Rule<T, E>;
 
 /**
  * Guard function to check if the given object is a rule component.
