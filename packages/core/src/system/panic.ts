@@ -22,7 +22,7 @@ class PanicError<S extends string, T extends string> extends Error {
    * Unique code of the panic error.
    *
    * @remarks
-   * This a convinient way to identify the panic error origin, for instance in error handling
+   * This a convenient way to identify the panic error origin, for instance in error handling
    * with pattern matching.
    */
   public readonly code: `${S}.${T}`;
