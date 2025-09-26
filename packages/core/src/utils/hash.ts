@@ -7,6 +7,7 @@
  */
 import { createHash } from 'node:crypto';
 
+import { isComponent } from '../system';
 import type { Any } from '../utils';
 
 /**
@@ -15,7 +16,7 @@ import type { Any } from '../utils';
  * @param object - The object to check.
  * @returns True if the object is a class, false otherwise.
  *
- * @public
+ * @internal
  */
 const isClass = (object: unknown) =>
   typeof object === 'function' && /^class\s/.test(Function.prototype.toString.call(object));
@@ -26,10 +27,20 @@ const isClass = (object: unknown) =>
  * @param object - The object to check.
  * @returns True if the object is a function, false otherwise.
  *
- * @public
+ * @internal
  */
 const isObjectFunction = (object: unknown) =>
   typeof object === 'function' && !/^class\s/.test(Function.prototype.toString.call(object));
+
+/**
+ * Replace blanks in the given string.
+ *
+ * @param str - The string to replace blanks in.
+ * @returns The string with the blanks replaced.
+ *
+ * @internal
+ */
+const cleanEmpty = (str: string) => (str.replaceAll(',', '').length === 0 ? '' : str);
 
 /**
  * Safe stringify the given object.
@@ -37,7 +48,7 @@ const isObjectFunction = (object: unknown) =>
  * @param object - The object to stringify.
  * @returns The stringified object.
  *
- * @public
+ * @internal
  */
 function safeStringify(object: Any): string {
   // Transform arrays we iterate over the items and filter the native code.
@@ -51,26 +62,27 @@ function safeStringify(object: Any): string {
   }
 
   if (typeof object === 'object' && !!object) {
-    return JSON.stringify(
+    const str = JSON.stringify(
       Object.entries(object as Any)
         .map(([, value]) => {
+          // Sometimes the value is a component, so we need to stringify directly.
+          if (isComponent(value)) {
+            return String(value);
+          }
+
           // Nested objects.
           if (typeof value === 'object' && !!value) {
-            const str = String(Object.values(value));
-
-            // replace all commas with empty string
-            if (str.replaceAll(',', '').length === 0) {
-              return '';
-            }
-
-            return str;
+            return cleanEmpty(String(Object.values(value)));
           }
 
           // Otherwise we use the string representation.
           return String(value);
         })
+        .filter((str) => str.length > 0)
         .join(','),
     );
+
+    return str;
   }
 
   // This fallback is safe for arrays, functions and other primitives.
@@ -106,7 +118,7 @@ function hash(...objects: Any[]): HashResult {
   const keys = Array.from(new Set(objects.map((object) => safeStringify(object))))
     .map((key) =>
       // Clean the key from spaces, quotes, new lines, slashes and other special characters
-      key.replace(/[\s\n/\\"]/g, ''),
+      cleanEmpty(key.replace(/[\s\n/\\"]/g, '')),
     )
     .filter((key) => key.length > 0);
 
@@ -114,5 +126,5 @@ function hash(...objects: Any[]): HashResult {
   return { hash, keys };
 }
 
-export { hash, isClass, isObjectFunction, safeStringify };
+export { hash };
 export type { HashResult };
