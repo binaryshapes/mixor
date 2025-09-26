@@ -7,4 +7,5 @@
  */
 export type * from './generics';
 export * from './hash';
+export * from './inspect';
 export * from './merge';
