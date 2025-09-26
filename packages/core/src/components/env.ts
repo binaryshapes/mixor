@@ -54,24 +54,15 @@ function getEnvSource(): Record<string, string | undefined> {
  *
  * @public
  */
-type Env<F> = Component<
-  'Env',
-  {
-    (): Schema<F>;
-  }
->;
+type Env<F> = Component<'Env', () => ReturnType<Schema<F>>>;
 
 /**
  * Loads and validates environment variables based on a schema.
  * Compatible with Node.js 20+, Bun, and Deno 2.0+.
- * Uses the centralized error mode concept from {@link ErrorMode}.
- *
- * @remarks
- * The default error mode is the same used by the schema module.
  *
  * @typeParam F - The schema fields type.
  * @param schema - The schema to validate the environment variables against.
- * @returns A function that validates environment variables with optional error mode.
+ * @returns A function that validates environment variables.
  * @throws A {@link EnvError} when environment variables are missing or runtime is not supported.
  *
  * @public
@@ -93,7 +84,8 @@ function env<F>(schema: Schema<F>) {
     if (missingFields.length > 0) {
       throw new EnvError(
         'MissingEnvVariables',
-        `Missing environment variables: ${missingFields.join(', ')}. Please check your .env file.`,
+        `Missing environment variables: ${missingFields.join(', ')}`,
+        'Please check your .env file',
       );
     }
 
@@ -102,7 +94,7 @@ function env<F>(schema: Schema<F>) {
   };
 
   // Creates the env component with the schema as a child.
-  return component('Env', envFn, { schema }).addChildren(schema);
+  return component('Env', envFn, { schema }).addChildren(schema) as unknown as Env<F>;
 }
 
 export { EnvError, env };
