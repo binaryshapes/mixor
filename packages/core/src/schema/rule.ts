@@ -49,26 +49,52 @@ type RuleFn<T, E> = ResultFunction<T, E>;
 type Rule<T, E> = Component<'Rule', RuleFn<T, E>, T, RuleMeta<T>>;
 
 /**
+ * Rule constructor type.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ *
+ * @internal
+ */
+interface RuleConstructor {
+  /**
+   * Creates a rule from a function and an error.
+   *
+   * @param fn - The rule function.
+   * @param error - The error to return if the rule fails.
+   * @returns The new rule.
+   */
+  <T, E>(fn: (v: T) => boolean, error: E): Rule<T, E>;
+  /**
+   * Creates a rule from a function.
+   *
+   * @param fn - The rule function.
+   * @returns The new rule.
+   */
+  <T, E>(fn: RuleFn<T, E>): Rule<T, E>;
+}
+
+/**
  * Creates a new rule.
  *
  * @remarks
  * A rule is a {@link Component} function that validates a value and returns a {@link Result}
  * depending if the value is valid or not.
  *
- * @param fn - The rule function.
- * @param error - The error to return if the rule fails.
+ * @param args - The rule definitions.
+ * - If the first argument is a function and the second argument is an error,
+ * the rule will be created with the assert function.
+ * - If is a only a function, this needs to be a {@link Result} function.
  * @returns The new rule.
  *
  * @public
  */
-const rule = <T, E extends Failure<Any> | string>(fn: (v: T) => boolean, error: E) =>
-  component(
-    'Rule',
-    // The rule is just a wrapper around the assert function.
-    assert(fn, error as Any),
-    // The rule has the original function and error for registration purposes.
-    { fn, error },
-  ) as Rule<T, E>;
+const rule: RuleConstructor = <T, E extends Failure<Any> | string>(...args: Any[]) => {
+  const fn = args[0];
+  const error = args.slice(1) as Any;
+  const r = error ? component('Rule', assert(fn, error), { fn, error }) : component('Rule', fn);
+  return r as Rule<T, E>;
+};
 
 /**
  * Guard function to check if the given object is a rule component.
