@@ -363,7 +363,7 @@ const component = <
 const isComponent = (maybeComponent: Any, tag?: string): maybeComponent is Component<Any, Any> =>
   // Should have a register id and be in the registry.
   !!maybeComponent.registerId &&
-  Registry.cache.has(maybeComponent.registerId) &&
+  Registry.catalog.has(maybeComponent.registerId) &&
   // Should have a tag and it should match the given tag.
   (tag && !!maybeComponent.tag ? maybeComponent.tag === tag : true);
 

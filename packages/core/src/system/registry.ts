@@ -34,13 +34,13 @@ type Register<Target extends Registrable, Tag extends string> = Target &
 /**
  * Registry module panic error.
  *
- * - NotFound: The registry item not found in the cache.
+ * - NotFound: The registry item not found in the catalog.
  * - NameAlreadySet: The register name is already set.
  * - DescriptionAlreadySet: The register description is already set.
  *
  * @public
  */
-class RegistryPanic extends Panic<
+class RegistryError extends Panic<
   'Registry',
   'NotFound' | 'NameAlreadySet' | 'DescriptionAlreadySet'
 >('Registry') {}
@@ -100,7 +100,7 @@ class RegisterBuilder<Target extends Registrable, Tag extends string> {
   public traceable: boolean;
 
   /**
-   * Internal reference count of the register. Used to avoid overlapping and use the cache system.
+   * Internal reference count of the register. Used to avoid overlapping and use the catalog system.
    */
   public refCount: number;
 
@@ -130,7 +130,7 @@ class RegisterBuilder<Target extends Registrable, Tag extends string> {
    */
   public setName(name: string) {
     if (this.name && this.name !== name) {
-      throw new RegistryPanic(
+      throw new RegistryError(
         'NameAlreadySet',
         `The register name is already set with: ${this.name}`,
       );
@@ -147,7 +147,7 @@ class RegisterBuilder<Target extends Registrable, Tag extends string> {
    */
   public setDescription(description: string) {
     if (this.description && this.description !== description) {
-      throw new RegistryPanic(
+      throw new RegistryError(
         'DescriptionAlreadySet',
         `The register description is already set with: ${this.description}`,
       );
@@ -164,9 +164,9 @@ class RegisterBuilder<Target extends Registrable, Tag extends string> {
  */
 class Registry {
   /**
-   * Cache of the registers.
+   * Catalog of the registers.
    */
-  public static cache = new Map<string, Register<Any, Any>>();
+  public static catalog = new Map<string, Register<Any, Any>>();
 
   /**
    * Info of the registers.
@@ -177,7 +177,7 @@ class Registry {
    * Create a new register.
    *
    * @remarks
-   * The registry uses a cache system to reuse items instead of creating new ones.
+   * The registry uses a catalog system to reuse items instead of creating new ones.
    *
    * @param target - The target to create the register for.
    * @param tag - The tag of the register.
@@ -191,19 +191,19 @@ class Registry {
   ) {
     const { hash: id, keys } = hash(target, tag, ...uniqueness);
 
-    const exists = this.cache.has(id);
+    const exists = this.catalog.has(id);
     if (!exists) {
-      this.cache.set(id, new RegisterBuilder(id, keys, tag, target));
+      this.catalog.set(id, new RegisterBuilder(id, keys, tag, target));
     }
 
-    const item = this.cache.get(id);
+    const item = this.catalog.get(id);
     if (!item) {
-      throw new RegistryPanic('NotFound', 'Register not found');
+      throw new RegistryError('NotFound', 'Register not found');
     }
 
     return item as Register<Target, Tag>;
   }
 }
 
-export { Registry, RegistryPanic };
+export { Registry, RegistryError };
 export type { Register, Registrable };
