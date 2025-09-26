@@ -5,9 +5,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import util from 'node:util';
-
-import { type Any, type Prettify, merge } from '../utils';
+import { type Any, type Prettify, merge, setInspect } from '../utils';
 import { Logger } from './logger';
 import { Panic } from './panic';
 import { type Register, type Registrable, Registry } from './registry';
@@ -334,14 +332,13 @@ const component = <
   const tar = merge(target, reg, com, ...uniqueness);
 
   // Fancy inspect.
-  (target as Any)[util.inspect.custom] = () => ({
+  setInspect(target, () => ({
     ...com,
-    // Show the register info without the target.
     ...Object.entries(reg)
       .filter(([key]) => key !== 'target')
       .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {}),
     ...com.info,
-  });
+  }));
 
   // This is a workaround to avoid the native code being included in the hash.
   Object.defineProperty(target, 'toString', {
