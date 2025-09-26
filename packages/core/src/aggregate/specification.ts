@@ -5,7 +5,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Failure, type Result, err, isErr, isOk, ok } from '../result';
+import { type Failure, type Result, assert, isErr, isOk, ok } from '../result';
 import { type Component, Panic, component, isComponent } from '../system';
 import type { Any } from '../utils';
 
@@ -29,12 +29,18 @@ type ConditionFunction<T, E> = (entity: T) => Result<T, E>;
  *
  * @public
  */
-type Condition<T, E> = Component<
-  'Condition',
-  {
-    (entity: T): Result<T, E>;
-  }
->;
+type Condition<T, E> = Component<'Condition', ConditionFunction<T, E>>;
+
+/**
+ * A specification that can validate entities based on conditions.
+ * Follows the same pattern as Condition.
+ *
+ * @typeParam T - The type of the entity being validated.
+ * @typeParam E - The union of all possible error types.
+ *
+ * @public
+ */
+type Specification<T, E> = Component<'Specification', SpecificationBuilder<T, E>>;
 
 /**
  * Panic error for the specification module.
@@ -55,7 +61,7 @@ class SpecificationError extends Panic<'Specification', 'NoConditionAdded' | 'In
  *
  * @public
  */
-class Specification<T, E = Any> {
+class SpecificationBuilder<T, E> {
   private readonly conditions: Condition<T, E>[];
 
   /**
@@ -86,7 +92,7 @@ class Specification<T, E = Any> {
    * Validates an entity against this specification.
    *
    * @remarks
-   * Use if you a Result otherwise use {@link check}.
+   * Use if you a Result otherwise use {@link assert}.
    * If any condition fails, the method returns an error Result.
    * If all conditions are satisfied, the method returns a success Result with the
    * input entity data.
@@ -105,14 +111,16 @@ class Specification<T, E = Any> {
   }
 
   /**
-   * Checks if an entity satisfies this specification.
-   * Returns a boolean indicating success or failure.
+   * Asserts if an entity satisfies the specification.
+   * Returns a function which asserts the entity satisfies the specification.
+   * It is useful to use in a flow to assert the entity satisfies the specification.
    *
    * @param entity - The entity to check.
-   * @returns A boolean indicating success or failure.
+   * @returns A function which asserts the entity satisfies the specification and returns the value.
    */
-  public check(entity: T): boolean {
-    return isOk(this.satisfy(entity));
+  public assert(entity: T) {
+    const result = this.satisfy(entity);
+    return <V>(value: V): Result<V, E> => (isErr(result) ? result : ok(value));
   }
 
   /**
@@ -122,8 +130,8 @@ class Specification<T, E = Any> {
    * @param other - The other specification to combine with.
    * @returns A new specification that requires both to be satisfied.
    */
-  public and<E2>(other: Specification<T, E2>): Specification<T, E | E2> {
-    return new Specification<T, E | E2>(
+  public and<E2>(other: Specification<T, E2>): SpecificationBuilder<T, E | E2> {
+    return new SpecificationBuilder<T, E | E2>(
       ...this.conditions,
       ...(other as Specification<T, E2>).conditions,
     );
@@ -136,8 +144,8 @@ class Specification<T, E = Any> {
    * @param other - The other specification to combine with.
    * @returns A new specification that requires at least one to be satisfied.
    */
-  public or<E2>(other: Specification<T, E2>): Specification<T, E | E2> {
-    return new Specification<T, E | E2>(
+  public or<E2>(other: Specification<T, E2>): SpecificationBuilder<T, E | E2> {
+    return new SpecificationBuilder<T, E | E2>(
       condition((entity: T) => {
         const r1 = this.satisfy(entity);
         if (isOk(r1)) return r1;
@@ -153,12 +161,9 @@ class Specification<T, E = Any> {
    * @param e - The error to return when the original specification is satisfied.
    * @returns A new specification that is the negation of this one.
    */
-  public not<TE extends string | Failure<Any>>(e: TE): Specification<T, E | TE> {
-    return new Specification<T, E | TE>(
-      condition((entity: T) => {
-        const r = this.satisfy(entity);
-        return isOk(r) ? err(e) : ok(entity);
-      }),
+  public not<TE extends string | Failure<Any>>(e: TE): SpecificationBuilder<T, E | TE> {
+    return new SpecificationBuilder<T, E | TE>(
+      condition((entity: T) => isErr(this.satisfy(entity)), e),
     );
   }
 }
@@ -175,18 +180,57 @@ class Specification<T, E = Any> {
  * @public
  */
 const spec = <T, E>(...conditions: Condition<T, E>[]): Specification<T, E> =>
-  new Specification<T, E>(...conditions);
+  component('Specification', new SpecificationBuilder<T, E>(...conditions)) as Specification<T, E>;
 
 /**
- * Creates a condition for entity validation.
+ * Condition constructor overloads.
  *
- * @param validator - The validation function.
- * @returns A condition that can validate entities.
+ * @internal
+ */
+interface ConditionConstructor {
+  /**
+   * Creates a condition from a function.
+   *
+   * @param fn - The function to validate the entity.
+   * @returns A condition that can validate entities.
+   */
+  <T, E>(fn: ConditionFunction<T, E>): Condition<T, E>;
+  /**
+   * Creates a condition from a function and an error (assert function).
+   *
+   * @param fn - The function to validate the entity.
+   * @param error - The error to return if the function fails.
+   * @returns A condition that can validate entities.
+   */
+  <T, E>(fn: (v: T) => boolean, error: E): Condition<T, E>;
+}
+
+/**
+ * Creates a new condition.
+ *
+ * @remarks
+ * A condition is a {@link Component} function that validates a condition on a given entity.
+ * Commonly used in specifications.
+ *
+ * @param args - The condition definitions.
+ * - If the first argument is a function and the second argument is an error, the condition will
+ * be created with the assert function.
+ * - If is a only a function, this needs to be a {@link Result} function.
+ * @returns A condition that can be used in a specification.
  *
  * @public
  */
-const condition = <T, E>(validator: ConditionFunction<T, E>): Condition<T, E> =>
-  component('Condition', validator) as Condition<T, E>;
+const condition: ConditionConstructor = <T, E>(...args: Any[]) => {
+  const fn = args[0];
+  const error = args.slice(1) as Any;
+
+  const cond = error
+    ? // The condition is just a wrapper around the assert function.
+      component('Condition', assert(fn, error), { fn, error })
+    : component('Condition', fn);
+
+  return cond as Condition<T, E>;
+};
 
 export { SpecificationError, condition, spec };
 export type { Condition, Specification };
