@@ -8,6 +8,8 @@
 import { isErr, isOk, ok, type Result } from '../result';
 import type { Any, MergeUnion, Prettify, PrimitiveTypeExtended } from '../utils';
 
+// TODO: Check if is necessary to allow async functions in all flow operators.
+
 /**
  * A function that can be used as a step in a flow.
  * Can be either sync or async and must return a Result.
@@ -255,9 +257,12 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
     const assertLogic = (v: Any) => {
       for (const fn of fns) {
         const result = fn(v.value);
-        if (isErr(result)) {
-          return result;
+
+        if (result instanceof Promise) {
+          return result.then((r) => (isErr(r) ? r : v));
         }
+
+        return isErr(result) ? result : v;
       }
       return v;
     };
@@ -333,6 +338,11 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
   public action(fn: Any) {
     const actionLogic = (v: Any) => {
       const result = fn(v.value);
+
+      // If the function is async, return the resolved value.
+      if (result instanceof Promise) {
+        return result.then((r) => (isErr(r) ? r : v));
+      }
       return isErr(result) ? result : v;
     };
     return this.addStep('action', 'success', fn, actionLogic) as Any;
