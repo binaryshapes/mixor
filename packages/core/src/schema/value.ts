@@ -6,10 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { pipe } from '../funcs';
-import { type Result, ok } from '../result';
-import { type Component, Config, type ErrorMode, Panic, component, isComponent } from '../system';
+import { ok, type Result } from '../result';
+import { type Component, component, Config, type ErrorMode, isComponent, Panic } from '../system';
 import { type Any } from '../utils';
-import { type Rule, isRule } from './rule';
+import { isRule, type Rule } from './rule';
 
 /**
  * Extra metadata for the value component.
@@ -29,7 +29,7 @@ type ValueMeta<T> = {
  * @typeParam T - The type of the value to validate.
  * @typeParam E - The type of the error.
  *
- * @internal
+ * @public
  */
 type ValueRules<T, E> = Rule<T, E>[];
 
@@ -157,7 +157,7 @@ class ValueBuilder<T, E> {
    * @param rules - The rules to compose the value component.
    * @returns The new value builder.
    */
-  static create<T, E>(rules: ValueRules<T, E>) {
+  static create<T, E>(...rules: ValueRules<T, E>) {
     // Defensive assertion to check if all rules are valid (should never happen).
     if (!rules.every(isRule)) {
       throw new ValueError('InvalidRule', 'A value must be composed only by rules.');
@@ -200,7 +200,7 @@ class ValueBuilder<T, E> {
       return pipe(mode, ...(rules as [Any]))(value);
     };
 
-    const valueComponent = component('Value', valueFn, valueBuilder) as Value<T, E>;
+    const valueComponent = component('Value', valueFn, valueBuilder);
 
     // Applying the type to the value component.
     valueComponent.type(type);
@@ -208,7 +208,7 @@ class ValueBuilder<T, E> {
     // Adding the rules as children of the value component.
     valueComponent.addChildren(...rules);
 
-    return valueComponent;
+    return valueComponent as Value<T, E>;
   }
 }
 
@@ -228,7 +228,14 @@ class ValueBuilder<T, E> {
  *
  * @public
  */
-const value = <T, E>(...rules: ValueRules<T, E>) => ValueBuilder.create<T, E>(rules);
+const value = <R extends ValueRules<Any, Any>>(...rules: R) => {
+  // Inferring the type of the error and the type of the value.
+  type E = R[number] extends Rule<Any, infer Err> ? Err : never;
+  type T = R[number] extends Rule<infer TT, Any> ? TT : never;
+
+  // Creating the value component.
+  return ValueBuilder.create<T, E>(...rules);
+};
 
 /**
  * Guard function to check if an object is a value.
@@ -242,4 +249,4 @@ const isValue = (maybeValue: Any): maybeValue is Value<Any, Any> =>
   isComponent(maybeValue, 'Value');
 
 export { isValue, value };
-export type { Value, ValueConstructor };
+export type { Value, ValueConstructor, ValueRules };
