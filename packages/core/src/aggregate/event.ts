@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import type { Value } from '../schema';
-import { type Component, Panic, component } from '../system';
+import { type Component, component, Panic } from '../system';
 import type { Any, Prettify } from '../utils';
 
 /**
@@ -31,9 +31,11 @@ type EventData<K, T> = Prettify<{
  *
  * @internal
  */
-type EventListToRecord<T extends Event<Any, Value<Any, Any>>[]> = Prettify<{
-  [K in T[number]['key']]: Extract<T[number], { key: K }>['value'];
-}>;
+type EventListToRecord<T extends Event<Any, Value<Any, Any>>[]> = Prettify<
+  {
+    [K in T[number]['key']]: Extract<T[number], { key: K }>['value'];
+  }
+>;
 
 /**
  * Extracts the actual value types from a record of Value wrappers.
@@ -44,9 +46,11 @@ type EventListToRecord<T extends Event<Any, Value<Any, Any>>[]> = Prettify<{
  *
  * @internal
  */
-type EventValue<T extends Record<Any, Value<Any, Any>>> = Prettify<{
-  [K in keyof T]: T[K] extends Value<infer N, Any> ? N : T[K];
-}>;
+type EventValue<T extends Record<Any, Value<Any, Any>>> = Prettify<
+  {
+    [K in keyof T]: T[K] extends Value<infer N, Any> ? N : T[K];
+  }
+>;
 
 /**
  * Type for an event constructor function that creates typed events.
@@ -65,26 +69,13 @@ type Event<K, T> = Component<
 >;
 
 /**
- * Creates a typed event.
+ * Type for an event manager component.
  *
- * @param def - The event definition containing key and value schema with Value wrappers.
- * @returns A typed event constructor function that accepts actual values.
+ * @typeParam R - The record type mapping event keys to their value types.
  *
  * @public
  */
-const event = <K extends string, V extends Record<string, Value<Any, Any>>>(
-  def: Omit<EventData<K, V>, 'timestamp'>,
-): Event<K, EventValue<V>> => {
-  const constructor = (value: EventValue<V>) => ({
-    key: def.key,
-    value,
-    timestamp: Date.now(),
-  });
-
-  constructor.key = def.key;
-
-  return component('Event', constructor, def) as Event<K, EventValue<V>>;
-};
+type EventManager<R> = Component<'EventManager', EventStore<R>>;
 
 /**
  * Panic error for the event module.
@@ -101,11 +92,11 @@ class EventError extends Panic<'Event', 'InvalidKeyError'>('Event') {}
  *
  * @typeParam R - The record type mapping event keys to their value types.
  *
- * @public
+ * @internal
  */
 class EventStore<R> {
-  private readonly store: Any[] = [];
-  private readonly eventMap: Map<string, Event<Any, Any>>;
+  private readonly store: Any[];
+  private readonly eventMap: Record<string, Event<Any, Any>>;
 
   /**
    * The available event keys in the store.
@@ -118,13 +109,14 @@ class EventStore<R> {
    * @param events - The event constructors to include in the store (variadic parameters).
    */
   constructor(...events: Event<Any, Any>[]) {
-    this.eventMap = new Map<string, Event<Any, Any>>();
+    this.eventMap = {};
+    this.store = [];
 
     for (const ev of events) {
-      this.eventMap.set(ev.key, ev);
+      this.eventMap[ev.key] = ev;
     }
 
-    this.keys = Array.from(this.eventMap.keys()) as (keyof R)[];
+    this.keys = Object.keys(this.eventMap) as (keyof R)[];
   }
 
   /**
@@ -134,7 +126,7 @@ class EventStore<R> {
    * @param value - The event value (must match the type for the given key).
    */
   public add<K extends keyof R>(key: K, value: R[K]): void {
-    const eventConstructor = this.eventMap.get(key as Any);
+    const eventConstructor = this.eventMap[key as Any];
 
     if (!eventConstructor) {
       throw new EventError(
@@ -185,17 +177,48 @@ class EventStore<R> {
 }
 
 /**
- * Creates a type-safe event store from a list of event constructors.
- * The store provides full type safety for adding and retrieving events.
- * Each event constructor must have a unique key.
+ * Creates a typed event.
  *
- * @param events - The event constructors to include in the store (variadic parameters).
- * @returns A type-safe event store with methods to manage events.
+ * @remarks
+ * A event is a {@link Component} is a key-value pair with information about some important
+ * happening in the system.
+ *
+ * @param def - The event definition containing key and value schema with Value wrappers.
+ * @returns A typed event constructor function that accepts actual values.
  *
  * @public
  */
-const events = <E extends Event<Any, Any>[]>(...events: E): EventStore<EventListToRecord<E>> =>
-  new EventStore<EventListToRecord<E>>(...events);
+const event = <K extends string, V extends Record<string, Value<Any, Any>>>(
+  def: Omit<EventData<K, V>, 'timestamp'>,
+): Event<K, EventValue<V>> => {
+  const constructor = (value: EventValue<V>) => ({
+    key: def.key,
+    value,
+    timestamp: Date.now(),
+  });
 
-export { EventError, event, events };
-export type { Event, EventStore };
+  // TODO: Check if this is necessary.
+  constructor.key = def.key;
+
+  return component('Event', constructor, def) as Event<K, EventValue<V>>;
+};
+
+/**
+ * Creates a type-safe event manager from a list of event constructors.
+ *
+ * @remarks
+ * The manager is a {@link Component} that provides full type safety for adding and retrieving
+ * events. Each event constructor must have a unique key.
+ *
+ * @param events - The event constructors to include in the manager (variadic parameters).
+ * @returns A type-safe event manager with methods to manage events.
+ *
+ * @public
+ */
+const events = <E extends Event<Any, Any>[]>(...events: E) =>
+  component('EventManager', new EventStore<EventListToRecord<E>>(...events)) as EventManager<
+    EventListToRecord<E>
+  >;
+
+export { event, EventError, events };
+export type { Event, EventManager };
