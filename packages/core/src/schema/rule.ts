@@ -5,7 +5,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Failure, type ResultFunction, assert } from '../result';
+import { assert, type Failure, type ResultFunction } from '../result';
 import { type Component, component, isComponent } from '../system';
 import { type Any } from '../utils';
 
@@ -64,14 +64,14 @@ interface RuleConstructor {
    * @param error - The error to return if the rule fails.
    * @returns The new rule.
    */
-  <T, E>(fn: (v: T) => boolean, error: E): Rule<T, E>;
+  <T, E extends Failure<Any> | string>(fn: (v: T) => boolean, error: E): Rule<T, E>;
   /**
    * Creates a rule from a function.
    *
    * @param fn - The rule function.
    * @returns The new rule.
    */
-  <T, E>(fn: RuleFn<T, E>): Rule<T, E>;
+  <T, E extends Failure<Any> | string>(fn: RuleFn<T, E>): Rule<T, E>;
 }
 
 /**
@@ -89,11 +89,10 @@ interface RuleConstructor {
  *
  * @public
  */
-const rule: RuleConstructor = <T, E extends Failure<Any> | string>(...args: Any[]) => {
+const rule: RuleConstructor = (...args: Any[]) => {
   const fn = args[0];
   const error = args.slice(1) as Any;
-  const r = error ? component('Rule', assert(fn, error), { fn, error }) : component('Rule', fn);
-  return r as Rule<T, E>;
+  return error ? component('Rule', assert(fn, error), { fn, error }) : component('Rule', fn);
 };
 
 /**
