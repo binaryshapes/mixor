@@ -5,7 +5,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Result, isErr, isOk, ok } from '../result';
+import { isErr, isOk, ok, type Result } from '../result';
 import type { Any, MergeUnion, Prettify, PrimitiveTypeExtended } from '../utils';
 
 /**
@@ -36,7 +36,8 @@ type FlowOperator =
   | 'map'
   | 'mapErr'
   | 'mapBoth'
-  | 'assert';
+  | 'assert'
+  | 'action';
 
 /**
  * Standardized the value of the flow. Basically to ensure the shape of the value in flows with
@@ -71,11 +72,9 @@ type FlowStep = {
  *
  * @internal
  */
-type Bind<O, K extends string, V> = V extends never
-  ? O
-  : O extends PrimitiveTypeExtended
-    ? Prettify<Record<K, V>>
-    : MergeUnion<O & Record<K, V>>;
+type Bind<O, K extends string, V> = V extends never ? O
+  : O extends PrimitiveTypeExtended ? Prettify<Record<K, V>>
+  : MergeUnion<O & Record<K, V>>;
 
 /**
  * Operator functions that handle different mapping behaviors.
@@ -146,16 +145,15 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
     // Build the flow function.
     const buildFlow = isAsync
       ? async (v: I) =>
-          this.steps.reduce(
-            async (v, step) => await mappings[step.mapping](await v, step),
-            ok(v) as Any,
-          )
+        await this.steps.reduce(
+          async (v, step) => await mappings[step.mapping](await v, step),
+          ok(v) as Any,
+        )
       : (v: I) => this.steps.reduce((v, step) => mappings[step.mapping](v, step), ok(v));
 
     // Apply the correct type.
-    return buildFlow as A extends 'async'
-      ? (v: I) => Promise<Result<MergeUnion<O>, E>>
-      : (v: I) => Result<MergeUnion<O>, E>;
+    return buildFlow as A extends 'async' ? ((v: I) => Promise<Result<MergeUnion<O>, E>>)
+      : ((v: I) => Result<MergeUnion<O>, E>);
   }
 
   /**
@@ -172,7 +170,9 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
    * @returns a new typed version of the flow which includes the new step.
    */
   public map<B, F>(fn: (v: FlowValue<O>) => Result<B, F>): Flow<I, B, E | F, A>;
-  public map<B, F>(fn: (v: FlowValue<O>) => Promise<Result<B, F>>): Flow<I, B, E | F, 'async'>;
+  public map<B, F>(
+    fn: (v: FlowValue<O>) => Promise<Result<B, F>>,
+  ): Flow<I, B, E | F, 'async'>;
   public map(fn: Any) {
     const mapLogic = (v: Any) => fn(v.value);
     return this.addStep('map', 'success', fn, mapLogic) as Any;
@@ -189,7 +189,9 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
    * @returns a new typed version of the flow which includes the new step.
    */
   public mapErr<B, F>(fn: (e: E) => Result<B, F>): Flow<I, O | B, F, A>;
-  public mapErr<B, F>(fn: (e: E) => Promise<Result<B, F>>): Flow<I, O | B, F, 'async'>;
+  public mapErr<B, F>(
+    fn: (e: E) => Promise<Result<B, F>>,
+  ): Flow<I, O | B, F, 'async'>;
   public mapErr(fn: Any) {
     const mapErrLogic = (v: Any) => fn(v.error);
     return this.addStep('mapErr', 'error', fn, mapErrLogic) as Any;
@@ -212,7 +214,9 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
     onErr: (e: E) => Promise<Result<B, F>>;
   }): Flow<I, B, F, 'async'>;
   public mapBoth(fn: Any) {
-    const mapBothLogic = (v: Any) => (isOk(v) ? fn.onOk(v.value) : fn.onErr(v.error));
+    const mapBothLogic = (
+      v: Any,
+    ) => (isOk(v) ? fn.onOk(v.value) : fn.onErr(v.error));
     return this.addStep('mapBoth', 'both', fn, mapBothLogic) as Any;
   }
 
@@ -241,7 +245,9 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
    * @param predicate - The predicate function to assert the success value.
    * @returns a new typed version of the flow which includes the new step.
    */
-  public assert<B, F>(...fns: ((v: FlowValue<O>) => Result<B, F>)[]): Flow<I, O, E | F, A>;
+  public assert<B, F>(
+    ...fns: ((v: FlowValue<O>) => Result<B, F>)[]
+  ): Flow<I, O, E | F, A>;
   public assert<B, F>(
     ...fns: ((v: FlowValue<O>) => Promise<Result<B, F>>)[]
   ): Flow<I, O, E | F, 'async'>;
@@ -259,7 +265,11 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
   }
 
   /**
-   * Binds a new property to the input object.
+   * Binds a new property to the flow value.
+   *
+   * @remarks
+   * It is useful generate and store new values related to the flow and will be used in
+   * the next steps.
    *
    * @param key - The key for the new property.
    * @param fn - The function that computes the value for the new property.
@@ -281,16 +291,51 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
 
       if (result instanceof Promise) {
         return result.then((r) =>
-          isOk(r) ? ok({ ...(isBindable(v.value) ? { ...v.value } : {}), [key]: r.value }) : r,
+          isOk(r)
+            ? ok({
+              ...(isBindable(v.value) ? { ...v.value } : {}),
+              [key]: r.value,
+            })
+            : r
         );
       }
 
       return isOk(result)
-        ? ok({ ...(isBindable(v.value) ? { ...v.value } : {}), [key]: result.value })
+        ? ok({
+          ...(isBindable(v.value) ? { ...v.value } : {}),
+          [key]: result.value,
+        })
         : result;
     };
 
     return this.addStep('bind', 'success', fn, bindLogic) as Any;
+  }
+
+  /**
+   * Performs an action related to the context of the flow with error handling, but without
+   * changing the flow value.
+   *
+   * @remarks
+   * It is useful for performing relevant changes for the flow such:
+   * - Updating the state of a aggregate.
+   * - Calculations with some constraints.
+   * - etc.
+   *
+   * For logging, events, etc, use {@link tap} instead.
+   *
+   * @param fn - The function to apply to the flow value.
+   * @returns a new typed version of the flow which includes the new step.
+   */
+  public action<B, F>(fn: (v: FlowValue<O>) => Result<B, F>): Flow<I, O, E, A>;
+  public action<B, F>(
+    fn: (v: FlowValue<O>) => Promise<Result<B, F>>,
+  ): Flow<I, O, E, 'async'>;
+  public action(fn: Any) {
+    const actionLogic = (v: Any) => {
+      const result = fn(v.value);
+      return isErr(result) ? result : v;
+    };
+    return this.addStep('action', 'success', fn, actionLogic) as Any;
   }
 }
 
