@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { ok } from '../result';
-import { type Rule, type ValueConstructor, rule, value } from '../schema';
+import { rule, value, ValueRules } from '../schema';
 import { type Any } from '../utils';
 
 /**
@@ -36,9 +36,9 @@ const stringConstructor = rule((value: string) => ok(value))
  *
  * @public
  */
-const string = ((...rules: Rule<string, Any>[]) =>
+const string = <R extends ValueRules<string, Any>>(...rules: R) =>
   value(...(rules.length === 0 ? [stringConstructor] : rules))
     .setName('String')
-    .setDescription('A value component that represents a string')) as ValueConstructor<string>;
+    .setDescription('A value component that represents a string');
 
 export { string };
