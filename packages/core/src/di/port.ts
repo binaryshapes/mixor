@@ -6,9 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { isSchema, isValue } from '../schema';
-import { type Component, Panic, component } from '../system';
+import { type Component, component, isComponent, Panic } from '../system';
 import { type Any } from '../utils';
-import { type Contract, type ContractHandler, isContract } from './contract';
+import { type Contract, type ContractCaller, isContract } from './contract';
 
 /**
  * Defines a valid shape of a port.
@@ -31,8 +31,7 @@ type Port<T extends PortShape> = Component<
   'Port',
   T,
   {
-    [K in keyof T]: T[K] extends Contract<Any, Any, Any, Any>
-      ? ContractHandler<T[K]>
+    [K in keyof T]: T[K] extends Contract<Any, Any, Any, Any> ? ContractCaller<T[K]>
       : T[K]['Type'];
   }
 >;
@@ -77,5 +76,15 @@ function port<T extends PortShape>(shape: T) {
   return component('Port', shape).addChildren(...Object.values(shape)) as Port<T>;
 }
 
-export { PortError, port };
+/**
+ * Guard function to check if the given object is a port.
+ *
+ * @param maybePort - The object to check.
+ * @returns True if the object is a port, false otherwise.
+ *
+ * @public
+ */
+const isPort = (maybePort: Any): maybePort is Port<PortShape> => isComponent(maybePort, 'Port');
+
+export { isPort, port, PortError };
 export type { Port, PortShape };
