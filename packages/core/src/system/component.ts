@@ -5,7 +5,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Any, type Prettify, merge, setInspect } from '../utils';
+import { type Any, merge, type Prettify, setInspect } from '../utils';
 import { Logger } from './logger';
 import { Panic } from './panic';
 import { type Register, type Registrable, Registry } from './registry';
@@ -106,9 +106,11 @@ type Component<
   Target extends Registrable,
   Type = Target,
   MetaExtra extends Record<string, Any> = Record<never, never>,
-> = { Type: Type; Tag: Tag } & Target &
-  ComponentBuilder<Tag, Target, MetaExtra> &
-  Register<Target, Any>;
+> =
+  & { Type: Type; Tag: Tag }
+  & Target
+  & ComponentBuilder<Tag, Target, MetaExtra>
+  & Register<Target, Any>;
 
 /**
  * Panic error for the component module.
@@ -275,22 +277,21 @@ class ComponentBuilder<
     // Build children trees.
     const children = info.childrenIds
       ? info.childrenIds
-          .map((childId: string) => {
-            const childTarget = Registry.info.get(childId);
+        .map((childId: string) => {
+          const childTarget = Registry.info.get(childId);
 
-            // This should never happen, but we assert it to be sure.
-            Logger.assert(
-              !!childTarget,
-              `Child target not found: ${childId}. Maybe you tree is corrupted.`,
-            );
+          // This should never happen, but we assert it to be sure.
+          Logger.assert(
+            !!childTarget,
+            `Child target not found: ${childId}. Maybe you tree is corrupted.`,
+          );
 
-            // Build the child tree.
-            return ComponentBuilder.buildTree(childId, depth + 1, currentPath, visited);
-          })
-          .filter(
-            (child: ComponentTreeNode<Any> | null): child is ComponentTreeNode<Any> =>
-              child !== null,
-          )
+          // Build the child tree.
+          return ComponentBuilder.buildTree(childId, depth + 1, currentPath, visited);
+        })
+        .filter(
+          (child: ComponentTreeNode<Any> | null): child is ComponentTreeNode<Any> => child !== null,
+        )
       : [];
 
     return {
@@ -359,10 +360,10 @@ const component = <
  */
 const isComponent = (maybeComponent: Any, tag?: string): maybeComponent is Component<Any, Any> =>
   // Should have a register id and be in the registry.
-  !!maybeComponent.registerId &&
+  maybeComponent?.registerId &&
   Registry.catalog.has(maybeComponent.registerId) &&
   // Should have a tag and it should match the given tag.
   (tag && !!maybeComponent.tag ? maybeComponent.tag === tag : true);
 
-export { ComponentError, component, isComponent };
+export { component, ComponentError, isComponent };
 export type { Component };
