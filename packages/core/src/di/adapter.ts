@@ -5,7 +5,8 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { type Component, type Registrable, component } from '../system';
+import { type Component, component, isComponent, type Registrable } from '../system';
+import type { Any } from '../utils';
 import type { Port, PortShape } from './port';
 
 /**
@@ -15,7 +16,7 @@ import type { Port, PortShape } from './port';
  *
  * @public
  */
-type Adapter<P extends Port<PortShape>> = Component<'Adapter', P['Type']>;
+type Adapter<P extends Port<PortShape>> = Component<'Adapter', P['Type'] & { port: P }>;
 
 /**
  * Creates a new adapter with the specified port and builder function.
@@ -32,9 +33,20 @@ type Adapter<P extends Port<PortShape>> = Component<'Adapter', P['Type']>;
  * @public
  */
 const adapter = <P extends PortShape>(port: Port<P>, build: Port<P>['Type']) =>
-  component('Adapter', build as Registrable, port)
+  component('Adapter', build as Registrable, { port })
     // Adding the port as a child.
     .addChildren(port) as Adapter<Port<P>>;
 
-export { adapter };
+/**
+ * Guard function to check if the given object is an adapter.
+ *
+ * @param maybeAdapter - The object to check.
+ * @returns True if the object is an adapter, false otherwise.
+ *
+ * @public
+ */
+const isAdapter = (maybeAdapter: Any): maybeAdapter is Adapter<Port<PortShape>> =>
+  isComponent(maybeAdapter, 'Adapter');
+
+export { adapter, isAdapter };
 export type { Adapter };
