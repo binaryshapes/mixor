@@ -326,6 +326,8 @@ const component = <
   target: Target,
   ...uniqueness: Registrable[]
 ) => {
+  // TODO: Maybe uniqueness should be excluded from the merge.
+  // TODO: Maybe is better to isolate the registry and component classes from the target.
   const reg = Registry.create(target, tag, ...uniqueness);
   const com = new ComponentBuilder(reg);
 
