@@ -224,6 +224,18 @@ type UndefToOptional<T> = Prettify<
 type Promisify<T, Async extends 'async' | 'sync' = 'async'> = Async extends 'async' ? Promise<T>
   : T;
 
+/**
+ * Removes never values from a record type.
+ *
+ * @typeParam T - The type to remove never values from.
+ * @returns The type with the never values removed.
+ *
+ * @public
+ */
+type RemoveNevers<T extends Record<string, Any>> = {
+  [K in keyof T as T[K] extends never ? never : K]: T[K];
+};
+
 export type {
   Any,
   DeepAwaited,
@@ -240,6 +252,7 @@ export type {
   PrimitiveType,
   PrimitiveTypeExtended,
   Promisify,
+  RemoveNevers,
   UndefToOptional,
   UnionKeys,
 };
