@@ -6,5 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 export * from './adapter';
+export * from './container';
 export * from './contract';
 export * from './port';
+export * from './service';
