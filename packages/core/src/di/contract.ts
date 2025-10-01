@@ -6,9 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { type Failure, type Result } from '../result';
-import { type Schema, type SchemaErrors, type SchemaValues, isSchema } from '../schema';
-import { type Component, Panic, component, isComponent } from '../system';
-import type { Any } from '../utils';
+import { isSchema, type Schema, type SchemaErrors, type SchemaValues } from '../schema';
+import { type Component, component, isComponent, Panic } from '../system';
+import type { Any, Promisify } from '../utils';
+
+// FIXME: Allow void contracts (this requires a new type for the contract output).
 
 /**
  * Type representing the contract handler function.
@@ -17,26 +19,25 @@ import type { Any } from '../utils';
  *
  * @public
  */
-type ContractHandler<C> =
-  C extends Contract<infer I, infer O, infer E, infer Ctx>
-    ? I extends Schema<infer II>
-      ? O extends Schema<infer OO>
-        ? (
-            input: SchemaValues<II>,
-            context: Ctx extends never | undefined ? never : Ctx,
-          ) => Promise<
-            Result<
-              SchemaValues<OO>,
-              {
-                input: SchemaErrors<II, 'strict'>;
-                output: SchemaErrors<OO, 'strict'>;
-                handler: E;
-              }
-            >
-          >
-        : never
-      : never
-    : never;
+type ContractHandler<C, Async extends 'async' | 'sync' = 'async'> = C extends
+  Contract<infer I, infer O, infer E, infer Ctx>
+  ? I extends Schema<infer II> ? O extends Schema<infer OO> ? (
+        input: SchemaValues<II>,
+        context: Ctx extends never | undefined ? never : Ctx,
+      ) => Promisify<
+        Result<
+          SchemaValues<OO>,
+          {
+            input: SchemaErrors<II, 'strict'>;
+            output: SchemaErrors<OO, 'strict'>;
+            handler: E;
+          }
+        >,
+        Async
+      >
+    : never
+  : never
+  : never;
 
 /**
  * Type representing the contract caller function.
@@ -45,23 +46,40 @@ type ContractHandler<C> =
  *
  * @public
  */
-type ContractCaller<C> =
-  C extends Contract<infer I, infer O, infer E, Any>
-    ? I extends Schema<infer II>
-      ? O extends Schema<infer OO>
-        ? (input: SchemaValues<II>) => Promise<
-            Result<
-              SchemaValues<OO>,
-              {
-                input: SchemaErrors<II, 'strict'>;
-                output: SchemaErrors<OO, 'strict'>;
-                handler: E;
-              }
-            >
-          >
-        : never
-      : never
-    : never;
+type ContractCaller<C, Async extends 'async' | 'sync' = 'async'> = C extends
+  Contract<infer I, infer O, infer E, Any>
+  ? I extends Schema<infer II>
+    ? O extends Schema<infer OO> ? (input: SchemaValues<II>) => Promisify<
+        Result<
+          SchemaValues<OO>,
+          {
+            input: SchemaErrors<II, 'strict'>;
+            output: SchemaErrors<OO, 'strict'>;
+            handler: E;
+          }
+        >,
+        Async
+      >
+    : never
+  : never
+  : never;
+
+/**
+ * Type representing the contract errors.
+ *
+ * @remarks
+ * Includes the input, output and handler errors.
+ *
+ * @typeParam C - The contract type.
+ *
+ * @public
+ */
+type ContractErrors<C> = C extends Contract<infer I, infer O, infer E, infer Ctx> ? {
+    input: I extends Schema<infer II> ? SchemaErrors<II, 'strict'> : never;
+    output: O extends Schema<infer OO> ? SchemaErrors<OO, 'strict'> : never;
+    handler: E;
+  }
+  : never;
 
 /**
  * Contract type.
@@ -78,13 +96,7 @@ type ContractCaller<C> =
  */
 type Contract<I, O, E, C> = Component<
   'Contract',
-  ContractBuilder<I, O, E, C> & {
-    Error: {
-      input: I extends Schema<infer II> ? SchemaErrors<II, 'strict'> : never;
-      output: O extends Schema<infer OO> ? SchemaErrors<OO, 'strict'> : never;
-      handler: E;
-    };
-  }
+  ContractBuilder<I, O, E, C>
 >;
 
 /**
@@ -110,7 +122,7 @@ class ContractError extends Panic<'Contract', 'InvalidInput' | 'InvalidOutput'>(
  *
  * @internal
  */
-class ContractBuilder<I, O, E = never, C = never> {
+class ContractBuilder<I, O = never, E = never, C = never> {
   public static name = 'Contract';
 
   /**
@@ -198,7 +210,7 @@ class ContractBuilder<I, O, E = never, C = never> {
  *
  * @public
  */
-const contract = <I, O, E, C>() =>
+const contract = <I, O = never, E = never, C = never>() =>
   component('Contract', new ContractBuilder<I, O, E, C>()) as Contract<I, O, E, C>;
 
 /**
@@ -213,4 +225,4 @@ const isContract = (maybeContract: Any): maybeContract is Contract<Any, Any, Any
   isComponent(maybeContract, 'Contract');
 
 export { contract, isContract };
-export type { Contract, ContractCaller, ContractHandler };
+export type { Contract, ContractCaller, ContractErrors, ContractHandler };
