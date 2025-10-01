@@ -5,7 +5,8 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { setTimeout } from 'node:timers/promises';
+
+import { delay } from '@std/async';
 
 import type { Contract, ContractCaller, ContractErrors, ContractHandler } from '../di';
 import { isErr, isOk, type Result } from '../result';
@@ -163,16 +164,6 @@ type Task<C extends Contract<Any, Any, Any, Any>> = Component<
   ContractCaller<C> & TaskBuilder<C>,
   ContractHandler<C>
 >;
-
-/**
- * Helper function for delay that works in both Node.js and browser.
- *
- * @param ms - The number of milliseconds to delay.
- * @returns A promise that resolves after the specified number of milliseconds.
- *
- * @internal
- */
-const delay = (ms: number) => setTimeout(ms);
 
 /**
  * Creates a task.
