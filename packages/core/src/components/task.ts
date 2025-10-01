@@ -7,10 +7,10 @@
  */
 import { setTimeout } from 'node:timers/promises';
 
-import type { Contract, ContractCaller, ContractHandler } from '../di';
-import { type Result, isErr, isOk } from '../result';
+import type { Contract, ContractCaller, ContractErrors, ContractHandler } from '../di';
+import { isErr, isOk, type Result } from '../result';
 import { isSchema } from '../schema';
-import { type Component, Panic, type PanicError, component } from '../system';
+import { type Component, component, Panic, type PanicError } from '../system';
 import type { Any } from '../utils';
 
 /**
@@ -106,7 +106,7 @@ class TaskBuilder<C extends Contract<Any, Any, Any, Any>> {
    * @param fn - The function that handles expected errors.
    * @returns The task instance for method chaining.
    */
-  errors(fn: ErrorHandler<C['Error']>) {
+  errors(fn: ErrorHandler<ContractErrors<C>>) {
     this.state.errorHandler = fn;
     return this;
   }
@@ -277,5 +277,5 @@ function task<C extends Contract<Any, Any, Any, Any>>(contract: C) {
   return component('Task', taskFn, taskBuilder).addChildren(contract) as Task<C>;
 }
 
-export { TaskError, task };
+export { task, TaskError };
 export type { Task };
