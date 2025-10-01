@@ -5,6 +5,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
+
 import type { Any, FlatArray } from '../utils';
 
 /**
@@ -26,5 +27,17 @@ type ErrorMode = 'strict' | 'all';
 type ApplyErrorMode<E, Mode extends ErrorMode, FE = FlatArray<E>> = Mode extends 'strict'
   ? Exclude<FE, Array<Any>>
   : FE[];
+
+/**
+ * Extracts the type of a component.
+ *
+ * @typeParam T - The component to extract the type from.
+ * @returns The type of the component.
+ *
+ * @public
+ */
+type TypeOf<T> = T extends { Type: infer U; Tag: string } ? U : never;
+
+export type { TypeOf };
 
 export type { ApplyErrorMode, ErrorMode };
