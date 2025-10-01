@@ -17,7 +17,7 @@ import { type Any } from '../utils';
  *
  * @internal
  */
-const stringConstructor = rule((value: string) => ok(value))
+const stringConstructor = rule((value: string) => ok(String(value)))
   .setName('StringConstructor')
   .setDescription('A value constructor that represents a string')
   .type('string');
