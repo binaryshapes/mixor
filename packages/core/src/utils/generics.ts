@@ -13,7 +13,7 @@
  * @public
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// deno-lint-ignore no-explicit-any
 type Any = any;
 
 /**
@@ -39,17 +39,16 @@ type PrimitiveTypeExtended = PrimitiveType | Date | RegExp | Array<Any>;
  *
  * @public
  */
-type Prettify<T> = T extends PrimitiveType | never
-  ? T
+type Prettify<T> = T extends PrimitiveType | never ? T
+  // deno-lint-ignore ban-types
   : {} & T extends Array<infer U>
-    ? // TODO: Check if this is correct for arrays. We have some cases where the array is
-      // changed. Ej: [string, string, number] -> (string | number)[]. See more in pipe helpers.
-      Array<Prettify<U>>
-    : T extends object
-      ? {
-          [K in keyof T]: T[K] extends PrimitiveType ? Prettify<T[K]> : T[K];
-        }
-      : T;
+  // TODO: Check if this is correct for arrays. We have some cases where the array is
+  // changed. Ej: [string, string, number] -> (string | number)[]. See more in pipe helpers.
+    ? Array<Prettify<U>>
+  : T extends object ? {
+      [K in keyof T]: T[K] extends PrimitiveType ? Prettify<T[K]> : T[K];
+    }
+  : T;
 
 /**
  * Helper type to detect if a type is a Promise
@@ -69,22 +68,15 @@ type IsPromise<T> = T extends Promise<unknown> ? true : false;
  *
  * @public
  */
-type HasPromise<T> =
-  T extends Promise<unknown>
-    ? true
-    : T extends Array<infer U>
-      ? HasPromise<U>
-      : T extends object
-        ? {
-            [K in keyof T]: IsPromise<T[K]> extends true
-              ? true
-              : T[K] extends object
-                ? HasPromise<T[K]>
-                : false;
-          }[keyof T] extends false
-          ? false
-          : true
+type HasPromise<T> = T extends Promise<unknown> ? true
+  : T extends Array<infer U> ? HasPromise<U>
+  : T extends object ? {
+      [K in keyof T]: IsPromise<T[K]> extends true ? true
+        : T[K] extends object ? HasPromise<T[K]>
         : false;
+    }[keyof T] extends false ? false
+    : true
+  : false;
 
 /**
  * Recursively unwraps all Promise types in a type, including nested objects and arrays.
@@ -94,18 +86,14 @@ type HasPromise<T> =
  *
  * @public
  */
-type DeepAwaited<T, O extends Record<string, Any> = never> =
-  T extends Promise<infer U>
-    ? DeepAwaited<U, O>
-    : T extends Array<infer A>
-      ? Array<DeepAwaited<A>>
-      : T extends object
-        ? T extends O
-          ? T
-          : {
-              [K in keyof T]: DeepAwaited<T[K], O>;
-            }
-        : T;
+type DeepAwaited<T, O extends Record<string, Any> = never> = T extends Promise<infer U>
+  ? DeepAwaited<U, O>
+  : T extends Array<infer A> ? Array<DeepAwaited<A>>
+  : T extends object ? T extends O ? T
+    : {
+      [K in keyof T]: DeepAwaited<T[K], O>;
+    }
+  : T;
 
 /**
  * Checks if a type is a primitive type.
@@ -146,8 +134,8 @@ type UnionKeys<T> = T extends T ? keyof T : never;
  *
  * @public
  */
-type Equal<X, Y> =
-  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
+type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true
+  : false;
 
 /**
  * If property K in T is readonly, make V readonly, else leave as is.
@@ -184,21 +172,18 @@ type PreserveReadonly<T, U> = {
  *
  * @public
  */
-type MergeUnion<T> =
-  IsPrimitive<T> extends true
-    ? T
-    : T extends object
-      ? Prettify<
-          PreserveReadonly<
-            T,
-            {
-              [K in UnionKeys<T>]: T extends Any ? (K extends keyof T ? T[K] : never) : never;
-            }
-          >
-        >
-      : {
+type MergeUnion<T> = IsPrimitive<T> extends true ? T
+  : T extends object ? Prettify<
+      PreserveReadonly<
+        T,
+        {
           [K in UnionKeys<T>]: T extends Any ? (K extends keyof T ? T[K] : never) : never;
-        };
+        }
+      >
+    >
+  : {
+    [K in UnionKeys<T>]: T extends Any ? (K extends keyof T ? T[K] : never) : never;
+  };
 
 /**
  * Flattens an array type.
@@ -219,12 +204,25 @@ type FlatArray<T> = T extends Array<infer U> ? U : T;
  * @public
  */
 type UndefToOptional<T> = Prettify<
-  {
+  & {
     [K in keyof T as undefined extends T[K] ? K : never]?: Exclude<T[K], undefined>;
-  } & {
+  }
+  & {
     [K in keyof T as undefined extends T[K] ? never : K]: T[K];
   }
 >;
+
+/**
+ * Sets the promise type of a type.
+ *
+ * @typeParam T - The type to set the promise type of.
+ * @typeParam Async - The promise type to set.
+ * @returns The type with the promise type set.
+ *
+ * @public
+ */
+type Promisify<T, Async extends 'async' | 'sync' = 'async'> = Async extends 'async' ? Promise<T>
+  : T;
 
 export type {
   Any,
@@ -241,6 +239,7 @@ export type {
   Prettify,
   PrimitiveType,
   PrimitiveTypeExtended,
+  Promisify,
   UndefToOptional,
   UnionKeys,
 };
