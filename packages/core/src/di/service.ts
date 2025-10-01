@@ -28,22 +28,10 @@ type ServiceDeps = Record<string, Port<Any> | Service<Any, Any>>;
  *
  * @internal
  */
-type ServiceFactory<T, D extends ServiceDeps> = (
-  deps: { [K in keyof D]: D[K]['Type'] },
-) => T;
-
-/**
- * Service configuration.
- *
- * @typeParam T - The type of the service it provides.
- * @typeParam D - The type of the dependencies.
- *
- * @internal
- */
-type ServiceConfig<T, D extends ServiceDeps> = {
-  use: D;
-  provide: ServiceFactory<T, D>;
-};
+type ServiceFactory<
+  T,
+  D extends ServiceDeps,
+> = (deps: { [K in keyof D]: D[K]['Type'] }) => T;
 
 /**
  * Service component.
@@ -64,11 +52,11 @@ type Service<T, D extends ServiceDeps> = Component<
  *
  * @internal
  */
-class ServiceBuilder<T, P extends ServiceDeps> {
+class ServiceBuilder<T, D extends ServiceDeps> {
   /**
    * The dependencies to use.
    */
-  public deps: P = {} as P;
+  public deps: D = {} as D;
 
   /**
    * The scope of the service.
@@ -78,16 +66,29 @@ class ServiceBuilder<T, P extends ServiceDeps> {
   /**
    * The factory function to create the service.
    */
-  public factory: ServiceFactory<T, P>;
+  public factory: ServiceFactory<T, D> | undefined = undefined;
 
   /**
-   * The constructor for the service builder.
+   * Sets the dependencies to use.
    *
-   * @param config - The configuration for the service.
+   * @param deps - The dependencies to use.
+   * @returns A new service builder.
    */
-  public constructor(config: ServiceConfig<T, P>) {
-    this.deps = config.use;
-    this.factory = config.provide;
+  public use<DD extends ServiceDeps>(deps: DD) {
+    this.deps = deps as unknown as D;
+    return this as unknown as Service<T, DD>;
+  }
+
+  /**
+   * Sets the factory function to create the service.
+   *
+   * @param factory - The factory function to create the service.
+   * @returns A new service builder.
+   */
+  public provide<PP>(factory: ServiceFactory<PP, D>) {
+    this.factory = factory as unknown as ServiceFactory<T, D>;
+    // Here is when we create the service component.
+    return component('Service', this) as unknown as Service<PP, D>;
   }
 
   /**
@@ -132,10 +133,7 @@ class ServiceBuilder<T, P extends ServiceDeps> {
  *
  * @public
  */
-const service = <T, P extends ServiceDeps>(config: ServiceConfig<T, P>) =>
-  component('Service', new ServiceBuilder<T, P>(config))
-    // Adding the dependencies as children.
-    .addChildren(...Object.values(config.use)) as Service<T, P>;
+const service = <T, P extends ServiceDeps = never>() => new ServiceBuilder<T, P>() as Service<T, P>;
 
 /**
  * Guard function to check if the given object is a service.
