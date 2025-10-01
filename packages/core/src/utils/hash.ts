@@ -118,7 +118,7 @@ function hash(...objects: Any[]): HashResult {
   const keys = Array.from(new Set(objects.map((object) => safeStringify(object))))
     .map((key) =>
       // Clean the key from spaces, quotes, new lines, slashes and other special characters
-      cleanEmpty(key.replace(/[\s\n/\\"]/g, '')),
+      cleanEmpty(key.replace(/[\s\n/\\"]/g, ''))
     )
     .filter((key) => key.length > 0);
 
