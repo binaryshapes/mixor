@@ -133,7 +133,9 @@ class ServiceBuilder<T, P extends ServiceDeps> {
  * @public
  */
 const service = <T, P extends ServiceDeps>(config: ServiceConfig<T, P>) =>
-  component('Service', new ServiceBuilder<T, P>(config)) as Service<T, P>;
+  component('Service', new ServiceBuilder<T, P>(config))
+    // Adding the dependencies as children.
+    .addChildren(...Object.values(config.use)) as Service<T, P>;
 
 /**
  * Guard function to check if the given object is a service.
