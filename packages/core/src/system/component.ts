@@ -361,11 +361,16 @@ const component = <
  * @public
  */
 const isComponent = (maybeComponent: Any, tag?: string): maybeComponent is Component<Any, Any> =>
-  // Should have a register id and be in the registry.
-  maybeComponent?.registerId &&
-  Registry.catalog.has(maybeComponent.registerId) &&
-  // Should have a tag and it should match the given tag.
-  (tag && !!maybeComponent.tag ? maybeComponent.tag === tag : true);
+  !!(
+    // Should be a truthy value.
+    maybeComponent &&
+    // Should have a register id.
+    maybeComponent.registerId &&
+    // Should be in the registry.
+    Registry.catalog.has(maybeComponent.registerId) &&
+    // Should have a tag and it should match the given tag.
+    (tag && !!maybeComponent.tag ? maybeComponent.tag === tag : true)
+  );
 
 export { component, ComponentError, isComponent };
 export type { Component };
