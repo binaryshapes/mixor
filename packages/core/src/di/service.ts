@@ -205,7 +205,7 @@ const service = <T, P extends ServiceDeps = never>() => new ServiceBuilder<T, P>
  *
  * @public
  */
-const isService = <T, P extends ServiceDeps = never>(
+const isService = <T, P extends ServiceDeps>(
   maybeService: Any,
 ): maybeService is Service<T, P> => isComponent(maybeService, 'Service');
 
