@@ -6,18 +6,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { type Component, component, Panic } from '../system';
-import type { Any, Prettify } from '../utils';
+import { cache, type Component, component, isComponent, Panic } from '../system';
+import type { Any, RemoveNevers } from '../utils';
 import { type Adapter, isAdapter } from './adapter';
 import { isPort, type Port, type PortShape } from './port';
 import { isService, type Service } from './service';
-
-/**
- * Global cache for resolved dependencies.
- *
- * @internal
- */
-const cache = new Map<Any, Any>();
 
 /**
  * Allowed items for the container.
@@ -32,9 +25,9 @@ type ContainerItems = Record<string, Port<Any> | Service<Any, Any>>;
  *
  * @typeParam I - The container items type.
  *
- * @public
+ * @internal
  */
-type ContainerPorts<I extends ContainerItems> = Prettify<
+type ContainerPorts<I extends ContainerItems> = RemoveNevers<
   & {
     // Direct ports (not services).
     [K in keyof I as I[K] extends Port<Any> ? K : never]: I[K] extends Port<infer TP>
@@ -56,15 +49,15 @@ type ContainerPorts<I extends ContainerItems> = Prettify<
  *
  * @typeParam I - The container items type.
  *
- * @internal
+ * @public
  */
 type Container<I extends ContainerItems> = Component<'Container', ContainerBuilder<I>>;
 
 /**
  * Panic error for the container module.
  *
- * - InvalidAdapter: The adapter is not valid.
- * - NoAdapter: No adapter found for the port.
+ * - InvalidAdapter: The adapter is not valid or not compatible with the port.
+ * - NoAdapter: No adapter found for the port or adapter is not valid.
  * - InvalidItem: The item is not a service or a port.
  * - InternalItem: The item is internal and cannot be resolved.
  *
@@ -94,12 +87,81 @@ class ContainerBuilder<I extends ContainerItems = never> {
   public bindings = new Map<Port<Any>, Adapter<Any>>();
 
   /**
-   * Adds items (ports or services) to the container.
+   * Overrides a port with a new adapter.
    *
-   * @param items - The items to add to the container.
-   * @returns A new container builder with the added items.
+   * @param port - The port to override.
+   * @param adapter - The adapter to use for the port.
+   * @returns The container instance.
    */
-  public providers<T extends ContainerItems>(items: T): Container<T> {
+  public override<
+    P extends ContainerPorts<I>[keyof ContainerPorts<I>],
+    PT extends P extends Port<infer TP> ? Port<TP> : never,
+  >(
+    port: PT,
+    adapter: Adapter<PT>,
+  ): Container<I> {
+    this.bindings.set(port, adapter);
+
+    // Get all services that depend directly or indirectly on the port.
+    const directDependencies = Object.values(this.items).filter((item) =>
+      isService(item) &&
+      Object.values(item.resolutions).some((dep) => dep.info?.childrenIds?.includes(port.id))
+    );
+
+    // Now get the services that depends directly from the direct dependency
+    const dependencies = Object.values(directDependencies).map((svc) =>
+      Object.values(this.items).filter((item) =>
+        isService(item) && item.info?.childrenIds?.some((id) => id === svc.id)
+      )
+    ).flat();
+
+    // Delete the dependencies from the cache.
+    new Set([...directDependencies, ...dependencies]).forEach((dep) => cache.delete(dep));
+
+    return this as unknown as Container<I>;
+  }
+
+  /**
+   * Forwards the items from the imported containers.
+   *
+   * @remarks
+   * This method is used to forward the items from the imported containers to the current container.
+   * It is useful to import containers and use their items in the current container.
+   *
+   * @param containers - The containers to forward.
+   * @returns A container with the imported items.
+   */
+  public imports<C extends Container<Any>[]>(...containers: C) {
+    // Extract the items type of the imported containers.
+    type II = {
+      [K in keyof C]: C[K] extends Container<Any> ? C[K]['items'] : never;
+    }[number];
+
+    for (const container of containers) {
+      // Adding the bindings of the imported containers.
+      this.bindings = new Map([...this.bindings, ...container.bindings]);
+
+      // Adding the items of the imported containers.
+      this.items = { ...this.items, ...container.items } as unknown as I;
+    }
+
+    // Here is when we create the container component.
+    if (!isContainer(this)) {
+      return component('Container', this)
+        // Adding the items as children.
+        .addChildren(...Object.values(this.items)) as unknown as Container<II>;
+    }
+
+    return this as unknown as Container<II>;
+  }
+
+  /**
+   * Declares the items (ports or services) that the container will use.
+   *
+   * @param items - The items that the container will use.
+   * @returns A container with the declared items.
+   */
+  public use<T extends ContainerItems>(items: T): Container<T> {
     const newItems = { ...this.items } as Any;
 
     for (const [key, item] of Object.entries(items)) {
@@ -118,12 +180,12 @@ class ContainerBuilder<I extends ContainerItems = never> {
     }
 
     // The new items are the ones that will be used to build the container.
-    this.items = newItems as unknown as I;
+    this.items = { ...this.items, ...newItems } as unknown as I;
 
-    // Adding the items as children.
-    (this as unknown as Container<T>).addChildren(...Object.values(newItems));
-
-    return this as unknown as Container<T>;
+    // Here is when we create the container component.
+    return component('Container', this)
+      // Adding the items as children.
+      .addChildren(...Object.values(newItems)) as unknown as Container<T>;
   }
 
   /**
@@ -131,7 +193,7 @@ class ContainerBuilder<I extends ContainerItems = never> {
    *
    * @param port - The port to bind the adapter to.
    * @param adapter - The adapter to bind.
-   * @returns The container builder instance.
+   * @returns The container instance.
    */
   public bind<
     P extends ContainerPorts<I>[keyof ContainerPorts<I>],
@@ -164,10 +226,71 @@ class ContainerBuilder<I extends ContainerItems = never> {
   }
 
   /**
+   * Helper method to resolve a service with proper type narrowing.
+   *
+   * @param service - The service to resolve.
+   * @returns The resolved service component.
+   */
+  private resolveService(service: Service<Any, Any>) {
+    // Just for error messages purposes.
+    const itemName = Object.keys(this.items).find((key) => this.items[key] === service);
+
+    // We cannot resolve internal services.
+    if (service.scope === 'internal') {
+      throw new ContainerError(
+        'InternalItem',
+        `Item "${itemName}" is internal and cannot be resolved`,
+        `Use the ".public()" or ".global()" method to get the public item`,
+      );
+    }
+
+    const resolvedDeps: Record<string, Any> = {};
+
+    // Resolve service dependencies.
+    for (const [depName, dep] of Object.entries<Any>(service.deps)) {
+      // If the dependency is a port, we need to get the adapter from the bindings.
+      if (isPort(dep)) {
+        const adapter = this.bindings.get(dep);
+
+        if (!adapter) {
+          throw new ContainerError(
+            'NoAdapter',
+            `No adapter bound for port "${depName}" in service "${itemName}"`,
+            `The service is "${service.id}" is bound to an adapter and the port is "${dep.id}"`,
+          );
+        }
+        resolvedDeps[depName] = adapter;
+      } // Otherwise, we need to get the service from the container.
+      else if (isService(dep)) {
+        resolvedDeps[depName] = this.get(dep as Any);
+      }
+    }
+
+    // Setting the resolved dependencies.
+    const svc = service.resolve(resolvedDeps);
+
+    return component('Service', svc, service);
+  }
+
+  private resolvePort(port: Port<Any>) {
+    // Just for error messages purposes.
+    const itemName = Object.keys(this.items).find((key) => this.items[key] === port);
+
+    // Resolve port.
+    const adapter = this.bindings.get(port);
+
+    if (!adapter) {
+      throw new ContainerError('NoAdapter', `No adapter bound for port "${itemName}"`);
+    }
+
+    return adapter;
+  }
+
+  /**
    * Gets a port or service from the container and resolves it.
    *
-   * @param item - The port or service instance to get.
-   * @returns The resolved port or service instance.
+   * @param item - The port or service to get.
+   * @returns The resolved port adapter or service instance.
    */
   public get<T extends I[keyof I]>(item: T): T extends Service<infer TT, Any> ? TT : Adapter<T> {
     // Verify if the item is in the container.
@@ -176,62 +299,19 @@ class ContainerBuilder<I extends ContainerItems = never> {
       throw new ContainerError('InvalidItem', `Item "${item.id}" not found in container`);
     }
 
-    const itemName = Object.keys(this.items).find((key) => this.items[key] === item);
+    // Create a key for the cache.
+    const key = this + item;
 
     // Check cache first (reuse).
-    if (cache.has(item)) {
-      return cache.get(item);
+    if (cache.has(key)) {
+      return cache.get(key);
     }
 
-    if (isService(item) && item.scope === 'internal') {
-      throw new ContainerError(
-        'InternalItem',
-        `Item "${itemName}" is internal and cannot be resolved`,
-        `Use the ".public()" or ".global()" method to get the public item`,
-      );
-    }
+    // Applying the correct resolver and caching the result.
+    const itemResolved = isService(item) ? this.resolveService(item as T) : this.resolvePort(item);
+    cache.set(key, itemResolved);
 
-    if (isService(item)) {
-      const resolvedDeps: Record<string, Any> = {};
-
-      // Resolve service dependencies.
-      for (const [depName, dep] of Object.entries<Any>(item.deps)) {
-        // If the dependency is a port, we need to get the adapter from the bindings.
-        if (isPort(dep)) {
-          const adapter = this.bindings.get(dep);
-
-          if (!adapter) {
-            throw new ContainerError(
-              'NoAdapter',
-              `No adapter bound for port "${depName}" in service "${itemName}"`,
-              `The service is "${item.id}" is bound to an adapter and the port is "${dep.id}"`,
-            );
-          }
-          resolvedDeps[depName] = adapter;
-        } // Otherwise, we need to get the service from the container.
-        else if (isService(dep)) {
-          resolvedDeps[depName] = this.get(dep as Any);
-        }
-      }
-
-      const svc = item.factory(resolvedDeps);
-
-      // Caching the resolved dependencies.
-      cache.set(item, svc);
-
-      return svc;
-    }
-
-    // Resolve port.
-    const adapter = this.bindings.get(item);
-    if (!adapter) {
-      throw new ContainerError('NoAdapter', `No adapter bound for port "${itemName}"`);
-    }
-
-    // Caching the resolved port.
-    cache.set(item, adapter);
-
-    return adapter;
+    return itemResolved;
   }
 }
 
@@ -244,14 +324,28 @@ class ContainerBuilder<I extends ContainerItems = never> {
  * that the services depend on, such as port adapters, other services, inclusively other containers
  * that implements those services.
  *
- * @typeParam I - The container items type.
+ * It also caches the resolved dependencies to avoid resolving the same dependency twice.
  *
- * @returns The new container.
+ * The resolutions are computed only when the resource is requested, so the resolution process
+ * is lazy and the dependencies are resolved only when they are needed.
+ *
+ * @typeParam I - The container items type (extends ContainerItems).
+ * @returns A new container builder.
  *
  * @public
  */
-const container = <I extends ContainerItems>() =>
-  component('Container', new ContainerBuilder()) as Container<I>;
+const container = <I extends ContainerItems>() => new ContainerBuilder() as Container<I>;
 
-export { cache, container, ContainerError };
-export type { Container, ContainerPorts };
+/**
+ * Guard function to check if the object is a container.
+ *
+ * @param maybeContainer - The object to check.
+ * @returns True if the object is a container, false otherwise.
+ *
+ * @public
+ */
+const isContainer = (maybeContainer: Any): maybeContainer is Container<Any> =>
+  isComponent(maybeContainer, 'Container');
+
+export { container, ContainerError, isContainer };
+export type { Container };
