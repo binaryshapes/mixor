@@ -31,7 +31,7 @@ type ContractHandler<C, Async extends 'async' | 'sync' = 'async'> = C extends
             input: SchemaErrors<II, 'strict'>;
             output: SchemaErrors<OO, 'strict'>;
             handler: E;
-          }
+          } | E
         >,
         Async
       >
@@ -56,7 +56,7 @@ type ContractCaller<C, Async extends 'async' | 'sync' = 'async'> = C extends
             input: SchemaErrors<II, 'strict'>;
             output: SchemaErrors<OO, 'strict'>;
             handler: E;
-          }
+          } | E
         >,
         Async
       >
