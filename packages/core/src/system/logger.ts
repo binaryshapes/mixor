@@ -11,7 +11,7 @@
  *
  * @internal
  */
-type LogMode = 'error' | 'warning' | 'success' | 'print';
+type LogMode = 'error' | 'warning' | 'success' | 'debug';
 
 /**
  * Colors for the console.
@@ -33,7 +33,7 @@ const colors = {
  *
  * @internal
  */
-const presets: Record<LogMode, { icon: string; prefix: string; color: keyof typeof colors }> = {
+const presets: Record<LogMode, { icon?: string; prefix?: string; color: keyof typeof colors }> = {
   error: {
     icon: '🔴',
     prefix: 'Error',
@@ -49,10 +49,10 @@ const presets: Record<LogMode, { icon: string; prefix: string; color: keyof type
     prefix: 'Success',
     color: 'green',
   },
-  print: {
+  debug: {
     icon: '',
     prefix: '',
-    color: 'white',
+    color: 'yellow',
   },
 };
 
@@ -80,7 +80,9 @@ const print = <T extends LogMode>(message: string, mode: T) => console.log(forma
  */
 const format = (message: string, mode: LogMode) => {
   const preset = presets[mode];
-  return `${colors[preset.color]}${preset.icon} ${preset.prefix + ':'} ${message}\x1b[0m`;
+  const icon = preset.icon ? preset.icon + ' ' : '';
+  const prefix = preset.prefix ? preset.prefix + ': ' : '';
+  return `${colors[preset.color]}${icon}${prefix}${message}\x1b[0m`;
 };
 
 /**
@@ -141,7 +143,7 @@ const warn = (message: string) => print(message, 'warning');
  *
  * @public
  */
-const log = (message: string) => print(message, 'print');
+const debug = (message: string) => print(message, 'debug');
 
 /**
  * Logger namespace with all the logger methods.
@@ -151,6 +153,6 @@ const log = (message: string) => print(message, 'print');
  *
  * @public
  */
-const Logger = { assert, error, format, formatColor, log, warn };
+const Logger = { assert, error, format, formatColor, warn, debug };
 
 export { Logger };
