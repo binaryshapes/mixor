@@ -135,6 +135,17 @@ const error = (message: string) => print(message, 'error');
 const warn = (message: string) => print(message, 'warning');
 
 /**
+ * Print a success message to the console.
+ *
+ * @param message - The message to print.
+ *
+ * @returns void
+ *
+ * @public
+ */
+const success = (message: string) => print(message, 'success');
+
+/**
  * Print a message to the console.
  *
  * @param message - The message to print.
@@ -153,6 +164,6 @@ const debug = (message: string) => print(message, 'debug');
  *
  * @public
  */
-const Logger = { assert, error, format, formatColor, warn, debug };
+const Logger = { assert, success, error, format, formatColor, warn, debug };
 
 export { Logger };
