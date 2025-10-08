@@ -66,11 +66,11 @@ type Result<T, E> = Ok<T> | Err<E>;
  *
  * @public
  */
-function ok<T>(value: T): Result<T, never> {
+function ok<T>(value?: T): Result<T, never> {
   return {
     _id: 'Result',
     _tag: 'Ok',
-    value,
+    value: value ?? (undefined as T),
   };
 }
 
@@ -102,7 +102,7 @@ function err<E extends Failure<Any> | string>(error: E): Result<never, E> {
  * @public
  */
 function isOk<T, E>(result: Result<T, E>): result is Ok<T> {
-  return result._tag === 'Ok';
+  return isResult(result) && result._tag === 'Ok';
 }
 
 /**
@@ -116,7 +116,7 @@ function isOk<T, E>(result: Result<T, E>): result is Ok<T> {
  * @public
  */
 function isErr<T, E>(result: Result<T, E>): result is Err<E> {
-  return result._tag === 'Err';
+  return isResult(result) && result._tag === 'Err';
 }
 
 /**
