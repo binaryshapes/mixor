@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import { isErr, isOk, ok, type Result } from '../result';
+import { Logger } from '../system';
 import type { Any, MergeUnion, Prettify, PrimitiveTypeExtended } from '../utils';
 
 // TODO: Check if is necessary to allow async functions in all flow operators.
@@ -39,7 +40,8 @@ type FlowOperator =
   | 'mapErr'
   | 'mapBoth'
   | 'assert'
-  | 'action';
+  | 'action'
+  | 'log';
 
 /**
  * Standardized the value of the flow. Basically to ensure the shape of the value in flows with
@@ -331,10 +333,8 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
    * @param fn - The function to apply to the flow value.
    * @returns a new typed version of the flow which includes the new step.
    */
-  public action<B, F>(fn: (v: FlowValue<O>) => Result<B, F>): Flow<I, O, E, A>;
-  public action<B, F>(
-    fn: (v: FlowValue<O>) => Promise<Result<B, F>>,
-  ): Flow<I, O, E, 'async'>;
+  public action<B, F>(fn: (v: FlowValue<O>) => Result<B, F>): Flow<I, O, E | F, A>;
+  public action<B, F>(fn: (v: FlowValue<O>) => Promise<Result<B, F>>): Flow<I, O, E | F, 'async'>;
   public action(fn: Any) {
     const actionLogic = (v: Any) => {
       const result = fn(v.value);
@@ -346,6 +346,20 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
       return isErr(result) ? result : v;
     };
     return this.addStep('action', 'success', fn, actionLogic) as Any;
+  }
+
+  /**
+   * Logs a message to the console (it acts as a debug side effect).
+   *
+   * @remarks
+   * This operator is useful for logging steps in the flow.
+   *
+   * @param message - The message to log.
+   * @returns a new typed version of the flow which includes the new step.
+   */
+  public log(message: string): Flow<I, O, E, A> {
+    const logLogic = (v: Any) => (Logger.debug(message), v);
+    return this.addStep('log', 'success', message, logLogic) as Any;
   }
 }
 
@@ -367,4 +381,4 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
 const flow = <I>() => new Flow<I, I, never>();
 
 export { flow };
-export type { Flow };
+export type { Flow, FlowValue };
