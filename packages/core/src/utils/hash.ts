@@ -75,6 +75,11 @@ function safeStringify(object: Any): string {
             return cleanEmpty(String(Object.values(value)));
           }
 
+          // If the value is null or undefined, we return an empty string.
+          if (value === null || value === undefined) {
+            return '';
+          }
+
           // Otherwise we use the string representation.
           return String(value);
         })
