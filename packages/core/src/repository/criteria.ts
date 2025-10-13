@@ -6,8 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { type Component, component, Panic } from '../system/index';
-import type { Any } from '../utils';
+import { type Component, component } from '../system';
+import { type Any } from '../utils';
 
 /**
  * Represents the basic scalar types that can be used in criteria operations.
@@ -236,7 +236,6 @@ type FilterableFields<T> = {
 /**
  * Represents a complete criteria object that can be used for filtering.
  * Combines field-specific criteria with logical operators for complex queries.
- * This type is flexible and accepts both CriteriaLogic and Criteria objects.
  *
  * @typeParam T - The type that the criteria operates on.
  *
@@ -245,24 +244,13 @@ type FilterableFields<T> = {
 type CriteriaLogic<T> =
   | (
     & Partial<{ [K in keyof FilterableFields<T>]: FieldCriteria<FilterableFields<T>[K]> }>
-    & LogicalOperators<FilterableFields<T>>
+    & LogicalOperators<T>
   )
-  | LogicalOperators<FilterableFields<T>>;
-
-/**
- * A more flexible criteria type that accepts both CriteriaLogic and Criteria objects.
- * This allows for easier composition without type errors.
- *
- * @typeParam T - The type that the criteria operates on.
- *
- * @internal
- */
-type FlexibleCriteria<T> = CriteriaLogic<T> | Criteria<T>;
+  | LogicalOperators<T>;
 
 /**
  * Defines logical operators for combining multiple criteria.
  * Provides AND, OR, and NOT operations for criteria composition.
- * Now accepts both CriteriaLogic and Criteria objects for flexibility.
  *
  * @typeParam T - The type that criteria operate on.
  *
@@ -270,12 +258,31 @@ type FlexibleCriteria<T> = CriteriaLogic<T> | Criteria<T>;
  */
 type LogicalOperators<T> = {
   /** Combines multiple criteria with AND logic. */
-  $and?: FlexibleCriteria<T>[];
+  $and?: CriteriaLogic<T>[];
   /** Combines multiple criteria with OR logic. */
-  $or?: FlexibleCriteria<T>[];
+  $or?: CriteriaLogic<T>[];
   /** Negates a single criteria. */
-  $not?: FlexibleCriteria<T>;
+  $not?: CriteriaLogic<T>;
 };
+
+/**
+ * Criteria schema type.
+ *
+ * @internal
+ */
+type CriteriaSchema = { Type: Any; Tag: 'Schema' };
+
+/**
+ * Criteria constructor type.
+ *
+ * @typeParam Params - The parameters for the criteria.
+ * @typeParam S - The schema type.
+ *
+ * @internal
+ */
+type CriteriaConstructor<Params extends Any[], S extends CriteriaSchema> = (
+  ...params: Params
+) => Logic<S, S['Type']>;
 
 /**
  * Builder interface for composing criteria.
@@ -289,55 +296,19 @@ type Criteria<T, Args extends Any[] = never[]> = Component<
     value: CriteriaLogic<T>;
   }
   & ((...args: Args) => Criteria<T>)
-  & {
-    /**
-     * Combines this criteria with another criteria using AND logic.
-     * @param other - The other criteria to combine with.
-     * @param argsSplitter - Optional function that splits combined args into separate args for each criteria.
-     * @returns A new criteria that represents the AND combination.
-     */
-    and<Args2 extends Any[], CombinedArgs extends Any[] = [...Args, ...Args2]>(
-      other: Criteria<T, Args2>,
-      argsSplitter?: (args: CombinedArgs) => { first: Args; second: Args2 },
-    ): Criteria<T, CombinedArgs>;
-
-    /**
-     * Combines this criteria with another criteria using OR logic.
-     * @param other - The other criteria to combine with.
-     * @param argsSplitter - Optional function that splits combined args into separate args for each criteria.
-     * @returns A new criteria that represents the OR combination.
-     */
-    or<Args2 extends Any[], CombinedArgs extends Any[] = [...Args, ...Args2]>(
-      other: Criteria<T, Args2>,
-      argsSplitter?: (args: CombinedArgs) => { first: Args; second: Args2 },
-    ): Criteria<T, CombinedArgs>;
-
-    /**
-     * Negates this criteria using NOT logic.
-     * @returns A new criteria that represents the negation.
-     */
-    not(): Criteria<T, Args>;
-  }
+  & Pick<CriteriaComposer<T, Args>, 'and' | 'or' | 'not'>
 >;
 
 /**
- * Criteria module error.
- *
- * - InvalidCriteria: The criteria definition is invalid.
- *
- * @public
- */
-class CriteriaError extends Panic<'Criteria', 'InvalidCriteria'>('Criteria') {}
-
-/**
  * Builder class for composing criteria with a simple and type-safe API.
- * Provides a unified `when` method that handles all field types and operators.
+ * Provides methods for field criteria (`when`) and logical operators (`$and`, `$or`, `$not`).
  *
- * @typeParam T - The type that the criteria operates on.
+ * @typeParam TT - The schema type that contains the Type information.
+ * @typeParam T - The type that the criteria operates on (inferred from TT).
  *
- * @public
+ * @internal
  */
-class Logic<TT extends { Type: Any; Tag: 'Schema' }, T = TT['Type']> {
+class Logic<TT extends CriteriaSchema, T = TT['Type']> {
   public criteria: CriteriaLogic<T> = {};
 
   public constructor(private readonly schema: TT) {}
@@ -351,19 +322,33 @@ class Logic<TT extends { Type: Any; Tag: 'Schema' }, T = TT['Type']> {
    * @param value - The value for the operator (type-safe based on operator).
    * @returns This builder instance for method chaining.
    */
-  when<K extends keyof FilterableFields<T>, O extends OperatorNames<FilterableFields<T>[K]>>(
+  public when<K extends keyof FilterableFields<T>, O extends OperatorNames<FilterableFields<T>[K]>>(
     field: K,
     operator: O,
     value: OperatorValue<FilterableFields<T>[K], O>,
-  ): this {
-    this.criteria = { ...this.criteria, [field]: { [operator]: value } };
-    checkCriteriaLogic(this.criteria);
-    return this;
-  }
+  ): this;
 
-  as(criteria: FlexibleCriteria<T>): this {
-    this.criteria = criteria as CriteriaLogic<T>;
-    checkCriteriaLogic(this.criteria);
+  /**
+   * Sets the entire criteria object.
+   *
+   * @param criteria - The complete criteria object to set.
+   * @returns This builder instance for method chaining.
+   */
+  public when(criteria: CriteriaLogic<T>): this;
+
+  // Implementation of the when method with overloads.
+  public when<K extends keyof FilterableFields<T>, O extends OperatorNames<FilterableFields<T>[K]>>(
+    fieldOrCriteria: K | CriteriaLogic<T>,
+    operator?: O,
+    value?: OperatorValue<FilterableFields<T>[K], O>,
+  ): this {
+    if (typeof fieldOrCriteria === 'string') {
+      // Field-based criteria
+      this.criteria = { ...this.criteria, [fieldOrCriteria]: { [operator!]: value! } };
+    } else {
+      // Complete criteria object
+      this.criteria = fieldOrCriteria;
+    }
     return this;
   }
 
@@ -372,7 +357,7 @@ class Logic<TT extends { Type: Any; Tag: 'Schema' }, T = TT['Type']> {
    * @param criteria - Array of criteria to combine with AND logic.
    * @returns This builder instance for method chaining.
    */
-  $and(criteria: FlexibleCriteria<T>[]): this {
+  public $and(criteria: CriteriaLogic<T>[]): this {
     this.criteria = { ...this.criteria, $and: criteria };
     return this;
   }
@@ -382,7 +367,7 @@ class Logic<TT extends { Type: Any; Tag: 'Schema' }, T = TT['Type']> {
    * @param criteria - Array of criteria to combine with OR logic.
    * @returns This builder instance for method chaining.
    */
-  $or(criteria: FlexibleCriteria<T>[]): this {
+  public $or(criteria: CriteriaLogic<T>[]): this {
     this.criteria = { ...this.criteria, $or: criteria };
     return this;
   }
@@ -392,229 +377,196 @@ class Logic<TT extends { Type: Any; Tag: 'Schema' }, T = TT['Type']> {
    * @param criteria - The criteria to negate.
    * @returns This builder instance for method chaining.
    */
-  $not(criteria: FlexibleCriteria<T>): this {
+  public $not(criteria: CriteriaLogic<T>): this {
     this.criteria = { ...this.criteria, $not: criteria };
     return this;
   }
 }
 
 /**
- * Checks if the criteria definition is valid.
+ * Class that handles criteria composition logic.
+ * Provides methods for combining criteria with AND, OR, and NOT operations.
+ * Automatically handles argument splitting for composed criteria.
  *
- * @param criteria - The criteria definition to check.
+ * @typeParam T - The type that the criteria operates on.
+ * @typeParam Args - The argument types for the criteria.
  *
  * @internal
  */
-const checkCriteriaLogic = (criteria: CriteriaLogic<Any>) => {
-  // TODO: This check must be more robust! Need to check every property inside the criteria logic.
-  if (
-    // Not defined.
-    !criteria ||
-    // Not an object.
-    typeof criteria !== 'object' ||
-    // Array.
-    Array.isArray(criteria) ||
-    // Empty object.
-    Object.entries(criteria).length === 0
-  ) {
-    throw new CriteriaError('InvalidCriteria', 'The criteria definition is invalid');
-  }
-};
+class CriteriaComposer<T, Args extends Any[]> {
+  public currentCriteriaId?: string;
 
-/**
- * Creates a new CriteriaBuilder instance for fluent criteria composition.
- * @returns A new CriteriaBuilder instance.
- * @public
- */
-function logic<TT extends { Type: Any; Tag: 'Schema' }>(
-  schema: TT,
-) {
-  type T = TT['Type'];
-  return new Logic<TT, T>(schema);
+  constructor(
+    private readonly criteriaConstructor: CriteriaConstructor<Args, CriteriaSchema>,
+    currentCriteriaId?: string,
+  ) {
+    this.currentCriteriaId = currentCriteriaId;
+  }
+
+  /**
+   * Combines this criteria with another criteria using AND logic.
+   * The argument combination is handled automatically.
+   *
+   * @param other - The other criteria to combine with.
+   * @returns A new criteria that represents the AND combination.
+   */
+  public and<Args2 extends Any[]>(other: Criteria<T, Args2>): Criteria<T, [...Args, ...Args2]> {
+    const andConstructor = (...combinedArgs: [...Args, ...Args2]) => {
+      const { firstArgs, secondArgs } = this.splitArgs(combinedArgs);
+
+      const firstCriteria = this.criteriaConstructor(...firstArgs).criteria;
+      const secondCriteria = other(...secondArgs).value;
+
+      return logic({} as CriteriaSchema).when({ $and: [firstCriteria, secondCriteria] });
+    };
+
+    const andCriteriaFn = (...args: [...Args, ...Args2]) => ({
+      value: andConstructor(...args).criteria,
+    });
+    const andComposer = new CriteriaComposer(andConstructor);
+
+    // Use the other criteria's as part of the uniqueness.
+    const andCriteria = component('Criteria', andCriteriaFn, andComposer, { other }) as Criteria<
+      T,
+      [...Args, ...Args2]
+    >;
+
+    // Set the currentCriteriaId for future NOT operations
+    andComposer.currentCriteriaId = andCriteria.id;
+
+    return andCriteria;
+  }
+
+  /**
+   * Combines this criteria with another criteria using OR logic.
+   * The argument combination is handled automatically.
+   *
+   * @param other - The other criteria to combine with.
+   * @returns A new criteria that represents the OR combination.
+   */
+  public or<Args2 extends Any[]>(other: Criteria<T, Args2>): Criteria<T, [...Args, ...Args2]> {
+    const orConstructor = (...combinedArgs: [...Args, ...Args2]) => {
+      const { firstArgs, secondArgs } = this.splitArgs(combinedArgs);
+
+      const firstCriteria = this.criteriaConstructor(...firstArgs).criteria;
+      const secondCriteria = other(...secondArgs).value;
+
+      return logic({} as CriteriaSchema).when({ $or: [firstCriteria, secondCriteria] });
+    };
+
+    const orCriteriaFn = (...args: [...Args, ...Args2]) => ({
+      value: orConstructor(...args).criteria,
+    });
+    const orComposer = new CriteriaComposer(orConstructor);
+
+    // Use the other criteria's as part of the uniqueness.
+    const orCriteria = component('Criteria', orCriteriaFn, orComposer, { other }) as Criteria<
+      T,
+      [...Args, ...Args2]
+    >;
+
+    // Set the currentCriteriaId for future NOT operations.
+    orComposer.currentCriteriaId = orCriteria.id;
+
+    return orCriteria;
+  }
+
+  /**
+   * Negates this criteria using NOT logic.
+   * @returns A new criteria that represents the negation.
+   */
+  public not(): Criteria<T, Args> {
+    const notConstructor = (...args: Args) => {
+      const criteriaValue = this.criteriaConstructor(...args).criteria;
+      return logic({} as CriteriaSchema).when({ $not: criteriaValue });
+    };
+
+    const notCriteriaFn = (...args: Args) => ({ value: notConstructor(...args).criteria });
+    const notComposer = new CriteriaComposer(notConstructor);
+
+    // Use the current criteria ID to differentiate from other NOT operations
+    return component('Criteria', notCriteriaFn, notComposer, {
+      // HACK: This is a hack to differentiate between NOT operations.
+      currentCriteriaId: this.currentCriteriaId,
+    }) as Criteria<T, Args>;
+  }
+
+  /**
+   * Splits combined arguments into separate arguments for each criteria.
+   * Uses intelligent heuristics to determine the optimal split point.
+   *
+   * @param combinedArgs - The combined arguments from both criteria.
+   * @returns Object with first and second arguments properly split.
+   * @private
+   */
+  private splitArgs<Args2 extends Any[]>(
+    combinedArgs: [...Args, ...Args2],
+  ): { firstArgs: Args; secondArgs: Args2 } {
+    // Intelligent argument splitting based on common patterns:
+    // - Single argument: first criteria gets it, second gets none.
+    // - Two arguments: first gets first arg, second gets second arg.
+    // - Multiple arguments: first gets all except last, second gets last.
+
+    if (combinedArgs.length === 1) {
+      // Single argument case: first criteria takes it.
+      return {
+        firstArgs: combinedArgs as unknown as Args,
+        secondArgs: [] as unknown as Args2,
+      };
+    } else if (combinedArgs.length === 2) {
+      // Two arguments case: split evenly.
+      return {
+        firstArgs: [combinedArgs[0]] as Args,
+        secondArgs: [combinedArgs[1]] as Args2,
+      };
+    } else {
+      // Multiple arguments case: first gets all except last.
+      return {
+        firstArgs: combinedArgs.slice(0, -1) as Args,
+        secondArgs: combinedArgs.slice(-1) as Args2,
+      };
+    }
+  }
 }
 
-type CriteriaConstructor<Params extends Any[], S extends { Type: Any; Tag: 'Schema' }> = (
-  ...params: Params
-) => Logic<S, S['Type']>;
+/**
+ * Creates a new Logic instance for fluent criteria composition based on a schema.
+ *
+ * @typeParam T - The type that the criteria operates on.
+ * @param schema - The schema to use for the criteria.
+ * @returns A new Logic instance.
+ *
+ * @public
+ */
+const logic = <T extends CriteriaSchema>(schema: T) => new Logic(schema);
 
-function criteria<Params extends Any[], S extends { Type: Any; Tag: 'Schema' }>(
+/**
+ * Creates a new criteria component based on a constructor.
+ *
+ * @typeParam Params - The parameters for the criteria.
+ * @typeParam S - The schema type.
+ * @param constructor - The criteria constructor.
+ * @returns A new Criteria instance.
+ *
+ * @public
+ */
+const criteria = <Params extends Any[], S extends CriteriaSchema>(
   constructor: CriteriaConstructor<Params, S>,
-) {
-  const criteriaFn = (...args: Params) => {
-    const criteriaValue = constructor(...args).criteria;
-    return { value: criteriaValue };
-  };
+) => {
+  const criteriaFn = (...args: Params) => ({ value: constructor(...args).criteria });
+  const composer = new CriteriaComposer(constructor);
 
-  // Add composition methods to the criteria function itself
-  const criteriaWithComposition = Object.assign(criteriaFn, {
-    and<Args2 extends Any[], CombinedArgs extends Any[] = [...Params, ...Args2]>(
-      other: Criteria<S['Type'], Args2>,
-      argsSplitter?: (args: CombinedArgs) => { first: Params; second: Args2 },
-    ) {
-      return criteria((...combinedArgs: CombinedArgs) => {
-        let firstArgs: Params;
-        let secondArgs: Args2;
-
-        if (argsSplitter) {
-          // Use custom argsSplitter
-          const split = argsSplitter(combinedArgs);
-          firstArgs = split.first;
-          secondArgs = split.second;
-        } else {
-          // For backward compatibility, we'll use a simple approach
-          // This is a limitation - we can't determine Params.length at runtime
-          throw new Error(
-            'argsSplitter is required for criteria with parameters. Use andCriteria/orCriteria helper functions instead.',
-          );
-        }
-
-        const firstCriteria = constructor(...firstArgs).criteria;
-        const secondCriteria = other(...secondArgs).value;
-
-        // Create a new Logic instance with the same schema
-        const firstLogic = constructor(...firstArgs);
-        return firstLogic.as({ $and: [firstCriteria, secondCriteria] });
-      });
-    },
-
-    or<Args2 extends Any[], CombinedArgs extends Any[] = [...Params, ...Args2]>(
-      other: Criteria<S['Type'], Args2>,
-      argsSplitter?: (args: CombinedArgs) => { first: Params; second: Args2 },
-    ) {
-      return criteria((...combinedArgs: CombinedArgs) => {
-        let firstArgs: Params;
-        let secondArgs: Args2;
-
-        if (argsSplitter) {
-          // Use custom argsSplitter
-          const split = argsSplitter(combinedArgs);
-          firstArgs = split.first;
-          secondArgs = split.second;
-        } else {
-          // For backward compatibility, we'll use a simple approach
-          // This is a limitation - we can't determine Params.length at runtime
-          throw new Error(
-            'argsSplitter is required for criteria with parameters. Use andCriteria/orCriteria helper functions instead.',
-          );
-        }
-
-        const firstCriteria = constructor(...firstArgs).criteria;
-        const secondCriteria = other(...secondArgs).value;
-
-        // Create a new Logic instance with the same schema
-        const firstLogic = constructor(...firstArgs);
-        return firstLogic.as({ $or: [firstCriteria, secondCriteria] });
-      });
-    },
-
-    not() {
-      return criteria((...args: Params) => {
-        const criteriaValue = constructor(...args).criteria;
-        const logicInstance = constructor(...args);
-        return logicInstance.as({ $not: criteriaValue });
-      });
-    },
-  });
-
-  return component('Criteria', criteriaWithComposition, { constructor }) as unknown as Criteria<
+  // The final criteria component is the criteria function and the composer.
+  const criteriaComponent = component('Criteria', criteriaFn, composer) as Criteria<
     S['Type'],
     Params
   >;
-}
 
-/**
- * Helper function to create a criteria that combines two criteria with AND logic.
- * The argument combination is handled automatically based on the criteria signatures.
- *
- * @param schema - The schema to use for the combined criteria.
- * @param first - The first criteria.
- * @param second - The second criteria.
- * @returns A new criteria that represents the AND combination.
- *
- * @public
- */
-function andCriteria<T, Args1 extends Any[], Args2 extends Any[]>(
-  schema: { Type: T; Tag: 'Schema' },
-  first: Criteria<T, Args1>,
-  second: Criteria<T, Args2>,
-): Criteria<T, [...Args1, ...Args2]> {
-  return criteria((...combinedArgs: [...Args1, ...Args2]) => {
-    // Try to determine the split point by testing the criteria.
-    let firstArgs: Args1;
-    let secondArgs: Args2;
+  // Add the registerId to the composer for NOT operations.
+  composer.currentCriteriaId = criteriaComponent.id;
 
-    // For now, we'll use a simple heuristic:
-    // - If first criteria takes 1 arg and second takes 0, split at 1.
-    // - If both take 1 arg, split at 1 (first gets first arg, second gets second).
-    // This is a limitation, but covers the most common cases.
+  return criteriaComponent;
+};
 
-    if (combinedArgs.length === 1) {
-      // Case: first takes 1 arg, second takes 0 args.
-      firstArgs = combinedArgs as unknown as Args1;
-      secondArgs = [] as unknown as Args2;
-    } else if (combinedArgs.length === 2) {
-      // Case: both take 1 arg each.
-      firstArgs = [combinedArgs[0]] as Args1;
-      secondArgs = [combinedArgs[1]] as Args2;
-    } else {
-      // Fallback: assume first takes all args except the last
-      firstArgs = combinedArgs.slice(0, -1) as Args1;
-      secondArgs = combinedArgs.slice(-1) as Args2;
-    }
-
-    const firstCriteria = first(...firstArgs).value;
-    const secondCriteria = second(...secondArgs).value;
-
-    return logic(schema).as({ $and: [firstCriteria, secondCriteria] });
-  });
-}
-
-/**
- * Helper function to create a criteria that combines two criteria with OR logic.
- * The argument combination is handled automatically based on the criteria signatures.
- *
- * @param schema - The schema to use for the combined criteria.
- * @param first - The first criteria.
- * @param second - The second criteria.
- * @returns A new criteria that represents the OR combination.
- *
- * @public
- */
-function orCriteria<T, Args1 extends Any[], Args2 extends Any[]>(
-  schema: { Type: T; Tag: 'Schema' },
-  first: Criteria<T, Args1>,
-  second: Criteria<T, Args2>,
-): Criteria<T, [...Args1, ...Args2]> {
-  return criteria((...combinedArgs: [...Args1, ...Args2]) => {
-    // Try to determine the split point by testing the criteria
-    let firstArgs: Args1;
-    let secondArgs: Args2;
-
-    // For now, we'll use a simple heuristic:
-    // - If first criteria takes 1 arg and second takes 0, split at 1
-    // - If both take 1 arg, split at 1 (first gets first arg, second gets second)
-    // This is a limitation, but covers the most common cases
-
-    if (combinedArgs.length === 1) {
-      // Case: first takes 1 arg, second takes 0 args
-      firstArgs = combinedArgs as unknown as Args1;
-      secondArgs = [] as unknown as Args2;
-    } else if (combinedArgs.length === 2) {
-      // Case: both take 1 arg each
-      firstArgs = [combinedArgs[0]] as Args1;
-      secondArgs = [combinedArgs[1]] as Args2;
-    } else {
-      // Fallback: assume first takes all args except the last
-      firstArgs = combinedArgs.slice(0, -1) as Args1;
-      secondArgs = combinedArgs.slice(-1) as Args2;
-    }
-
-    const firstCriteria = first(...firstArgs).value;
-    const secondCriteria = second(...secondArgs).value;
-
-    return logic(schema).as({ $or: [firstCriteria, secondCriteria] });
-  });
-}
-
-export { andCriteria, criteria, CriteriaError, logic, orCriteria };
+export { criteria, logic };
 export type { Criteria };
