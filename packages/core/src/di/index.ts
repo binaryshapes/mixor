@@ -8,5 +8,6 @@
 export * from './adapter';
 export * from './container';
 export * from './contract';
+export * from './injectable';
 export * from './port';
 export * from './service';
