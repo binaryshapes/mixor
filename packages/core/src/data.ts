@@ -19,7 +19,7 @@ import { type PrimitiveTypeExtended, setInspect } from './utils';
  * - Data redaction for sensitive information protection.
  * - Automatic serialization (JSON, string) with privacy controls.
  * - Type detection (primitive vs record).
- * - Immutable configuration with mutable data.
+ * - Mutable data with immutable redaction state.
  */
 
 /**
@@ -28,6 +28,20 @@ import { type PrimitiveTypeExtended, setInspect } from './utils';
  * @internal
  */
 const REDACTED_VALUE = '<Redacted>';
+
+/**
+ * Supported data primitive types.
+ *
+ * @internal
+ */
+type DataPrimitive = PrimitiveTypeExtended | null | undefined;
+
+/**
+ * Supported data record types.
+ *
+ * @internal
+ */
+type DataRecord = Record<string, DataPrimitive | DataPrimitive[]>;
 
 /**
  * Supported data value types for the Data container.
@@ -39,10 +53,10 @@ const REDACTED_VALUE = '<Redacted>';
  * @public
  */
 type DataValue =
-  | PrimitiveTypeExtended
-  | null
-  | undefined
-  | Record<string, PrimitiveTypeExtended | null | undefined>;
+  | DataPrimitive
+  | DataPrimitive[]
+  | DataRecord
+  | Record<string, DataRecord>;
 
 /**
  * Classification of the data type stored in the container.
@@ -56,26 +70,6 @@ type DataValue =
 type DataType = 'record' | 'primitive';
 
 /**
- * Configuration options for Data container behavior.
- *
- * @internal
- */
-type DataConfig = {
-  /**
-   * Whether to redact the data value when serializing or inspecting.
-   *
-   * @remarks
-   * Data redaction is the process of permanently removing or obscuring sensitive information
-   * from the data value before sharing or publishing it. When enabled, all serialization
-   * methods (toString, toJSON) and inspection will return the redacted placeholder instead
-   * of the actual value.
-   *
-   * @default false
-   */
-  redacted?: boolean;
-};
-
-/**
  * A secure data container that wraps values with privacy controls and serialization capabilities.
  *
  * @remarks
@@ -83,7 +77,7 @@ type DataConfig = {
  * - Data redaction for sensitive information protection
  * - Automatic type detection (primitive vs record)
  * - Safe serialization methods that respect privacy settings
- * - Immutable configuration with mutable data storage
+ * - Mutable data with immutable redaction state
  *
  * This is particularly useful for handling sensitive data in logging, debugging,
  * and serialization scenarios where you need to protect confidential information.
@@ -98,18 +92,39 @@ class Data<D extends DataValue> {
    *
    * @internal
    */
-  private dataType: DataType;
+  public readonly type: DataType;
+
+  /**
+   * The value stored in the data container.
+   *
+   * @internal
+   */
+  private value: D;
+
+  /**
+   * Whether to redact the data value when serializing or inspecting.
+   *
+   * @remarks
+   * Data redaction is the process of permanently removing or obscuring sensitive information
+   * from the data value before sharing or publishing it. When enabled, all serialization
+   * methods (toString, toJSON) and inspection will return the redacted placeholder instead
+   * of the actual value.
+   *
+   * @default false
+   * @internal
+   */
+  private isRedacted: boolean = false;
 
   /**
    * Creates a new Data container instance.
    *
-   * @param dataValue - The value to wrap in the container.
-   * @param dataConfig - Configuration options for the container behavior
+   * @param value - The value to wrap in the container.
    *
    * @internal
    */
-  public constructor(private dataValue: D, private readonly dataConfig: DataConfig) {
-    this.dataType = typeof this.value === 'object' ? 'record' : 'primitive';
+  public constructor(value: D) {
+    this.value = value;
+    this.type = typeof this.value === 'object' ? 'record' : 'primitive';
 
     // Configure inspection to respect redaction settings.
     setInspect(this, () => this.getRedactedValue());
@@ -123,18 +138,30 @@ class Data<D extends DataValue> {
    * @internal
    */
   private getRedactedValue() {
-    return this.dataConfig.redacted ? REDACTED_VALUE : this.dataValue;
+    return this.isRedacted ? REDACTED_VALUE : this.value;
   }
 
   /**
-   * Gets the classification type of the stored data.
+   * Sets the redacted state of the data container.
    *
-   * @returns Either 'primitive' for basic types or 'record' for objects.
+   * @returns The data container instance for method chaining.
    *
    * @public
    */
-  public get type(): DataType {
-    return this.dataType;
+  public redacted() {
+    this.isRedacted = true;
+    return this;
+  }
+
+  /**
+   * Updates the stored data value.
+   *
+   * @param value - The new value to store.
+   *
+   * @public
+   */
+  public set(value: D): void {
+    this.value = value;
   }
 
   /**
@@ -148,30 +175,8 @@ class Data<D extends DataValue> {
    *
    * @public
    */
-  public get value(): D {
-    return this.dataValue;
-  }
-
-  /**
-   * Gets the configuration object for this Data container.
-   *
-   * @returns The configuration object (read-only).
-   *
-   * @public
-   */
-  public get config(): DataConfig {
-    return this.dataConfig;
-  }
-
-  /**
-   * Updates the stored data value.
-   *
-   * @param value - The new value to store.
-   *
-   * @public
-   */
-  public set(value: D): void {
-    this.dataValue = value;
+  public get(): D {
+    return this.value;
   }
 
   /**
@@ -188,6 +193,7 @@ class Data<D extends DataValue> {
    */
   public toString() {
     const redactedValue = this.getRedactedValue();
+
     if (typeof redactedValue === 'object') {
       return JSON.stringify(redactedValue, null, 2);
     }
@@ -200,7 +206,7 @@ class Data<D extends DataValue> {
    *
    * @remarks
    * This method is called automatically by JSON.stringify() and other serialization
-   * methods. It respects the redaction configuration.
+   * methods. It respects the redaction state.
    *
    * @returns JSON-serializable representation of the data.
    *
@@ -212,32 +218,20 @@ class Data<D extends DataValue> {
 }
 
 /**
- * Default configuration for Data containers.
- *
- * @internal
- */
-const DATA_CONFIG_DEFAULT: DataConfig = {
-  redacted: false,
-};
-
-/**
  * Factory function to create a new Data container instance.
  *
  * @remarks
  * This is the primary way to create Data containers. It provides a clean API
- * with sensible defaults while allowing customization through the config parameter.
+ * with sensible defaults.
  *
  * @typeParam D - The type of data value being stored.
- *
  * @param value - The value to wrap in the container.
- * @param config - Optional configuration options (defaults to non-redacted).
  *
  * @returns A new Data container instance.
  *
  * @public
  */
-const data = <D extends DataValue>(value: D, config: DataConfig = DATA_CONFIG_DEFAULT) =>
-  new Data<D>(value, config);
+const data = <D extends DataValue>(value: D) => new Data<D>(value);
 
 export { data };
 export type { Data, DataValue };
