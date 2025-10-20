@@ -158,6 +158,6 @@ const debug = (message: string) => print(message, 'debug');
  *
  * @public
  */
-const Logger = { assert, success, error, format, color, warn, debug };
+const logger = { assert, success, error, format, color, warn, debug };
 
-export { Logger };
+export { logger };
