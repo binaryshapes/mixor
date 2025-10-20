@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { Any } from './_generics.ts';
+import type { Any } from './generics.ts';
 
 /**
  * Global registry of all the registries used in the system.
