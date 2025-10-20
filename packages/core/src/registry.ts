@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { Any } from './utils';
+import type { Any } from './_generics.ts';
 
 /**
  * Global registry of all the registries used in the system.
@@ -15,26 +15,22 @@ import type { Any } from './utils';
  */
 const registry = {
   /**
-   * Global state of the system metadata.
-   *
-   * @public
+   * Global catalog of all the components.
    */
-  systemMeta: new Map<string, Any>(),
+  catalog: new Map<string, Any>(),
 
   /**
-   * Global state of the tracking metadata.
-   *
-   * @public
+   * Global state for all components instances metadata.
    */
-  trackingMeta: new Map<string, Any>(),
+  meta: new Map<string, Any>(),
 };
 
 /**
- * Gets a store from the global stores.
+ * Gets a registry from the global registries.
  *
  * @typeParam T - The type of the registry.
  * @param name - The name of the registry to get.
- * @returns The typed registry map.
+ * @returns The typed registry.
  *
  * @public
  */
