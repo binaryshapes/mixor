@@ -1,0 +1,163 @@
+/**
+ * This file is part of the Nuxo project.
+ * Copyright (c) 2025, Binary Shapes.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { blue, cyan, green, magenta, red, white, yellow } from '@std/fmt/colors';
+
+/**
+ * The mode of the logger.
+ *
+ * @internal
+ */
+type LogMode = 'error' | 'warning' | 'success' | 'debug';
+
+/**
+ * Colors for the console.
+ *
+ * @internal
+ */
+const colors = {
+  red,
+  green,
+  yellow,
+  blue,
+  magenta,
+  cyan,
+  white,
+};
+
+/**
+ * The preset of the logger that is used to print the message.
+ *
+ * @internal
+ */
+type LoggerPreset = {
+  icon?: string;
+  prefix?: string;
+  color: keyof typeof colors;
+};
+
+/**
+ * The presets of the logger that are used to print the message.
+ *
+ * @internal
+ */
+const presets: Record<LogMode, LoggerPreset> = {
+  error: {
+    color: 'red',
+  },
+  warning: {
+    color: 'yellow',
+  },
+  success: {
+    color: 'green',
+  },
+  debug: {
+    color: 'yellow',
+  },
+};
+
+/**
+ * Print a message to the console.
+ *
+ * @param message - The message to print.
+ * @param mode - The mode of the message.
+ *
+ * @internal
+ */
+const print = <T extends LogMode>(message: string, mode: T) => console.log(format(message, mode));
+
+/**
+ * Format a message with a preset.
+ *
+ * @param message - The message to format.
+ * @param mode - The preset of the message.
+ * @returns The formatted message.
+ *
+ * @public
+ */
+const format = (message: string, mode: LogMode) => {
+  const preset = presets[mode];
+  const color = colors[preset.color];
+  const icon = preset.icon ? preset.icon + ' ' : '';
+  const prefix = preset.prefix ? preset.prefix + ': ' : '';
+  return color(icon + prefix + message);
+};
+
+/**
+ * Format a message with the given color.
+ *
+ * @param message - The message to format.
+ * @param color - The color to use for the message.
+ * @returns The message with the given color.
+ *
+ * @public
+ */
+const color = (message: string, color: keyof typeof colors) => colors[color](message);
+
+/**
+ * Assert a condition and print a warning message if the condition is false.
+ *
+ * @param condition - The condition to assert.
+ * @param message - The message to print if the condition is false.
+ *
+ * @public
+ */
+const assert = (condition: boolean, message: string) => {
+  if (!condition) {
+    print(message, 'warning');
+  }
+};
+
+/**
+ * Print an error message to the console.
+ *
+ * @param message - The message to print.
+ *
+ * @public
+ */
+const error = (message: string) => print(message, 'error');
+
+/**
+ * Print a warning message to the console.
+ *
+ * @param message - The message to print.
+ *
+ * @public
+ */
+const warn = (message: string) => print(message, 'warning');
+
+/**
+ * Print a success message to the console.
+ *
+ * @param message - The message to print.
+ *
+ * @public
+ */
+const success = (message: string) => print(message, 'success');
+
+/**
+ * Print a message to the console.
+ *
+ * @param message - The message to print.
+ * @returns void
+ *
+ * @public
+ */
+const debug = (message: string) => print(message, 'debug');
+
+/**
+ * Logger namespace with all the logger methods.
+ *
+ * @remarks
+ * This is a namespace object that contains all the logger methods.
+ *
+ * @public
+ */
+const Logger = { assert, success, error, format, color, warn, debug };
+
+export { Logger };
