@@ -2,11 +2,14 @@
   "name": "@nuxo/core",
   "version": "1.0.0",
   "license": "MIT",
-  "exports": "./src/mod.ts",
+  "exports": "./mod.ts",
   "tasks": {
-    "dev": "deno run --unstable-sloppy-imports --watch",
-    "build": "deno bundle --minify --unstable-sloppy-imports -o dist/bundle.js",
+    "dev": "deno run --watch",
+    "build": "deno bundle --minify -o dist/bundle.js",
     "fmt": "deno fmt",
     "test": "deno test --coverage"
+  },
+  "imports": {
+    "@std/fmt": "jsr:@std/fmt@^1.0.8"
   }
 }
