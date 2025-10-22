@@ -128,7 +128,7 @@ type HashResult = {
  */
 function hash(...objects: Any[]): HashResult {
   // Replace blanks in the given string.
-  const cleanEmpty = (str: string) => (str.replaceAll(',', '').length === 0 ? '' : str);
+  const clean = (str: string) => (str.replaceAll(',', '').length === 0 ? '' : str);
 
   // Safe stringify the given object.
   function safeStringify(object: Any): string {
@@ -146,14 +146,9 @@ function hash(...objects: Any[]): HashResult {
       const str = JSON.stringify(
         Object.entries(object as Any)
           .map(([, value]) => {
-            // Sometimes the value is a component, so we need to stringify directly.
-            if (isClass(value)) {
-              return String(value);
-            }
-
             // Nested objects.
             if (typeof value === 'object' && !!value) {
-              return cleanEmpty(String(Object.values(value)));
+              return clean(String(Object.values(value)));
             }
 
             // If the value is null or undefined, we return an empty string.
@@ -177,10 +172,7 @@ function hash(...objects: Any[]): HashResult {
 
   // Remove duplicates and replace spaces and new lines, slashes and other special characters.
   const keys = Array.from(new Set(objects.map((object) => safeStringify(object))))
-    .map((key) =>
-      // Clean the key from spaces, quotes, new lines, slashes and other special characters
-      cleanEmpty(key.replace(/[\s\n/\\"]/g, ''))
-    )
+    .map((key) => clean(key.replace(/[\s\n/\\"]/g, '')))
     .filter((key) => key.length > 0);
 
   const value = createHash('sha256').update(keys.join('')).digest('hex');
