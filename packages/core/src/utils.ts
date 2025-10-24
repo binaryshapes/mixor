@@ -47,6 +47,22 @@ const isObjectFunction = (object: unknown) =>
   typeof object === 'function' && !/^class\s/.test(Function.prototype.toString.call(object));
 
 /**
+ * Checks if the given object is a primitive.
+ *
+ * @param object - The object to check.
+ * @returns True if the object is a primitive, false otherwise.
+ *
+ * @public
+ */
+const isPrimitive = (object: unknown) =>
+  typeof object === 'string' ||
+  typeof object === 'number' ||
+  typeof object === 'boolean' ||
+  typeof object === 'symbol' ||
+  typeof object === 'undefined' ||
+  object === null;
+
+/**
  * Merges all the given instances into the specified target.
  *
  * @remarks
@@ -152,7 +168,7 @@ function hash(...objects: Any[]): HashResult {
             }
 
             // If the value is null or undefined, we return an empty string.
-            if (value === null || value === undefined) {
+            if (isPrimitive(value) || value === null || value === undefined) {
               return '';
             }
 
@@ -179,4 +195,4 @@ function hash(...objects: Any[]): HashResult {
   return { value, keys };
 }
 
-export { hash, isClass, isObjectFunction, merge, setInspect };
+export { hash, isClass, isObjectFunction, isPrimitive, merge, setInspect };
