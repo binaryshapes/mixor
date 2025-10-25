@@ -665,7 +665,7 @@ const meta = <T extends Register<Any, Any>>(target: T) => {
  *
  * @public
  */
-const isRegistered = (maybeRegistered: Any): maybeRegistered is RegistryRecord<string, Any, Any> =>
+const isRegistered = (maybeRegistered: Any): maybeRegistered is Register<Any, Any> =>
   !!maybeRegistered && !!maybeRegistered.id && !!Registry.get(maybeRegistered.id);
 
 /**
