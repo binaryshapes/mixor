@@ -7,7 +7,7 @@
  */
 
 import type { Any } from './generics.ts';
-import { err, isOk, ok, type Result } from './result.ts';
+import { type Err, err, isOk, ok, type Result } from './result.ts';
 import type { ApplyErrorMode, ErrorMode } from './types.ts';
 
 /**
@@ -331,7 +331,7 @@ const pipe: Pipe & PipeResult = (...args: Any[]): Any => {
           );
       } // All mode: Continue execution and accumulate all errors.
       else {
-        const { errors, input } = fns.reduce(
+        const { errors, input } = fns.reduce<{ errors: Err<Any>[]; input: Any }>(
           (acc, fn, index) => {
             // First function gets all arguments, subsequent functions get the previous result.
             const fnResult = index === 0 ? fn(...funcs) : fn(acc.input);
@@ -346,7 +346,7 @@ const pipe: Pipe & PipeResult = (...args: Any[]): Any => {
         );
 
         // Return accumulated errors or the final successful result.
-        return errors.length > 0 ? err(errors) : ok(input);
+        return errors.length > 0 ? err(errors.map((e) => e.error)) : ok(input);
       }
     };
   } // Classic pipeline: Simple function composition without error handling.

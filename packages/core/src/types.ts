@@ -26,6 +26,6 @@ type ErrorMode = 'strict' | 'all';
  */
 type ApplyErrorMode<E, Mode extends ErrorMode, FE = FlatArray<E>> = Mode extends 'strict'
   ? Exclude<FE, Array<Any>>
-  : FE[];
+  : [FE];
 
 export type { ApplyErrorMode, ErrorMode };
