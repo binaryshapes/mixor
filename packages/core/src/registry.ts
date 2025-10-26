@@ -10,6 +10,7 @@ import fs from 'node:fs';
 
 import { config } from './config.ts';
 import type { Any } from './generics.ts';
+import { logger } from './logger.ts';
 import { panic } from './panic.ts';
 import { hash, isClass, merge } from './utils.ts';
 
@@ -225,7 +226,6 @@ class Info {
 
     const refsUniques = new Set([...this.props.refs, ...refs.map((ref) => ref.id)]);
     this.props.refs = Array.from(refsUniques);
-
     return this;
   }
 
@@ -239,15 +239,22 @@ class Info {
    */
   public type(type: string) {
     const alreadySet = this.props.type !== null;
-    const areDifferent = this.props.type !== type;
+    const areDifferent = alreadySet && this.props.type !== type;
+    const areEqual = alreadySet && this.props.type === type;
 
     // Avoiding to overwrite the type if it is already set and different from the new type.
-    if (alreadySet && areDifferent) {
+    if (areDifferent) {
       throw new RegistryPanic(
         'CannotOverwrite',
         `Type already set with value: "${this.props.type}" and cannot be replaced with: "${type}"`,
       );
     }
+
+    // Negative assertion to check if the type is unnecessarily assigned in multiple places.
+    logger.assert(
+      !areEqual,
+      `Type already set with value: "${type}". Check if the type is being set in multiple places`,
+    );
 
     this.props.type = type;
     return this;
