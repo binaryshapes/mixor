@@ -492,7 +492,9 @@ class Registry {
     const record = Object.assign(target as Any, { id, keys, tag, refCount: 1 });
     Object.defineProperty(record, 'name', { value: tag });
     Object.defineProperty(record, 'toString', { value: () => id });
-    const merged = merge(record, { metaId: () => this.metaId(id, 1) });
+
+    // XXX: Not all uniqueness need to be merged.
+    const merged = merge(record, { metaId: () => this.metaId(id, 1) }, ...uniqueness);
 
     // Add the registry record to the instances map.
     this.store.set(id, { target: merged });
