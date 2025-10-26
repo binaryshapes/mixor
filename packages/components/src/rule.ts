@@ -23,7 +23,10 @@ const RULE_TAG = 'Rule';
 const VALIDATOR_TAG = 'Validator';
 
 /**
- * Rule component type.
+ * Rule component.
+ *
+ * A rule is a callable function that defines the logic of a validation and returns a
+ * {@link Validator} component.
  *
  * @typeParam T - The type of the value to validate.
  * @typeParam E - The type of the error.
@@ -56,7 +59,12 @@ type ValidatorMeta<T> = {
 };
 
 /**
- * Validator component type.
+ * Validator component.
+ *
+ * A validator is a function component that contains the logic of a validation defined by
+ * a {@link Rule} and apply those logic to a value. If the value meets the validation criteria,
+ * the validator returns a successful {@link Result} with the value, otherwise it returns a failed
+ * {@link Result} with the error.
  *
  * @typeParam T - The type of the value to validate.
  * @typeParam E - The type of the error.
@@ -71,11 +79,7 @@ type Validator<T, E> = n.Component<
 >;
 
 /**
- * Creates a new rule.
- *
- * @remarks
- * A rule is a {@link Component} function that validates a value and returns a {@link Result}
- * depending if the value is valid or not.
+ * Creates a new rule component.
  *
  * @typeParam T - The type of the value to validate.
  * @typeParam E - The type of the error.
@@ -83,6 +87,9 @@ type Validator<T, E> = n.Component<
  *
  * @param fn - The function that creates the validator.
  * @returns A proxy that creates a validator when called.
+ *
+ * @see {@link Rule} for more information.
+ * @see {@link Validator} for more information.
  *
  * @public
  */
