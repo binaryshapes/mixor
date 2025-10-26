@@ -9,10 +9,10 @@
 import type { n } from '@nuxo/core';
 
 /**
- * The default error mode for validation.
+ * The default error mode for all components that handle {@link n.Result} errors.
  *
  * @public
  */
-const DEFAULT_ERROR_MODE: n.ErrorMode = 'all';
+const DEFAULT_ERROR_MODE = ('strict' as const) satisfies n.ErrorMode;
 
 export { DEFAULT_ERROR_MODE };
