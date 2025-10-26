@@ -110,9 +110,6 @@ function merge(target: Any, ...instances: Any[]) {
       }
       return false;
     },
-    apply(target, thisArg, argArray) {
-      return target.apply(thisArg, argArray);
-    },
   });
 
   return proxy;
