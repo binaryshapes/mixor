@@ -126,6 +126,28 @@ class RegistryPanic extends panic<
   | 'InvalidRef'
 >('Registry') {}
 
+// TODO: be more specific with the primitive types such as: 'string', 'number', 'boolean', etc.
+
+/**
+ * The primitive type for the object information type.
+ *
+ * @internal
+ */
+type InfoPrimitiveType = string;
+
+/**
+ * The type of the object information.
+ *
+ * @remarks
+ * We prefer an object where the information type represents nested objects and arrays.
+ *
+ * @internal
+ */
+type InfoType =
+  | InfoPrimitiveType
+  | InfoPrimitiveType[]
+  | Record<string, InfoPrimitiveType | InfoPrimitiveType[]>;
+
 /**
  * Object info class for storing relevant information about the registry record.
  *
@@ -169,12 +191,12 @@ class Info {
      * Each tuple contains [parameterName, parameterType].
      * Null for non-function objects.
      */
-    params?: [name: string, type: string][] | null;
+    params?: [name: string, type: InfoType][] | null;
 
     /**
      * The runtime type string of the object for introspection purposes.
      */
-    type?: string | null;
+    type?: InfoType | null;
 
     /**
      * The documentation for the object.
@@ -237,7 +259,7 @@ class Info {
    * @throws RegistryPanic with code `CannotOverwrite` if the type is already set
    * and different from the new type.
    */
-  public type(type: string) {
+  public type(type: InfoType) {
     const alreadySet = this.props.type !== null;
     const areDifferent = alreadySet && this.props.type !== type;
     const areEqual = alreadySet && this.props.type === type;
@@ -284,7 +306,7 @@ class Info {
    * @throws RegistryPanic with code `CannotOverwrite` if the parameters are already set.
    * @throws RegistryPanic with code `NotFunction` if called on non-function objects.
    */
-  public params(...params: [name: string, type: string][]) {
+  public params(...params: [name: string, type: InfoType][]) {
     if (this.props.category !== 'function') {
       throw new RegistryPanic('NotFunction', 'Can only set parameters for function targets');
     }
