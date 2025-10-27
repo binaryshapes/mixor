@@ -6,14 +6,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { blue, cyan, green, magenta, red, white, yellow } from '@std/fmt/colors';
+import { blue, cyan, gray, green, magenta, red, white, yellow } from '@std/fmt/colors';
 
 /**
  * The mode of the logger.
  *
  * @internal
  */
-type LogMode = 'error' | 'warning' | 'success' | 'debug';
+type LogMode = 'error' | 'warning' | 'success' | 'debug' | 'hint';
 
 /**
  * Colors for the console.
@@ -28,6 +28,7 @@ const colors = {
   magenta,
   cyan,
   white,
+  gray,
 };
 
 /**
@@ -58,6 +59,9 @@ const presets: Record<LogMode, LoggerPreset> = {
   },
   debug: {
     color: 'yellow',
+  },
+  hint: {
+    color: 'gray',
   },
 };
 
@@ -151,6 +155,15 @@ const success = (message: string) => print(message, 'success');
 const debug = (message: string) => print(message, 'debug');
 
 /**
+ * Print a hint message to the console.
+ *
+ * @param message - The message to print.
+ *
+ * @public
+ */
+const hint = (message: string) => print(message, 'hint');
+
+/**
  * Logger namespace with all the logger methods.
  *
  * @remarks
@@ -158,6 +171,6 @@ const debug = (message: string) => print(message, 'debug');
  *
  * @public
  */
-const logger = { assert, success, error, format, color, warn, debug };
+const logger = { assert, success, error, format, color, warn, debug, hint };
 
 export { logger };
