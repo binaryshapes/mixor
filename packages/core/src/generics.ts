@@ -236,6 +236,22 @@ type RemoveNevers<T extends Record<string, Any>> = {
   [K in keyof T as T[K] extends never ? never : K]: T[K];
 };
 
+/**
+ * Creates a type that requires at least one property from the given type to be present.
+ *
+ * This utility type is useful when you need to ensure that at least one property in an object
+ * is set, while others remain optional. For example, when picking fields from a schema where
+ * you need to specify at least one field to pick.
+ *
+ * @typeParam T - The type from which at least one property is required.
+ * @returns A type that requires at least one property from T.
+ *
+ * @public
+ */
+type RequireAtLeastOne<T> = {
+  [K in keyof T]: Pick<T, K> & Partial<Pick<T, Exclude<keyof T, K>>>;
+}[keyof T];
+
 export type {
   Any,
   DeepAwaited,
@@ -253,6 +269,7 @@ export type {
   PrimitiveTypeExtended,
   Promisify,
   RemoveNevers,
+  RequireAtLeastOne,
   UndefToOptional,
   UnionKeys,
 };
