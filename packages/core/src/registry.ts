@@ -513,8 +513,8 @@ class Registry {
       reg.target.refCount++;
       const metaId = this.metaId(id, reg.target.refCount);
 
-      // We return a new object with the metaId.
-      return merge(reg.target, { metaId });
+      // We the existing target but with the new metaId.
+      return Object.assign(reg.target, { metaId });
     }
 
     // Otherwise, we create a new registry record.
