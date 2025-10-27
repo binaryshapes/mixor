@@ -73,6 +73,13 @@ function ok<T>(value?: T): Result<T, never> {
 }
 
 /**
+ * The error type supported by the result.
+ *
+ * @internal
+ */
+type ResultError = string | string[] | Record<string, string | string[]>;
+
+/**
  * Creates a failed result with the given error.
  *
  * @typeParam E - The type of the error. See {@link ResultError}.
@@ -81,7 +88,7 @@ function ok<T>(value?: T): Result<T, never> {
  *
  * @public
  */
-function err<E extends string | string[]>(error: E): Result<never, E> {
+function err<E extends ResultError>(error: E): Result<never, E> {
   return {
     _id: 'Result',
     _tag: 'Err',
