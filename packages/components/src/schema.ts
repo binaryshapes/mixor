@@ -202,6 +202,11 @@ const schema = <V extends SchemaValues>(values: V) => {
   // Adding the values as children of the schema component.
   n.meta(schemaComponent).children(...Object.values(values));
 
+  // Adding the schema as a referenced object of the values.
+  for (const v of Object.values(values)) {
+    n.info(v).refs(schemaComponent);
+  }
+
   return schemaComponent as Schema<V>;
 };
 
