@@ -254,8 +254,10 @@ const value = <T extends n.DataValue, E>(...validations: Validator<T, E>[]) => {
 
   const valueComponent = n.component('Value', valueFn, valueBuilder, { ...validations });
 
-  // Setting the type of the value component based on validators types.
-  n.info(valueComponent).type(type);
+  // Setting the type of the value component based on validators types (if not already set).
+  if (!n.info(valueComponent).props.type) {
+    n.info(valueComponent).type(type);
+  }
 
   // Adding the validations as children of the value component.
   n.meta(valueComponent).children(...validations);
