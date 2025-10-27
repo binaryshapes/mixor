@@ -37,9 +37,15 @@ class PanicError<S extends string, T extends string> extends Error {
   public readonly hint?: string;
 
   constructor(scope: S, tag: T, message: string, hint?: string) {
-    const errorMessage = `${message} ${hint ? `\n${hint}` : ''}`;
-    logger.error(errorMessage);
-    super(errorMessage);
+    logger.error(message);
+
+    // The hint will be printed as a debug message.
+    if (hint) {
+      logger.hint(`Hint: ${hint}`);
+    }
+
+    // The error message will include both the message and the hint.
+    super(`${message} ${hint ? `${hint}` : ''}`);
     this.code = `${scope}.${tag}`;
     this.hint = hint;
   }
