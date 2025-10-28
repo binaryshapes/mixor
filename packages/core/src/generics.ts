@@ -196,20 +196,19 @@ type MergeUnion<T> = IsPrimitive<T> extends true ? T
 type FlatArray<T> = T extends Array<infer U> ? U : T;
 
 /**
- * Converts all undefined values in a type to optional values.
+ * Helper type to make fields with undefined optional, preserving property order.
+ *
+ * This approach uses a combination of Omit and Partial to avoid property reordering
+ * that can occur with intersection types.
  *
  * @typeParam T - The type to convert.
- * @returns The converted type.
+ * @returns The type with optional fields, maintaining property order.
  *
- * @public
+ * @internal
  */
 type UndefToOptional<T> = Prettify<
-  & {
-    [K in keyof T as undefined extends T[K] ? K : never]?: Exclude<T[K], undefined>;
-  }
-  & {
-    [K in keyof T as undefined extends T[K] ? never : K]: T[K];
-  }
+  & Omit<T, { [K in keyof T]: undefined extends T[K] ? K : never }[keyof T]>
+  & Partial<Pick<T, { [K in keyof T]: undefined extends T[K] ? K : never }[keyof T]>>
 >;
 
 /**
