@@ -12,6 +12,13 @@ import { DEFAULT_ERROR_MODE } from './constants.ts';
 import { isValidator, type Validator } from './rule.ts';
 
 /**
+ * The tag for the value component.
+ *
+ * @internal
+ */
+const VALUE_TAG = 'Value';
+
+/**
  * Extra metadata for the value component.
  *
  * @typeParam T - The type of the value to validate.
@@ -20,7 +27,7 @@ import { isValidator, type Validator } from './rule.ts';
  */
 type ValueMeta<T> = {
   /**
-   * The example input for the value.
+   * The example inputs for the value.
    */
   examples: T[];
 };
@@ -79,10 +86,66 @@ const ValuePanic = n.panic<
 >('Value');
 
 /**
- * Builder class for value components.
+ * Creates a value function that captures the state in its closure.
  *
- * Ensures the value component is always created with the same name and data container, also
- * provides all the necessary methods to configure the value component.
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ *
+ * @param validations - The validator components to apply to the value.
+ * @param builder - The builder for the value component.
+ *
+ * @internal
+ */
+const valueFn = <T extends n.DataValue, E>(
+  validations: Validator<T, E>[],
+  builder: ValueBuilder<T, E>,
+) => {
+  // Capture the builder state in closure.
+  const state = { ...builder, validations };
+
+  // The value function to be returned which executes the validations and returns the result.
+  const fn = function (value: T, mode: n.ErrorMode = DEFAULT_ERROR_MODE) {
+    // Early return if optional/nullable
+    if ((value === undefined && state.isOptional) || (value === null && state.isNullable)) {
+      return n.ok(state.isRedacted ? n.data(value).redacted() : n.data(value));
+    }
+
+    // Validation checks
+    if (value === undefined && !state.isOptional) {
+      throw new ValuePanic(
+        'UndefinedNotAllowed',
+        'The value cannot be undefined.',
+        'Did you forget to pass the value or use the optional() option?',
+      );
+    }
+
+    if (value === null && !state.isNullable) {
+      throw new ValuePanic(
+        'NullNotAllowed',
+        'The value cannot be null.',
+        'Did you forget to use the nullable() option?',
+      );
+    }
+
+    // Run validations and prepare the result.
+    const result = n.pipe(mode, ...(state.validations as [n.Any]))(value);
+
+    // If error, return as is.
+    if (n.isErr(result)) {
+      return result;
+    }
+
+    // If success, return the value (redacted if needed).
+    const val = n.data(result.value as T);
+    return n.ok(state.isRedacted ? val.redacted() : val);
+  };
+
+  return fn;
+};
+
+/**
+ * Value component builder class which provides a set of builder methods in order to build a value
+ * with the given validations, type and options.
  *
  * @typeParam T - The type of the value to validate.
  * @typeParam E - The type of the error.
@@ -90,81 +153,110 @@ const ValuePanic = n.panic<
  * @internal
  */
 class ValueBuilder<T extends n.DataValue, E> {
-  // Fixed name of the value component.
-  public static name = 'Value';
+  constructor(
+    public validations: Validator<T, E>[],
+    public type: string,
+    public isRedacted = false,
+    public isOptional = false,
+    public isNullable = false,
+  ) {}
 
   /**
-   * The data container of the value.
-   *
-   * @internal
-   */
-  public data = n.data(null as T);
-
-  /**
-   * Whether the value is optional.
+   * Make the value as redacted, so it will be returned as a redacted placeholder.
    *
    * @remarks
-   * By default is required (false).
+   * Under the hood, this method uses the core "data" class to wrap the value.
    *
-   * @internal
-   */
-  public isOptional = false;
-
-  /**
-   * Whether the value is nullable.
-   *
-   * @remarks
-   * By default is required (false).
-   *
-   * @internal
-   */
-  public isNullable = false;
-
-  /**
-   * Set the redacted state of the data container.
-   *
-   * @returns The new value builder.
+   * @returns A value component that validates inputs according to the validators and is redacted.
    */
   public redacted() {
-    this.data.redacted();
-    return this;
+    this.isRedacted = true;
+    return valueComponent(this.validations, this.type, this) as Value<T, E>;
   }
 
   /**
-   * Make the value optional.
+   * Make the value as optional (could be undefined).
    *
-   * @returns The new value builder.
+   * @remarks
+   * Any validation for the value will be omitted if the value is undefined.
+   * It can be combined with the nullable() method to create a value that accepts null or
+   * undefined values.
+   *
+   * @returns A value component that validates inputs according to the validators and is optional.
    */
   public optional() {
     this.isOptional = true;
-    return this as unknown as Value<T | undefined, E, false>;
+    return valueComponent(this.validations, this.type, this) as Value<T | undefined, E, false>;
   }
 
   /**
-   * Make the value nullable.
+   * Make the value as nullable (accepts null values).
    *
-   * @returns The new value builder.
+   * @remarks
+   * Any validation for the value will be omitted if the value is null.
+   * It can be combined with the optional() method to create a value that accepts null or
+   * undefined values.
+   *
+   * @returns A value component that validates inputs according to the validators and is nullable.
    */
   public nullable() {
-    // Overriding the optional state to make the value nullable.
-    this.isOptional = false;
     this.isNullable = true;
-    return this as unknown as Value<T | null, E>;
+    return valueComponent(this.validations, this.type, this) as Value<T | null, E>;
   }
 
   /**
-   * Make the value required.
+   * Make the value as required (cannot be undefined or null).
    *
-   * @returns The new value builder.
+   * @remarks
+   * If the value is null or undefined, it will be treated as an error and no validations will
+   * be performed.
+   *
+   * @returns A value component that validates inputs according to the validators and is required.
    */
   public required() {
-    // Overriding the optional state to make the value required.
     this.isOptional = false;
-    // Overriding the nullable state to make the value required.
     this.isNullable = false;
-    return this as unknown as Value<T, E, true>;
+    return valueComponent(this.validations, this.type, this) as Value<T, E, true>;
   }
 }
+
+/**
+ * Creates a new value component for the given validations, type and builder.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ *
+ * @param validations - One or more validator components to apply to the value.
+ * @param type - The type of the value.
+ * @param builder - The builder for the value component (optional, defaults to a new builder).
+ *
+ * @returns A value component that validates inputs according to the validators.
+ *
+ * @internal
+ */
+const valueComponent = <T extends n.DataValue, E>(
+  validations: Validator<T, E>[],
+  type: string,
+  builder: ValueBuilder<T, E> = new ValueBuilder(validations, type),
+): Value<T, E> => {
+  const vf = valueFn(validations, builder);
+  const vc = n.component(VALUE_TAG, vf, builder);
+
+  // Setting the type of the value component based on validators types (if not already set).
+  if (!n.info(vc).props.type) {
+    n.info(vc).type(type);
+  }
+
+  // Adding the validations as children of the value component.
+  n.meta(vc).children(...validations);
+
+  // Adding the value component as a referenced object of the validations.
+  for (const v of validations) {
+    n.info(v).refs(vc);
+  }
+
+  return vc as Value<T, E>;
+};
 
 /**
  * Creates a new value component.
@@ -177,7 +269,7 @@ class ValueBuilder<T extends n.DataValue, E> {
  * @typeParam T - The type of the value to validate.
  * @typeParam E - The type of the error.
  *
- * @param validations - One or more validator components to apply to the value.
+ * @param validations - One or more validator components to apply to the value (rest parameter).
  * @returns A value component that validates inputs according to the validators.
  *
  * @see {@link Value} for more information.
@@ -185,12 +277,12 @@ class ValueBuilder<T extends n.DataValue, E> {
  * @public
  */
 const value = <T extends n.DataValue, E>(...validations: Validator<T, E>[]) => {
-  // Defensive assertion to check if all validations are valid (should never happen).
+  // Runtime check to ensure all provided validators are valid.
   if (!validations.every(isValidator)) {
     throw new ValuePanic('InvalidValidator', 'A value must be composed only by validations.');
   }
 
-  // // All rules should have the type defined.
+  // Runtime check to ensure all provided validators have the type defined.
   if (!validations.every((rule) => !!n.info(rule).props.type)) {
     throw new ValuePanic(
       'RuleTypeNotDefined',
@@ -199,75 +291,14 @@ const value = <T extends n.DataValue, E>(...validations: Validator<T, E>[]) => {
     );
   }
 
-  // // All types in the rules should be the same.
+  // Runtime check to ensure all provided validators have the same type.
   const type = n.info(validations[0]).props.type as string;
-  const sameType = validations.every((rule) => n.info(rule).props.type === type);
-
-  if (!sameType) {
+  if (!validations.every((rule) => n.info(rule).props.type === type)) {
     throw new ValuePanic('InvalidType', 'Multiple types are not supported for a value.');
   }
 
-  // Initializing the value builder related to the value component.
-  const valueBuilder = new ValueBuilder<T, E>();
-
-  // Defining the value function that actually executes all the value validations.
-  const valueFn = (value: T, mode: n.ErrorMode = DEFAULT_ERROR_MODE) => {
-    // Checking if the value is undefined or null are allowed by the builder options.
-    if (
-      (value === undefined && valueBuilder.isOptional) ||
-      (value === null && valueBuilder.isNullable)
-    ) {
-      // Set the value as it is without any validation.
-      valueBuilder.data.set(value);
-      return n.ok(valueBuilder.data);
-    }
-
-    // Avoiding to call the rules if the value is undefined and is not optional.
-    if (value === undefined && !valueBuilder.isOptional) {
-      throw new ValuePanic(
-        'UndefinedNotAllowed',
-        'The value cannot be undefined.',
-        'Did you forget to pass the value or use the optional() option?',
-      );
-    }
-
-    // Avoiding to call the rules if the value is null and is not nullable.
-    if (value === null && !valueBuilder.isNullable) {
-      throw new ValuePanic(
-        'NullNotAllowed',
-        'The value cannot be null.',
-        'Did you forget to use the nullable() option?',
-      );
-    }
-
-    // Processing the value through the rules and getting the result.
-    const result = n.pipe(mode, ...(validations as [n.Any]))(value);
-
-    if (n.isOk(result)) {
-      valueBuilder.data.set(result.value as T);
-      // Returning the builder data instead of the result value (to ensure redacted is applied).
-      return n.ok(valueBuilder.data);
-    }
-
-    return result;
-  };
-
-  const valueComponent = n.component('Value', valueFn, valueBuilder, { ...validations });
-
-  // Setting the type of the value component based on validators types (if not already set).
-  if (!n.info(valueComponent).props.type) {
-    n.info(valueComponent).type(type);
-  }
-
-  // Adding the validations as children of the value component.
-  n.meta(valueComponent).children(...validations);
-
-  // Adding the value component as a referenced object of the validations.
-  for (const v of validations) {
-    n.info(v).refs(valueComponent);
-  }
-
-  return valueComponent as Value<T, E>;
+  // Always create a default value component.
+  return valueComponent(validations, type);
 };
 
 /**
@@ -279,7 +310,7 @@ const value = <T extends n.DataValue, E>(...validations: Validator<T, E>[]) => {
  * @public
  */
 const isValue = (maybeValue: n.Any): maybeValue is Value<n.Any, n.Any> =>
-  n.isComponent(maybeValue, 'Value');
+  n.isComponent(maybeValue, VALUE_TAG);
 
 export { isValue, value, ValuePanic };
 export type { Value };
