@@ -16,7 +16,7 @@ import { isValidator, type Validator } from './rule.ts';
  *
  * @internal
  */
-const VALUE_TAG = 'Value';
+const VALUE_TAG = 'Value' as const;
 
 /**
  * Extra metadata for the value component.
@@ -36,7 +36,7 @@ type ValueMeta<T> = {
  * Value component.
  *
  * A value is a callable function that validates an input using one or more {@link Validator}
- * components and returns a {@link Result} with either the validated value or an error.
+ * components and returns a Result with either the validated value or an error.
  *
  * @typeParam T - The type of the value to validate.
  * @typeParam E - The type of the error.
@@ -45,7 +45,7 @@ type ValueMeta<T> = {
  * @public
  */
 type Value<T extends n.DataValue, E, R extends boolean = true> = n.Component<
-  'Value',
+  typeof VALUE_TAG,
   & (R extends true ? {
       <M extends n.ErrorMode = (typeof DEFAULT_ERROR_MODE)>(
         input: T,
@@ -77,13 +77,13 @@ type Value<T extends n.DataValue, E, R extends boolean = true> = n.Component<
  * @public
  */
 const ValuePanic = n.panic<
-  'Value',
+  typeof VALUE_TAG,
   | 'UndefinedNotAllowed'
   | 'NullNotAllowed'
   | 'InvalidType'
   | 'InvalidValidator'
   | 'RuleTypeNotDefined'
->('Value');
+>(VALUE_TAG);
 
 /**
  * Creates a value function that captures the state in its closure.
