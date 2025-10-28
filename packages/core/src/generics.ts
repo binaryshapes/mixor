@@ -31,6 +31,8 @@ type PrimitiveType = string | number | boolean | null | undefined | bigint | sym
  */
 type PrimitiveTypeExtended = PrimitiveType | Date | RegExp | Array<Any>;
 
+// TODO: Prettify should be removed and replaced by CleanTypes.
+
 /**
  * Prettify is a type that converts a messy complex/composed types into a more readable format.
  *
@@ -49,6 +51,21 @@ type Prettify<T> = T extends PrimitiveType | never ? T
       [K in keyof T]: T[K] extends PrimitiveType ? Prettify<T[K]> : T[K];
     }
   : T;
+
+/**
+ * Pretty the given type.
+ *
+ * @typeParam T - The type to pretty.
+ * @returns The pretty type.
+ *
+ * @public
+ */
+type Pretty<T> =
+  & {
+    [K in keyof T]: T[K];
+  }
+  // deno-lint-ignore ban-types
+  & {};
 
 /**
  * Helper type to detect if a type is a Promise
@@ -264,6 +281,7 @@ export type {
   MergeUnion,
   PreserveReadonly,
   Prettify,
+  Pretty,
   PrimitiveType,
   PrimitiveTypeExtended,
   Promisify,
