@@ -58,7 +58,6 @@ const isPrimitive = (object: unknown) =>
   typeof object === 'string' ||
   typeof object === 'number' ||
   typeof object === 'boolean' ||
-  typeof object === 'symbol' ||
   typeof object === 'undefined' ||
   object === null;
 
@@ -157,15 +156,20 @@ function hash(...objects: Any[]): HashResult {
 
     if (typeof object === 'object' && !!object) {
       const str = JSON.stringify(
-        Object.entries(object as Any)
-          .map(([, value]) => {
+        Object.entries(object)
+          .map(([key, value]) => {
             // Nested objects.
             if (typeof value === 'object' && !!value) {
               return clean(String(Object.values(value)));
             }
 
+            // For primitives, we return the key and value.
+            if (isPrimitive(value)) {
+              return `${key}:${value}`;
+            }
+
             // If the value is null or undefined, we return an empty string.
-            if (isPrimitive(value) || value === null || value === undefined) {
+            if (value === null || value === undefined) {
               return '';
             }
 
@@ -188,7 +192,7 @@ function hash(...objects: Any[]): HashResult {
     .map((key) => clean(key.replace(/[\s\n/\\"]/g, '')))
     .filter((key) => key.length > 0);
 
-  const value = createHash('sha256').update(keys.join('')).digest('hex');
+  const value = createHash('sha256').update(Object.values(keys).join('')).digest('hex');
   return { value, keys };
 }
 
