@@ -27,14 +27,40 @@ const di = {
  */
 const PROVIDER_TAG = 'Provider' as const;
 
-type ProviderImports<P extends Provider<Any, Any>[]> = { [K in keyof P]: P[K]['Type'] };
+/**
+ * The type of the imports of the provider.
+ *
+ * @typeParam P - The type of the provider.
+ * @returns The type of the imports of the provider.
+ *
+ * @internal
+ */
+type ProviderImports<T extends Provider<Any, Any>[]> = { [K in keyof T]: T[K]['Type'] };
 
-type ProviderFunction<T, Deps extends Provider<Any, Any>[]> = (...deps: ProviderImports<Deps>) => T;
+/**
+ * The type of the function that exports the provider.
+ *
+ * @typeParam E - The type of the exports of the provider.
+ * @typeParam I - The imports of the provider.
+ * @returns The type of the function that exports the provider.
+ *
+ * @internal
+ */
+type ProviderExports<T, I extends Provider<Any, Any>[]> = (...deps: ProviderImports<I>) => T;
 
-type Provider<T, Deps extends Provider<Any, Any>[]> = Component<
+/**
+ * The type of the provider.
+ *
+ * @typeParam T - The type of the exports of the provider.
+ * @typeParam Deps - The imports of the provider.
+ * @returns The type of the provider.
+ *
+ * @internal
+ */
+type Provider<E, I extends Provider<Any, Any>[]> = Component<
   typeof PROVIDER_TAG,
-  (() => T) & ProviderBuilder<T, Deps>,
-  T
+  (() => E) & ProviderBuilder<E, I>,
+  E
 >;
 
 /**
@@ -51,16 +77,24 @@ class ContainerPanic extends panic<
   | 'InvalidImport'
 >('Container') {}
 
-class ProviderBuilder<T, Deps extends Provider<Any, Any>[] = never> {
+/**
+ * The provider builder.
+ *
+ * @typeParam E - The type of the exports of the provider.
+ * @typeParam I - The imports of the provider.
+ *
+ * @internal
+ */
+class ProviderBuilder<E, I extends Provider<Any, Any>[] = never> {
   /**
    * The imports required by the provider.
    */
-  public imports = [] as unknown as Deps;
+  public imports = [] as unknown as I;
 
   /**
    * The exports of the provider.
    */
-  public exports = undefined as unknown as T;
+  public exports = undefined as unknown as E;
 
   /**
    * Imports the given providers.
@@ -68,7 +102,7 @@ class ProviderBuilder<T, Deps extends Provider<Any, Any>[] = never> {
    * @param imports - The providers to import.
    * @returns The provider builder.
    */
-  public import<DD extends Provider<Any, Any>[]>(...imports: DD) {
+  public import<II extends Provider<Any, Any>[]>(...imports: II) {
     // Check if the exports have been defined.
     if (this.exports) {
       throw new ContainerPanic(
@@ -114,8 +148,8 @@ class ProviderBuilder<T, Deps extends Provider<Any, Any>[] = never> {
       );
     }
 
-    this.imports = imports as unknown as Deps;
-    return this as unknown as Provider<T, DD>;
+    this.imports = imports as unknown as I;
+    return this as unknown as Provider<E, II>;
   }
 
   /**
@@ -127,9 +161,9 @@ class ProviderBuilder<T, Deps extends Provider<Any, Any>[] = never> {
    * @param exports - The function to export.
    * @returns The provider.
    */
-  public export<TT>(exportsFn: ProviderFunction<TT, Deps>) {
+  public export<EE>(exportsFn: ProviderExports<EE, I>) {
     this.exports = (exportsFn as Any)(...(this.imports.map((p) => p.exports)));
-    return component(PROVIDER_TAG, () => this.exports, this) as unknown as Provider<TT, Deps>;
+    return component(PROVIDER_TAG, () => this.exports, this) as unknown as Provider<EE, I>;
   }
 }
 
@@ -140,14 +174,14 @@ class ProviderBuilder<T, Deps extends Provider<Any, Any>[] = never> {
  * Please use the builder methods `import` and `export` of {@link ProviderBuilder} in order
  * to create a new provider.
  *
- * @param T - The type of the exports of the provider.
- * @param Deps - The imports of the provider.
+ * @typeParam E - The type of the exports of the provider.
+ * @typeParam I - The imports of the provider.
  * @returns A new provider builder.
  *
  * @public
  */
-const provider = <T, Deps extends Provider<Any, Any>[] = never>() =>
-  new ProviderBuilder<T, Deps>() as Provider<T, Deps>;
+const provider = <E, I extends Provider<Any, Any>[] = never>() =>
+  new ProviderBuilder<E, I>() as Provider<E, I>;
 
 /**
  * Type guard function that determines whether an object is a provider.
@@ -160,5 +194,5 @@ const provider = <T, Deps extends Provider<Any, Any>[] = never>() =>
 const isProvider = (maybeProvider: Any): maybeProvider is Provider<Any, Any> =>
   isComponent(maybeProvider, PROVIDER_TAG);
 
-export { di, isProvider, provider };
+export { isProvider, provider };
 export type { Provider };
