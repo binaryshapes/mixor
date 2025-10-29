@@ -8,6 +8,7 @@
 
 export * from './component.ts';
 export * from './config.ts';
+export * from './container.ts';
 export * from './data.ts';
 export * from './flow.ts';
 export * from './logger.ts';
