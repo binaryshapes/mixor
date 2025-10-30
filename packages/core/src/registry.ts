@@ -6,8 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import fs from 'node:fs';
-
 import { config } from './config.ts';
 import type { Any } from './generics.ts';
 import { logger } from './logger.ts';
@@ -617,8 +615,8 @@ class Registry {
    */
   public static export(filename: string = config.get('REGISTRY_FILENAME')) {
     try {
-      const content = JSON.stringify(this.list().map((reg) => this.show(reg.target)), null, 2);
-      fs.writeFileSync(filename, content, { encoding: 'utf-8', flag: 'w' });
+      const content = this.list().map((reg) => this.show(reg.target));
+      Deno.writeTextFile(filename, JSON.stringify(content, null, 2), { create: true });
     } catch (error) {
       throw new RegistryPanic('ExportFailed', 'Failed to export the registry: ' + error);
     }
