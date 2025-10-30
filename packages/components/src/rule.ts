@@ -99,7 +99,7 @@ const rule = <T, E, A extends n.Any[]>(fn: (...args: A) => n.ResultFunction<T, E
   return new Proxy(parent, {
     apply(target, thisArg, args) {
       const result = fn.apply(thisArg, args as A);
-      const validator = n.component(VALIDATOR_TAG, result, { target });
+      const validator = n.component(VALIDATOR_TAG, result, Object.values(target));
 
       // Adding the validator as a referenced object of the rule.
       n.info(target).refs(validator);
