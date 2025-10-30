@@ -146,21 +146,40 @@ function hash(...objects: Any[]): HashResult {
   function safeStringify(object: Any): string {
     // Transform arrays we iterate over the items and filter the native code.
     if (Array.isArray(object)) {
-      return object.map((item) => safeStringify(item)).join(',');
+      return clean(object.map((item) => item.id ?? item.toString() ?? '').join(','));
     }
 
     // For classes, we need to use the constructor string.
     if (isClass(object) || isObjectFunction(object)) {
-      return Function.prototype.toString.call(object);
+      return object.id ?? Function.prototype.toString.call(object);
     }
 
     if (typeof object === 'object' && !!object) {
-      const str = JSON.stringify(
+      return clean(
         Object.entries(object)
           .map(([key, value]) => {
-            // Nested objects.
+            // If the value is null or undefined, we return an empty string.
+            if (value === null || value === undefined) {
+              return '';
+            }
+
+            // If the value has some id property, we return the id.
+            if (typeof value === 'object' && !!value && 'id' in value) {
+              return value.id as string;
+            }
+
+            // Recursively stringify the value that is a class or object function.
+            if (isClass(value) || isObjectFunction(value)) {
+              return safeStringify(value);
+            }
+
+            // If the value is an object, we apply the toString method or recursively
+            // stringify the value.
             if (typeof value === 'object' && !!value) {
-              return clean(String(Object.values(value)));
+              return clean(
+                Object.values(value)
+                  .map((item) => item.id ?? item.toString() ?? safeStringify(item)).join(','),
+              );
             }
 
             // For primitives, we return the key and value.
@@ -168,19 +187,12 @@ function hash(...objects: Any[]): HashResult {
               return `${key}:${value}`;
             }
 
-            // If the value is null or undefined, we return an empty string.
-            if (value === null || value === undefined) {
-              return '';
-            }
-
-            // Otherwise we use the string representation.
+            // Otherwise we use the string default representation.
             return String(value);
           })
           .filter((str) => str.length > 0)
           .join(','),
       );
-
-      return str;
     }
 
     // This fallback is safe for arrays, functions and other primitives.
