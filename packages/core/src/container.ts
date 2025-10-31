@@ -7,7 +7,7 @@
  */
 
 import { type Component, component, isComponent } from './component.ts';
-import type { Any } from './generics.ts';
+import type { Any, Pretty, PrimitiveTypeExtended } from './generics.ts';
 import { panic } from './panic.ts';
 import { doc } from './utils.ts';
 
@@ -19,6 +19,137 @@ import { doc } from './utils.ts';
 const di = {
   providers: new Map<string, Provider<Any, Any>>(),
 };
+
+/**
+ * The panic error for the container module.
+ *
+ * - `CannotImportAfterExport`: The imports cannot be imported after the exports have been defined.
+ * - `InvalidImport`: The imports are invalid.
+ *
+ * @public
+ */
+class ContainerPanic extends panic<
+  'Container',
+  | 'CannotImportAfterExport'
+  | 'InvalidImport'
+>('Container') {}
+
+// ***********************************************************************************************
+// Contract.
+// ***********************************************************************************************
+
+/**
+ * The tag for the contract component.
+ *
+ * @internal
+ */
+const CONTRACT_TAG = 'Contract' as const;
+
+type ContractInput<Key extends string = string> = Record<Key, Component<string, unknown>>;
+
+type ContractOutput = Component<string, unknown>;
+
+type ContractParams<I extends ContractInput> = Pretty<
+  {
+    [K in keyof I]: I[K]['Type'];
+  }
+>;
+
+type ContractSignature<I extends ContractInput, O extends ContractOutput> = (
+  input: ContractParams<I>,
+) => O['Type'];
+
+type Contract<I extends ContractInput, O extends ContractOutput> = Component<
+  typeof CONTRACT_TAG,
+  ContractBuilder<I, O>,
+  ContractSignature<I, O>
+>;
+
+class ContractBuilder<I extends ContractInput = never, O extends ContractOutput = never> {
+  public in: I | undefined;
+  public out: O | undefined;
+
+  public input<Key extends string, II extends ContractInput<Key>>(input: II) {
+    this.in = input as unknown as I;
+    return this as unknown as Contract<II, O>;
+  }
+
+  public output<OO extends ContractOutput>(output: OO = undefined as unknown as OO) {
+    this.out = output as unknown as O;
+    return component(
+      CONTRACT_TAG,
+      {},
+      Object.values(this.in ?? {}),
+      this.out,
+    ) as unknown as Contract<
+      I,
+      OO
+    >;
+  }
+}
+
+const contract = <I extends ContractInput = never, O extends ContractOutput = never>() =>
+  new ContractBuilder<I, O>() as unknown as Contract<I, O>;
+
+// ***********************************************************************************************
+// Port.
+// ***********************************************************************************************
+
+/**
+ * The tag for the port component.
+ *
+ * @internal
+ */
+const PORT_TAG = 'Port' as const;
+
+type PortShape = Record<string, Component<typeof CONTRACT_TAG, unknown>>;
+
+type PortType<S extends PortShape> = { [K in keyof S]: S[K]['Type'] };
+
+/**
+ * The type of the port.
+ *
+ * @typeParam S - The shape of the port.
+ * @returns The type of the port.
+ *
+ * @internal
+ */
+type Port<S extends PortShape> = Component<typeof PORT_TAG, S, PortType<S>>;
+
+const port = <S extends PortShape>(port: S) => component(PORT_TAG, port) as Port<S>;
+
+// ***********************************************************************************************
+// Adapter.
+// ***********************************************************************************************
+
+/**
+ * The tag for the adapter component.
+ *
+ * @internal
+ */
+const ADAPTER_TAG = 'Adapter' as const;
+
+type Adapter<P extends Port<PortShape>> = Component<
+  typeof ADAPTER_TAG,
+  (() => P['Type']) & { port: P }
+>;
+
+const adapter = <P extends PortShape>(port: Port<P>, implementation: Port<P>['Type']) => {
+  // const prov = provider().export(() => implementation);
+  // console.log(port);
+  return component(ADAPTER_TAG, () => implementation, { port }) as Adapter<
+    Port<P>
+  >;
+};
+
+// ***********************************************************************************************
+// Provider.
+// ***********************************************************************************************
+
+type ProviderComponent = Component<typeof PROVIDER_TAG, unknown>;
+type PortComponent = Component<typeof PORT_TAG, unknown>;
+type ContractComponent = Component<typeof CONTRACT_TAG, unknown>;
+type ContainerComponent = Component<typeof CONTAINER_TAG, unknown>;
 
 /**
  * The tag for the provider component.
@@ -35,7 +166,8 @@ const PROVIDER_TAG = 'Provider' as const;
  *
  * @internal
  */
-type ProviderImports<T extends Provider<Any, Any>[]> = { [K in keyof T]: T[K]['Type'] };
+// type ProviderImports<T extends Any[]> = { [K in keyof T]: [K, T[K]['Type']] }[keyof T][];
+type ProviderImports<T extends Any[]> = { [K in keyof T]: T[K]['Type'] };
 
 /**
  * The type of the function that exports the provider.
@@ -46,7 +178,7 @@ type ProviderImports<T extends Provider<Any, Any>[]> = { [K in keyof T]: T[K]['T
  *
  * @internal
  */
-type ProviderExports<T, I extends Provider<Any, Any>[]> = (...deps: ProviderImports<I>) => T;
+type ProviderExports<T, I extends Any[]> = (...deps: ProviderImports<I>) => T;
 
 /**
  * The type of the provider.
@@ -57,25 +189,15 @@ type ProviderExports<T, I extends Provider<Any, Any>[]> = (...deps: ProviderImpo
  *
  * @internal
  */
-type Provider<E, I extends Provider<Any, Any>[]> = Component<
+type Provider<
+  E,
+  I extends ProviderComponent[] = never,
+  P extends PortComponent[] = never,
+> = Component<
   typeof PROVIDER_TAG,
-  (() => E) & ProviderBuilder<E, I>,
+  (() => E) & ProviderBuilder<E, I, P>,
   E
 >;
-
-/**
- * The panic error for the container module.
- *
- * - `CannotImportAfterExport`: The imports cannot be imported after the exports have been defined.
- * - `InvalidImport`: The imports are invalid.
- *
- * @public
- */
-class ContainerPanic extends panic<
-  'Container',
-  | 'CannotImportAfterExport'
-  | 'InvalidImport'
->('Container') {}
 
 /**
  * The provider builder.
@@ -85,16 +207,30 @@ class ContainerPanic extends panic<
  *
  * @internal
  */
-class ProviderBuilder<E, I extends Provider<Any, Any>[] = never> {
+class ProviderBuilder<
+  E,
+  I extends ProviderComponent[] = never,
+  P extends PortComponent[] = never,
+> {
+  /**
+   * Ports of the provider.
+   */
+  public _ports = [] as unknown as P;
+
   /**
    * The imports required by the provider.
    */
-  public imports = [] as unknown as I;
+  public _imports = [] as unknown as I;
 
   /**
    * The exports of the provider.
    */
-  public exports = undefined as unknown as E;
+  public _exports: ((...deps: ProviderImports<P>) => E) | undefined = undefined;
+
+  public ports<PP extends PortComponent[]>(...ports: PP) {
+    this._ports = ports as unknown as P;
+    return this as unknown as Provider<E, I, PP>;
+  }
 
   /**
    * Imports the given providers.
@@ -102,9 +238,9 @@ class ProviderBuilder<E, I extends Provider<Any, Any>[] = never> {
    * @param imports - The providers to import.
    * @returns The provider builder.
    */
-  public import<II extends Provider<Any, Any>[]>(...imports: II) {
+  public import<II extends ProviderComponent[]>(...imports: II) {
     // Check if the exports have been defined.
-    if (this.exports) {
+    if (this._exports) {
       throw new ContainerPanic(
         'CannotImportAfterExport',
         'Cannot import providers after defining the exports',
@@ -136,7 +272,7 @@ class ProviderBuilder<E, I extends Provider<Any, Any>[] = never> {
     }
 
     // Validate that all providers have defined the exports.
-    const importsWithoutExports = imports.filter((i) => !i.exports);
+    const importsWithoutExports = imports.filter((i) => isProvider(i) ? !i._exports : false);
     if (importsWithoutExports.length > 0) {
       throw new ContainerPanic(
         'InvalidImport',
@@ -148,8 +284,8 @@ class ProviderBuilder<E, I extends Provider<Any, Any>[] = never> {
       );
     }
 
-    this.imports = imports as unknown as I;
-    return this as unknown as Provider<E, II>;
+    this._imports = imports as unknown as I;
+    return this as unknown as Provider<E, II, P>;
   }
 
   /**
@@ -161,9 +297,9 @@ class ProviderBuilder<E, I extends Provider<Any, Any>[] = never> {
    * @param exports - The function to export.
    * @returns The provider.
    */
-  public export<EE>(exportsFn: ProviderExports<EE, I>) {
-    this.exports = (exportsFn as Any)(...(this.imports.map((p) => p.exports)));
-    return component(PROVIDER_TAG, () => this.exports, this) as unknown as Provider<EE, I>;
+  public export<EE>(fn: ProviderExports<EE, P>) {
+    this._exports = (...deps: ProviderImports<P>) => fn(...deps) as Any;
+    return component(PROVIDER_TAG, () => this._exports, { ...this, fn }) as Provider<EE, I, P>;
   }
 }
 
@@ -194,5 +330,59 @@ const provider = <E, I extends Provider<Any, Any>[] = never>() =>
 const isProvider = (maybeProvider: Any): maybeProvider is Provider<Any, Any> =>
   isComponent(maybeProvider, PROVIDER_TAG);
 
-export { isProvider, provider };
-export type { Provider };
+// ***********************************************************************************************
+// Container.
+// ***********************************************************************************************
+
+const CONTAINER_TAG = 'Container' as const;
+
+type ContainerImports = (ProviderComponent | ContainerComponent)[];
+type ContainerExports = Record<string, ProviderComponent | PrimitiveTypeExtended>;
+
+type Container<I extends ContainerImports, E extends ContainerExports> = Component<
+  typeof CONTAINER_TAG,
+  ContainerBuilder<I, E> & { Ports: ContainerPorts<I> }
+>;
+
+type ContainerPorts<E extends ContainerImports> = {
+  [K in keyof E]: E[K] extends ProviderComponent
+    ? E[K] extends Provider<Any, Any, infer Ports> ? Ports : never
+    : never;
+};
+
+class ContainerBuilder<I extends ContainerImports, E extends ContainerExports> {
+  /**
+   * Providers imported used by the exports of the container.
+   */
+  private _imports = [] as unknown as I;
+
+  /**
+   * Providers exported by the container.
+   */
+  private _exports = [] as unknown as E;
+
+  /**
+   * Bindings of the container.
+   */
+  public _bindings = new Map<Port<PortShape>, Adapter<Port<PortShape>>>();
+
+  public import<II extends ContainerImports>(...imports: II) {
+    this._imports = imports as unknown as I;
+    return this as unknown as Container<II, E>;
+  }
+
+  public export<EE extends ContainerExports>(exports: EE) {
+    this._exports = exports as unknown as E;
+    return this as unknown as Container<I, EE>;
+  }
+
+  public ports() {
+    return this._imports.map((i) => isProvider(i) ? i._ports : i).flat() as ContainerPorts<I>;
+  }
+}
+
+const container = <I extends ContainerImports, E extends ContainerExports>() =>
+  new ContainerBuilder<I, E>() as Container<I, E>;
+
+export { adapter, container, contract, port, provider };
+export type { Adapter, Contract, Port, Provider };
