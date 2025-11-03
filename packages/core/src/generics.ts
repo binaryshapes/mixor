@@ -268,6 +268,19 @@ type RequireAtLeastOne<T> = {
   [K in keyof T]: Pick<T, K> & Partial<Pick<T, Exclude<keyof T, K>>>;
 }[keyof T];
 
+/**
+ * Helper type to convert a union of object types to an intersection.
+ * This merges all port records into a single flat object type.
+ *
+ * @typeParam U - The union type to convert.
+ *
+ * @internal
+ */
+type UnionToIntersection<U> = (U extends Any ? (k: U) => void : never) extends (
+  k: infer I,
+) => void ? I
+  : never;
+
 export type {
   Any,
   DeepAwaited,
@@ -289,4 +302,5 @@ export type {
   RequireAtLeastOne,
   UndefToOptional,
   UnionKeys,
+  UnionToIntersection,
 };
