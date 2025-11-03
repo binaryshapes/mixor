@@ -517,7 +517,7 @@ class Registry {
 
     // Otherwise, we create a new registry record.
     const record = Object.assign(target as Any, { id, keys, tag, refCount: 1 });
-    Object.defineProperty(record, 'name', { value: tag });
+    Object.defineProperty(record, 'name', { value: `<${tag}>` });
     Object.defineProperty(record, 'toString', { value: () => id });
 
     // XXX: Not all uniqueness need to be merged.
