@@ -4,7 +4,7 @@
   "license": "MIT",
   "exports": "./mod.ts",
   "tasks": {
-    "dev": "deno run --watch",
+    "dev": "deno run --watch --allow-write",
     "build": "deno bundle --minify -o dist/bundle.js",
     "fmt": "deno fmt",
     "test": "deno test --coverage"
