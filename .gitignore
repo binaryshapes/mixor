@@ -29,3 +29,7 @@ dist
 
 # Eslint.
 packages/**/eslint
+
+# Nuxo internal files (registry, etc.).
+nuxo-registry.json
+.old
