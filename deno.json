@@ -1,7 +1,6 @@
 {
   "nodeModulesDir": "manual",
   "workspace": ["packages/core", "packages/components"],
-  "unstable": ["sloppy-imports"],
   "fmt": {
     "singleQuote": true,
     "semiColons": true,
@@ -13,30 +12,25 @@
     "include": [
       "packages/**/src/**/*.ts",
       "packages/**/tests/**/*.ts",
-      "commitlint.config.ts"
-    ],
-    "rules": {
-      "exclude": ["no-sloppy-imports"]
-    }
+      "commitlint.config.ts",
+      "scripts/*.ts"
+    ]
   },
   "test": {
     "include": ["packages/**/tests/**/*.test.ts"]
   },
   "tasks": {
-    "dev": "deno run --unstable-sloppy-imports --watch",
-    "build": "deno bundle --minify --unstable-sloppy-imports -o dist/bundle.js",
+    "dev": "deno run --watch",
+    "build": "deno bundle --minify -o dist/bundle.js",
     "fmt": "deno fmt",
     "test": "deno test --coverage",
-    "commitlint": "commitlint --edit",
-    "commit": "commit",
-    "prepare": "husky"
+    "commitlint": "deno run --allow-run ./scripts/commitlint.ts"
   },
   "imports": {
     "@commitlint/cli": "npm:@commitlint/cli@^20.1.0",
     "@commitlint/config-conventional": "npm:@commitlint/config-conventional@^20.0.0",
     "@commitlint/prompt-cli": "npm:@commitlint/prompt-cli@^20.1.0",
     "@commitlint/types": "npm:@commitlint/types@^20.0.0",
-    "@std/testing": "jsr:@std/testing@^1.0.16",
-    "husky": "npm:husky@^9.1.7"
+    "@std/testing": "jsr:@std/testing@^1.0.16"
   }
 }
