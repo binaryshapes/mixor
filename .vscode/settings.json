@@ -1,17 +1,16 @@
 {
+  "json.schemaDownload.enable": true,
   // Use the workspace tsdk.
-  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.tsdk": "node_modules/.deno/typescript@5.9.3/node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
-
-  // This is not a frontend project, so we don't need to highlight colors.
-  "color-highlight.enable": false,
-
-  // Format markdown files with prettier and markdownlint.
-  "[markdown]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "deno.enable": true,
+  "deno.lint": true,
+  "editor.defaultFormatter": "denoland.vscode-deno",
+  "editor.formatOnSave": true,
+  "[typescript]": {
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
-      "source.fixAll.markdownlint": "always"
+      "source.sortImports": "always"
     }
   }
 }
