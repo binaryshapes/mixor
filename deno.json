@@ -1,6 +1,9 @@
 {
   "nodeModulesDir": "manual",
-  "workspace": ["packages/core", "packages/components"],
+  "workspace": [
+    "packages/core",
+    "packages/components"
+  ],
   "fmt": {
     "singleQuote": true,
     "semiColons": true,
@@ -14,16 +17,22 @@
       "packages/**/tests/**/*.ts",
       "commitlint.config.ts",
       "scripts/*.ts"
-    ]
+    ],
+    "rules": {
+      "exclude": [
+        "no-slow-types"
+      ]
+    }
   },
   "test": {
     "include": ["packages/**/tests/**/*.test.ts"]
   },
   "tasks": {
-    "dev": "deno run --watch",
-    "build": "deno bundle --minify -o dist/bundle.js",
     "fmt": "deno fmt",
-    "test": "deno test --coverage",
+    "test:coverage": "deno test --coverage",
+    "test": "deno test",
+    "lint": "deno lint",
+    "check": "deno check",
     "commitlint": "deno run --allow-run ./scripts/commitlint.ts"
   },
   "imports": {
