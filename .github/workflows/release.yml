@@ -12,15 +12,24 @@ jobs:
   filter:
     runs-on: ubuntu-latest
     outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
+      should_run: ${{ steps.filter.outputs.should_run }}
     steps:
-      - name: Check commit message
-        id: check
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get commit message
+        id: get_commit
         run: |
-          msg="${{ github.event.head_commit.message }}"
+          msg=$(git log -1 --pretty=%B)
+          printf '%s\n' "$msg" > commit_message.txt
+
+      - name: Filter commits
+        id: filter
+        run: |
+          msg=$(cat commit_message.txt)
           echo "Commit message: $msg"
 
-          if [[ "$msg" =~ ^(feat|fix|perf|refact\(main\):\ release) ]]; then
+          if [[ "$msg" =~ ^(feat|fix|perf|refact|release) ]]; then
             echo "✅ Matches release-worthy commit"
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           else
