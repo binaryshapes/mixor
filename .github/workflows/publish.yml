@@ -1,0 +1,50 @@
+name: Publish to JSR
+
+on:
+  push:
+    tags:
+      - 'nuxo-*@[v]*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧩 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: ^2.5.0
+
+      - name: 🏷️ Detect package from tag
+        id: pkg
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "Detected tag: $TAG"
+
+          # Ejemplo: TAG = nuxo-core@v1.2.3
+          PACKAGE=$(echo "$TAG" | sed -E 's/^nuxo-([^@]+)@.*/\1/')
+          echo "package=$PACKAGE" >> $GITHUB_OUTPUT
+
+          # Asumimos estructura monorepo: packages/<package>
+          PATH="packages/$PACKAGE"
+          echo "path=$PATH" >> $GITHUB_OUTPUT
+
+          if [ ! -d "$PATH" ]; then
+            echo "❌ Package directory not found: $PATH"
+            exit 1
+          fi
+
+          echo "✅ Will publish package '$PACKAGE' from $PATH"
+
+      - name: 🚀 Publish ${{ steps.pkg.outputs.package }} to JSR
+        run: |
+          cd ${{ steps.pkg.outputs.path }}
+          echo "Publishing ${{ steps.pkg.outputs.package }} with tag $GITHUB_REF"
+          deno publish
