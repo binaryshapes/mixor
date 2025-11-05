@@ -2,11 +2,5 @@
   "name": "@nuxo/components",
   "version": "0.1.0",
   "license": "MIT",
-  "exports": "./src/mod.ts",
-  "tasks": {
-    "dev": "deno run --watch --allow-write",
-    "build": "deno bundle --minify -o dist/bundle.js",
-    "fmt": "deno fmt",
-    "test": "deno test --coverage"
-  }
+  "exports": "./src/mod.ts"
 }
