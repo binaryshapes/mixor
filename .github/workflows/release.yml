@@ -6,10 +6,31 @@ on:
 
 permissions:
   contents: read
-  id-token: write
+  pull-requests: write
 
 jobs:
+  filter:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check commit message
+        id: check
+        run: |
+          msg="${{ github.event.head_commit.message }}"
+          echo "Commit message: $msg"
+
+          if [[ "$msg" =~ ^(feat|fix|perf|refact\(main\):\ release) ]]; then
+            echo "✅ Matches release-worthy commit"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "⏭️  Skipping workflow for this commit"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   validate:
+    needs: filter
+    if: needs.filter.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -38,7 +59,8 @@ jobs:
         run: deno task test
 
   release:
-      needs: validate
+      needs: [filter, validate]
+      if: needs.filter.outputs.should_run == 'true'
       runs-on: ubuntu-latest
       outputs:
         release_created: ${{ steps.release_please.outputs.release_created }}
