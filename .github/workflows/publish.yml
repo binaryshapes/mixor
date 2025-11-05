@@ -47,4 +47,4 @@ jobs:
         run: |
           cd ${{ steps.pkg.outputs.path }}
           echo "Publishing ${{ steps.pkg.outputs.package }} with tag $GITHUB_REF"
-          deno publish
+          deno publish --allow-slow-types
