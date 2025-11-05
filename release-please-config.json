@@ -8,10 +8,12 @@
   "bump-patch-for-minor-pre-major": true,
   "packages": {
     "packages/core": {
+      "component": "core",
       "changelog-path": "packages/core/CHANGELOG.md",
       "extra-files": ["packages/core/deno.json"]
     },
     "packages/components": {
+      "component": "components",
       "changelog-path": "packages/components/CHANGELOG.md",
       "extra-files": ["packages/components/deno.json"]
     }
