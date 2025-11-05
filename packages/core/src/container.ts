@@ -55,6 +55,7 @@ class ContainerPanic extends panic<
   | 'InvalidBinding'
   | 'ContainerNotBuilt'
   | 'InvalidProvider'
+  | 'CircularDependency'
 >('Container') {}
 
 // ***********************************************************************************************
@@ -749,27 +750,50 @@ class ContainerBuilder<I extends ContainerImports> {
    * Resolves the dependencies for a given record of dependencies.
    *
    * @param deps - The record of dependencies to resolve.
+   * @param resolving - Set of providers currently being resolved (for cycle detection).
    * @returns The resolved dependencies.
    */
-  private resolve(deps: Record<string, Any>) {
+  private resolve(deps: Record<string, Any>, resolving: Set<ProviderComponent> = new Set()) {
     const resolved = {} as Record<string, Any>;
 
     for (const [key, item] of Object.entries(deps)) {
       // If the value is a port, we need to get the binding from the _bindings map.
       if (isPort(item)) {
         const binding = this._bindings.get(item);
-        if (binding) {
-          resolved[key] = binding;
+        if (!binding) {
+          throw new ContainerPanic(
+            'InvalidBinding',
+            'Port has no binding',
+            doc`The port "${key}" requires a binding but none was provided.
+            Did you forget to call bind() for this port?`,
+          );
         }
+        resolved[key] = binding;
       } // If the value is a provider, we need to resolve the dependencies.
       else if (isProvider(item)) {
+        // Check for circular dependencies.
+        if (resolving.has(item)) {
+          throw new ContainerPanic(
+            'CircularDependency',
+            'Circular dependency detected',
+            doc`A circular dependency was detected when resolving provider "${key}".
+            The provider is already being resolved in the current dependency chain.`,
+          );
+        }
+
         // If the provider has already been resolved, we use that resolution.
         if (di.providers.has(item)) {
           resolved[key] = di.providers.get(item);
         } else {
-          const resolutions = this.resolve(item.deps);
-          di.providers.set(item, resolutions);
-          resolved[key] = resolutions;
+          resolving.add(item);
+          try {
+            const resolutions = this.resolve(item.deps, resolving);
+            const providerValue = item(resolutions);
+            di.providers.set(item, providerValue);
+            resolved[key] = providerValue;
+          } finally {
+            resolving.delete(item);
+          }
         }
       }
     }
@@ -782,7 +806,7 @@ class ContainerBuilder<I extends ContainerImports> {
    *
    * @returns The providers of the container.
    */
-  private providers(): ContainerProviders<I> {
+  public providers(): ContainerProviders<I> {
     return Object.entries(this._imports)
       .reduce((acc, [key, item]) => {
         if (isProvider(item)) {
