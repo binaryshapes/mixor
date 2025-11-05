@@ -25,7 +25,7 @@ const SCHEMA_TAG = 'Schema' as const;
  * This is the input type for the schema function, where each key represents a field name and each
  * value is a Value component that validates that field.
  *
- * @internal
+ * @public
  */
 type SchemaValues = Record<string, Value<n.Any, n.Any, boolean>>;
 
@@ -58,7 +58,7 @@ type SchemaType<V extends SchemaValues> = n.UndefToOptional<
  * @typeParam V - The schema values type.
  * @typeParam Mode - The error mode ('strict' or 'all').
  *
- * @internal
+ * @public
  */
 type SchemaErrors<V extends SchemaValues, Mode extends n.ErrorMode> = n.Pretty<
   {
@@ -209,7 +209,12 @@ class SchemaPanic extends n.panic<
  * @internal
  */
 class SchemaBuilder<V extends SchemaValues> {
-  constructor(private values: V) {}
+  /**
+   * Constructor for the schema builder.
+   *
+   * @param values - The values of the schema.
+   */
+  constructor(public values: V) {}
   /**
    * Validates the keys of the schema.
    *
@@ -425,4 +430,4 @@ const isSchema = (maybeSchema: n.Any): maybeSchema is Schema<n.Any> =>
   n.isComponent(maybeSchema, SCHEMA_TAG);
 
 export { isSchema, schema };
-export type { Schema };
+export type { Schema, SchemaErrors, SchemaValues };
