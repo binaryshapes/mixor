@@ -6,16 +6,29 @@
   "separate-pull-requests": true,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
+  "pull-request-title-pattern": "release: ${component} v${version}",
   "packages": {
     "packages/core": {
-      "component": "core",
-      "changelog-path": "packages/core/CHANGELOG.md",
-      "extra-files": ["packages/core/deno.json"]
+      "component": "nuxo-core",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "deno.json",
+          "jsonpath": "$.version"
+        }
+      ]
     },
     "packages/components": {
-      "component": "components",
-      "changelog-path": "packages/components/CHANGELOG.md",
-      "extra-files": ["packages/components/deno.json"]
+      "component": "nuxo-components",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "deno.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   },
   "changelog-sections": [
