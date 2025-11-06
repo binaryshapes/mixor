@@ -10,7 +10,6 @@
   "pull-request-title-pattern": "release:${component} v${version}",
   "pull-request-header": "🚀 Nuxo release",
   "pull-request-footer": "Made with ❤️ by Nuxo",
-  "changelog-type": "github",
   "packages": {
     "packages/core": {
       "component": "nuxo-core",
