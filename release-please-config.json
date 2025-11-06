@@ -8,8 +8,8 @@
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
   "pull-request-title-pattern": "release(${component}): v${version}",
-  "pull-request-header": "🎉 Nuxo release ${component}",
-  "pull-request-footer": "Made with ❤️ by Nuxo",
+  "pull-request-header": "🎉 New release!",
+  "pull-request-footer": "Made with ❤️ by Binary Shapes",
   "packages": {
     "packages/core": {
       "component-no-space": true,
