@@ -6,7 +6,9 @@
   "separate-pull-requests": true,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
-  "pull-request-title-pattern": "release: ${component} v${version}",
+  "pull-request-title-pattern": "release:${component} v${version}",
+  "pull-request-footer": "Made with ❤️ by Nuxo",
+  "pull-request-header": "Nuxo release 🎉",
   "packages": {
     "packages/core": {
       "component": "nuxo-core",
