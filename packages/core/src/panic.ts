@@ -75,7 +75,7 @@ class PanicError<S extends string, T extends string> extends Error {
  * @public
  */
 const panic = <S extends string, T extends string>(scope: S) =>
-  class extends PanicError<S, T> {
+  class Panic extends PanicError<S, T> {
     constructor(tag: T, message: string, hint?: string) {
       super(scope, tag, message, hint);
     }
