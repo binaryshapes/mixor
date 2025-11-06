@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/binaryshapes/mixor/compare/core@v1.1.0...core@v1.2.0) (2025-11-06)
+
+
+### ✨ Features
+
+* **core:** enhance type annotations for logger functions ([cc77e41](https://github.com/binaryshapes/mixor/commit/cc77e416fbe6816d2bab2e09446950db1ff74c25))
+
+
+### 🔧 Miscellaneous chores
+
+* update release config ([f6db07b](https://github.com/binaryshapes/mixor/commit/f6db07beebe767b2e6534b276ed7b23a72e538e8))
+
 ## [1.1.0](https://github.com/binaryshapes/mixor/compare/core@v1.0.0...core@v1.1.0) (2025-11-06)
 
 
