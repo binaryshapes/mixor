@@ -33,7 +33,7 @@ jobs:
           msg=$(cat commit_message.txt)
           echo "Commit message: $msg"
 
-          if [[ "$msg" =~ ^(feat|fix|perf|refact|release) ]]; then
+          if [[ "$msg" =~ ^(feat|fix|perf|refact) ]]; then
             echo "✅ Matches release-worthy commit"
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           else
