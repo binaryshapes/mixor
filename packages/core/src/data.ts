@@ -124,7 +124,7 @@ class Data<D extends DataValue> {
    *
    * @internal
    */
-  private getRedactedValue() {
+  private getRedactedValue(): D | typeof REDACTED_VALUE {
     return this.isRedacted ? REDACTED_VALUE : this.value;
   }
 
@@ -135,7 +135,7 @@ class Data<D extends DataValue> {
    *
    * @public
    */
-  public redacted() {
+  public redacted(): this {
     this.isRedacted = true;
     return this;
   }
@@ -178,14 +178,14 @@ class Data<D extends DataValue> {
    *
    * @public
    */
-  public toString() {
+  public toString(): string {
     const redactedValue = this.getRedactedValue();
 
     if (typeof redactedValue === 'object') {
       return JSON.stringify(redactedValue, null, 2);
     }
 
-    return redactedValue;
+    return String(redactedValue);
   }
 
   /**
@@ -199,7 +199,7 @@ class Data<D extends DataValue> {
    *
    * @public
    */
-  public toJSON() {
+  public toJSON(): unknown {
     return this.getRedactedValue();
   }
 }
@@ -218,7 +218,7 @@ class Data<D extends DataValue> {
  *
  * @public
  */
-const data = <D extends DataValue>(value: D) => new Data<D>(value);
+const data = <D extends DataValue>(value: D): Data<D> => new Data<D>(value);
 
 export { data };
 export type { Data, DataValue };
