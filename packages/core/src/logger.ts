@@ -73,7 +73,8 @@ const presets: Record<LogMode, LoggerPreset> = {
  *
  * @internal
  */
-const print = <T extends LogMode>(message: string, mode: T) => console.log(format(message, mode));
+const print = <T extends LogMode>(message: string, mode: T): void =>
+  console.log(format(message, mode));
 
 /**
  * Format a message with a preset.
@@ -84,7 +85,7 @@ const print = <T extends LogMode>(message: string, mode: T) => console.log(forma
  *
  * @public
  */
-const format = (message: string, mode: LogMode) => {
+const format = (message: string, mode: LogMode): string => {
   const preset = presets[mode];
   const color = colors[preset.color];
   const icon = preset.icon ? preset.icon + ' ' : '';
@@ -101,7 +102,7 @@ const format = (message: string, mode: LogMode) => {
  *
  * @public
  */
-const color = (message: string, color: keyof typeof colors) => colors[color](message);
+const color = (message: string, color: keyof typeof colors): string => colors[color](message);
 
 /**
  * Assert a condition and print a warning message if the condition is false.
@@ -111,7 +112,7 @@ const color = (message: string, color: keyof typeof colors) => colors[color](mes
  *
  * @public
  */
-const assert = (condition: boolean, message: string) => {
+const assert = (condition: boolean, message: string): void => {
   if (!condition) {
     print(message, 'warning');
   }
@@ -124,7 +125,7 @@ const assert = (condition: boolean, message: string) => {
  *
  * @public
  */
-const error = (message: string) => print(message, 'error');
+const error = (message: string): void => print(message, 'error');
 
 /**
  * Print a warning message to the console.
@@ -133,7 +134,7 @@ const error = (message: string) => print(message, 'error');
  *
  * @public
  */
-const warn = (message: string) => print(message, 'warning');
+const warn = (message: string): void => print(message, 'warning');
 
 /**
  * Print a success message to the console.
@@ -142,7 +143,7 @@ const warn = (message: string) => print(message, 'warning');
  *
  * @public
  */
-const success = (message: string) => print(message, 'success');
+const success = (message: string): void => print(message, 'success');
 
 /**
  * Print a message to the console.
@@ -152,7 +153,7 @@ const success = (message: string) => print(message, 'success');
  *
  * @public
  */
-const debug = (message: string) => print(message, 'debug');
+const debug = (message: string): void => print(message, 'debug');
 
 /**
  * Print a hint message to the console.
@@ -161,7 +162,7 @@ const debug = (message: string) => print(message, 'debug');
  *
  * @public
  */
-const hint = (message: string) => print(message, 'hint');
+const hint = (message: string): void => print(message, 'hint');
 
 /**
  * Logger namespace with all the logger methods.
