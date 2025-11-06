@@ -1,9 +1,9 @@
-name: Publish to JSR
+name: Publish
 
 on:
   push:
     tags:
-      - 'nuxo-*@[v]*'
+      - '*@[v]*'
 
 permissions:
   contents: read
@@ -28,11 +28,11 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           echo "Detected tag: $TAG"
 
-          # Ejemplo: TAG = nuxo-core@v1.2.3
-          PACKAGE=$(echo "$TAG" | sed -E 's/^nuxo-([^@]+)@.*/\1/')
+          # Example: TAG = core@v1.2.3 or components@v1.2.3, etc.
+          PACKAGE=$(echo "$TAG" | sed -E 's/^([^@]+)@.*/\1/')
           echo "package=$PACKAGE" >> $GITHUB_OUTPUT
 
-          # Asumimos estructura monorepo: packages/<package>
+          # We assume a monorepo structure: packages/<package>
           PATH="packages/$PACKAGE"
           echo "path=$PATH" >> $GITHUB_OUTPUT
 

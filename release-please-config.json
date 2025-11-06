@@ -5,16 +5,14 @@
   "include-v-in-tag": true,
   "tag-separator": "@",
   "separate-pull-requests": true,
-  "bump-minor-pre-major": true,
-  "bump-patch-for-minor-pre-major": true,
   "pull-request-title-pattern": "release(${component}): v${version}",
   "pull-request-header": "🎉 New release!",
   "pull-request-footer": "Made with ❤️ by Binary Shapes",
+  "initial-version": "1.0.0",
   "packages": {
     "packages/core": {
       "component-no-space": true,
       "component": "core",
-      "initial-version": "1.0.0",
       "changelog-path": "CHANGELOG.md",
       "extra-label": "core",
       "extra-files": [
@@ -28,7 +26,6 @@
     "packages/components": {
       "component-no-space": true,
       "component": "components",
-      "initial-version": "1.0.0",
       "changelog-path": "CHANGELOG.md",
       "extra-label": "components",
       "extra-files": [
