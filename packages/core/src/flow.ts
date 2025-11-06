@@ -73,6 +73,20 @@ type FlowStep = {
 };
 
 /**
+ * The return type of the flow builder.
+ *
+ * @typeParam I - The input type of the flow.
+ * @typeParam O - The output type of the flow.
+ * @typeParam E - The error type of the flow.
+ * @typeParam A - The type of the flow (sync or async).
+ *
+ * @internal
+ */
+type FlowReturnType<I, O, E, A extends 'sync' | 'async' = 'sync'> = A extends 'async'
+  ? ((v: I) => Promise<Result<MergeUnion<O>, E>>)
+  : ((v: I) => Result<MergeUnion<O>, E>);
+
+/**
  * Binds a new property to the input object.
  * If the value is a primitive or array, the result is the value.
  * If the value is an object, the result is the object with the new property added.
@@ -145,7 +159,7 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
    *
    * @returns A function that processes the flow with the correct input and output types.
    */
-  public build() {
+  public build(): FlowReturnType<I, O, E, A> {
     // Checking if any step is async (omit tap steps which are side effects).
     const isAsync = this.steps.some((step) => step.kind === 'async' && step.operator !== 'tap');
 
@@ -158,9 +172,7 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
         )
       : (v: I) => this.steps.reduce((v, step) => mappings[step.mapping](v, step), ok(v));
 
-    // Apply the correct type.
-    return buildFlow as A extends 'async' ? ((v: I) => Promise<Result<MergeUnion<O>, E>>)
-      : ((v: I) => Result<MergeUnion<O>, E>);
+    return buildFlow as FlowReturnType<I, O, E, A>;
   }
 
   /**
@@ -381,7 +393,7 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
  *
  * @public
  */
-const flow = <I>() => new Flow<I, I, never>();
+const flow = <I>(): Flow<I, I, never> => new Flow<I, I, never>();
 
 export { flow };
 export type { Flow, FlowValue };
