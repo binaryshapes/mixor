@@ -10,6 +10,7 @@
   "publish": {
     "include": [
       "src/**/*.ts",
+      "mod.ts",
       "deno.json",
       "README.md",
       "LICENSE"
