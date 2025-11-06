@@ -2,14 +2,16 @@
   "release-type": "simple",
   "commit-search-depth": 50,
   "include-component-in-tag": true,
+  "bootstrap-sha": "07b6af2bc3b0b0170f562ca6d3637972d48e0750",
   "include-v-in-tag": true,
   "tag-separator": "@",
   "separate-pull-requests": true,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
   "pull-request-title-pattern": "release:${component} v${version}",
+  "pull-request-header": "🚀 Nuxo release",
   "pull-request-footer": "Made with ❤️ by Nuxo",
-  "pull-request-header": "Nuxo release 🎉",
+  "changelog-type": "github",
   "packages": {
     "packages/core": {
       "component": "nuxo-core",
