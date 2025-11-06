@@ -906,7 +906,6 @@
     "members": {
       "packages/core": {
         "dependencies": [
-          "jsr:@std/assert@^1.0.15",
           "jsr:@std/fmt@^1.0.8"
         ]
       }

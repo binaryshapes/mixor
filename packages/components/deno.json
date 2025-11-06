@@ -1,12 +1,11 @@
 {
   "name": "@nuxo/components",
-  "version": "0.2.1",
+  "version": "1.0.0",
   "license": "MIT",
   "exports": "./src/mod.ts",
   "publish": {
     "include": [
       "src/**/*.ts",
-      "mod.ts",
       "deno.json",
       "README.md",
       "LICENSE"

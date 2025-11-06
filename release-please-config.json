@@ -7,13 +7,16 @@
   "separate-pull-requests": true,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
-  "pull-request-title-pattern": "release:${component} v${version}",
-  "pull-request-header": "🚀 Nuxo release",
+  "pull-request-title-pattern": "release(${component}): v${version}",
+  "pull-request-header": "🎉 Nuxo release (${component})",
   "pull-request-footer": "Made with ❤️ by Nuxo",
   "packages": {
     "packages/core": {
-      "component": "nuxo-core",
+      "component-no-space": true,
+      "component": "core",
+      "initial-version": "1.0.0",
       "changelog-path": "CHANGELOG.md",
+      "extra-label": "core",
       "extra-files": [
         {
           "type": "json",
@@ -23,8 +26,11 @@
       ]
     },
     "packages/components": {
-      "component": "nuxo-components",
+      "component-no-space": true,
+      "component": "components",
+      "initial-version": "1.0.0",
       "changelog-path": "CHANGELOG.md",
+      "extra-label": "components",
       "extra-files": [
         {
           "type": "json",
@@ -37,47 +43,47 @@
   "changelog-sections": [
     {
       "type": "feat",
-      "section": "Features",
+      "section": "✨ Features",
       "hidden": false
     },
     {
       "type": "fix",
-      "section": "Bug Fixes",
+      "section": "🐛 Bug fixes",
       "hidden": false
     },
     {
       "type": "perf",
-      "section": "Performance Improvements",
+      "section": "🚀 Performance improvements",
       "hidden": false
     },
     {
       "type": "revert",
-      "section": "Reverts",
+      "section": "🔙 Reverts",
       "hidden": false
     },
     {
       "type": "docs",
-      "section": "Documentation",
+      "section": "📚 Documentation",
       "hidden": false
     },
     {
       "type": "style",
-      "section": "Styles",
+      "section": "🎨 Styles",
       "hidden": false
     },
     {
       "type": "chore",
-      "section": "Miscellaneous Chores",
+      "section": "🔧 Miscellaneous chores",
       "hidden": false
     },
     {
       "type": "refact",
-      "section": "Code Refactoring",
+      "section": "🔄 Code refactoring",
       "hidden": false
     },
     {
       "type": "test",
-      "section": "Tests",
+      "section": "🧪 Tests",
       "hidden": false
     }
   ],
