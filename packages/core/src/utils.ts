@@ -32,7 +32,7 @@ function setInspect(target: Any, fn: () => Any) {
  *
  * @public
  */
-const isClass = (object: unknown) =>
+const isClass = (object: unknown): boolean =>
   typeof object === 'function' && /^class\s/.test(Function.prototype.toString.call(object));
 
 /**
@@ -43,7 +43,7 @@ const isClass = (object: unknown) =>
  *
  * @public
  */
-const isObjectFunction = (object: unknown) =>
+const isObjectFunction = (object: unknown): boolean =>
   typeof object === 'function' && !/^class\s/.test(Function.prototype.toString.call(object));
 
 /**
@@ -54,7 +54,7 @@ const isObjectFunction = (object: unknown) =>
  *
  * @public
  */
-const isPrimitive = (object: unknown) =>
+const isPrimitive = (object: unknown): boolean =>
   typeof object === 'string' ||
   typeof object === 'number' ||
   typeof object === 'boolean' ||
@@ -74,7 +74,7 @@ const isPrimitive = (object: unknown) =>
  *
  * @public
  */
-function merge(target: Any, ...instances: Any[]) {
+function merge<T extends object>(target: T, ...instances: Any[]): T {
   const proxy = new Proxy(target, {
     get(target, prop, receiver) {
       if (prop in target) {

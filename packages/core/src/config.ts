@@ -38,7 +38,9 @@ const config = {
    * @param key - The key of the configuration value to set.
    * @param value - The value to set.
    */
-  set: <T extends keyof typeof vars>(key: T, value: typeof vars[T]) => (vars[key] = value),
+  set: <T extends keyof typeof vars>(key: T, value: typeof vars[T]): void => {
+    vars[key] = value;
+  },
 };
 
 export { config };

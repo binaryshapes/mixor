@@ -159,7 +159,7 @@ function isResult(result: unknown): result is Result<unknown, unknown> {
  *
  * @public
  */
-const unwrap = <T, E>(result: Result<T, E>) => (isOk(result) ? result.value : result.error);
+const unwrap = <T, E>(result: Result<T, E>): T | E => (isOk(result) ? result.value : result.error);
 
 /**
  * Creates a assert function that returns a result.
