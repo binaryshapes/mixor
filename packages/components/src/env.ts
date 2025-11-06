@@ -36,7 +36,7 @@ class EnvError extends n.panic<'Env', 'MissingEnvVariables' | 'UnsupportedRuntim
  *
  * @internal
  */
-function getEnvSource(): Record<string, string | undefined> {
+const getEnvSource = (): Record<string, string | undefined> => {
   const g = globalThis as n.Any;
 
   if (typeof g.Deno !== 'undefined' && typeof g.Deno.env?.toObject === 'function') {
@@ -55,7 +55,7 @@ function getEnvSource(): Record<string, string | undefined> {
     'UnsupportedRuntime',
     'Unsupported runtime: environment variables are not accessible. Please use Deno, Bun, or Node.',
   );
-}
+};
 
 /**
  * Env component type.
@@ -80,7 +80,7 @@ type Env<V extends SchemaValues> = n.Component<
  *
  * @public
  */
-function env<V extends SchemaValues>(schema: Schema<V>) {
+const env = <V extends SchemaValues>(schema: Schema<V>): Env<V> => {
   const envFn = () => {
     const rawEnv = getEnvSource();
     const values = Object.keys(schema.values);
@@ -113,7 +113,7 @@ function env<V extends SchemaValues>(schema: Schema<V>) {
   n.info(schema).refs(envComponent);
 
   return envComponent as Env<V>;
-}
+};
 
 export { env, EnvError };
 export type { Env };
