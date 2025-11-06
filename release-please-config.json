@@ -1,5 +1,6 @@
 {
   "release-type": "simple",
+  "commit-search-depth": 50,
   "include-component-in-tag": true,
   "include-v-in-tag": true,
   "tag-separator": "@",
