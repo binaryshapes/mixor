@@ -6,7 +6,4 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import * as n from './src/mod.ts';
-
-export default n;
-export { n };
+export * as n from './src/mod.ts';
