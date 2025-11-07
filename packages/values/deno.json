@@ -1,0 +1,17 @@
+{
+  "name": "@nuxo/values",
+  "version": "1.0.0",
+  "license": "MIT",
+  "exports": "./src/mod.ts",
+  "publish": {
+    "include": [
+      "src/**/*.ts",
+      "deno.json",
+      "README.md",
+      "LICENSE"
+    ]
+  },
+  "tasks": {
+    "dev": "deno test --watch"
+  }
+}

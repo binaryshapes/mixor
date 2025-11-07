@@ -1,8 +1,7 @@
 {
   "nodeModulesDir": "auto",
   "workspace": [
-    "packages/core",
-    "packages/components"
+    "packages/*"
   ],
   "fmt": {
     "singleQuote": true,

@@ -35,6 +35,19 @@
           "jsonpath": "$.version"
         }
       ]
+    },
+    "packages/values": {
+      "component-no-space": true,
+      "component": "values",
+      "changelog-path": "CHANGELOG.md",
+      "extra-label": "values",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "deno.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   },
   "changelog-sections": [
