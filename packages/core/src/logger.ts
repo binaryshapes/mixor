@@ -7,13 +7,14 @@
  */
 
 import { blue, cyan, gray, green, magenta, red, white, yellow } from '@std/fmt/colors';
+import { getCallSites } from 'node:util';
 
 /**
  * The mode of the logger.
  *
  * @internal
  */
-type LogMode = 'error' | 'warning' | 'success' | 'debug' | 'hint';
+type LogMode = 'error' | 'warning' | 'success' | 'debug' | 'hint' | 'assert';
 
 /**
  * Colors for the console.
@@ -63,6 +64,10 @@ const presets: Record<LogMode, LoggerPreset> = {
   hint: {
     color: 'gray',
   },
+  assert: {
+    color: 'yellow',
+    prefix: 'Assertion failed',
+  },
 };
 
 /**
@@ -74,7 +79,13 @@ const presets: Record<LogMode, LoggerPreset> = {
  * @internal
  */
 const print = <T extends LogMode>(message: string, mode: T): void =>
-  console.log(format(message, mode));
+  ['assert', 'debug'].includes(mode)
+    ? console.debug(format(message, mode))
+    : mode === 'error'
+    ? console.error(format(message, mode))
+    : mode === 'warning'
+    ? console.warn(format(message, mode))
+    : console.log(format(message, mode));
 
 /**
  * Format a message with a preset.
@@ -107,6 +118,11 @@ const color = (message: string, color: keyof typeof colors): string => colors[co
 /**
  * Assert a condition and print a warning message if the condition is false.
  *
+ * @remarks
+ * This function is used to assert a condition and print an assertion failed message if
+ * the condition is false. The failed message includes the file name and line number where the
+ * assertion failed.
+ *
  * @param condition - The condition to assert.
  * @param message - The message to print if the condition is false.
  *
@@ -114,7 +130,9 @@ const color = (message: string, color: keyof typeof colors): string => colors[co
  */
 const assert = (condition: boolean, message: string): void => {
   if (!condition) {
-    print(message, 'warning');
+    const callSite = getCallSites()[1];
+    const fileName = callSite.scriptName.split('/').pop();
+    print(`(${fileName}:${callSite.lineNumber}) - ${message}`, 'assert');
   }
 };
 
