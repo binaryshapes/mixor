@@ -7,5 +7,6 @@
  */
 
 export * from './boolean.ts';
+export * from './enumerate.ts';
 export * from './number.ts';
 export * from './string.ts';
