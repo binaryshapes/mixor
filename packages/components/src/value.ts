@@ -8,7 +8,7 @@
 
 import { n } from '@nuxo/core';
 
-import { DEFAULT_ERROR_MODE } from './constants.ts';
+import { DEFAULT_ERROR_MODE, DEFAULT_VALUE_COERCE } from './constants.ts';
 import { isValidator, type Validator } from './rule.ts';
 
 /**
@@ -73,6 +73,7 @@ type Value<T extends n.DataValue, E, R extends boolean = true> = n.Component<
  * - `InvalidType`: The value type is not supported.
  * - `InvalidValidator`: Some of the validators are invalid.
  * - `RuleTypeNotDefined`: Some of the rules do not have the type defined.
+ * - `InvalidInputType`: The input value is not of the expected type.
  *
  * @public
  */
@@ -83,65 +84,8 @@ const ValuePanic = n.panic<
   | 'InvalidType'
   | 'InvalidValidator'
   | 'RuleTypeNotDefined'
+  | 'InvalidInputType'
 >(VALUE_TAG);
-
-/**
- * Creates a value function that captures the state in its closure.
- *
- * @typeParam T - The type of the value to validate.
- * @typeParam E - The type of the error.
- *
- * @param validations - The validator components to apply to the value.
- * @param builder - The builder for the value component.
- *
- * @internal
- */
-const valueFn = <T extends n.DataValue, E>(
-  validations: Validator<T, E>[],
-  builder: ValueBuilder<T, E>,
-) => {
-  // Capture the builder state in closure.
-  const state = { ...builder, validations };
-
-  // The value function to be returned which executes the validations and returns the result.
-  const fn = function (value: T, mode: n.ErrorMode = DEFAULT_ERROR_MODE) {
-    // Early return if optional/nullable
-    if ((value === undefined && state.isOptional) || (value === null && state.isNullable)) {
-      return n.ok(state.isRedacted ? n.data(value).redacted() : n.data(value));
-    }
-
-    // Validation checks
-    if (value === undefined && !state.isOptional) {
-      throw new ValuePanic(
-        'UndefinedNotAllowed',
-        'The value cannot be undefined.',
-        'Did you forget to pass the value or use the optional() option?',
-      );
-    }
-
-    if (value === null && !state.isNullable) {
-      throw new ValuePanic(
-        'NullNotAllowed',
-        'The value cannot be null.',
-        'Did you forget to use the nullable() option?',
-      );
-    }
-
-    // Run validations and prepare the result.
-    const result = n.pipe(mode, ...(state.validations as [n.Any]))(value);
-
-    // If error, return as is.
-    if (n.isErr(result)) {
-      return result;
-    }
-
-    // If success, return the value (redacted if needed).
-    const val = n.data(result.value as T);
-    return n.ok(state.isRedacted ? val.redacted() : val);
-  };
-
-  return fn;
-};
 
 /**
  * Value component builder class which provides a set of builder methods in order to build a value
@@ -159,6 +103,7 @@ class ValueBuilder<T extends n.DataValue, E> {
     public isRedacted = false,
     public isOptional = false,
     public isNullable = false,
+    public isCoerced = DEFAULT_VALUE_COERCE,
   ) {}
 
   /**
@@ -218,7 +163,99 @@ class ValueBuilder<T extends n.DataValue, E> {
     this.isNullable = false;
     return valueComponent(this.validations, this.type, this) as Value<T, E, true>;
   }
+
+  /**
+   * Make the value as coerced, so it will be coerced to the type of the value.
+   *
+   * @param coerce - Whether to coerce the value to the type of the value
+   * (optional, defaults to DEFAULT_VALUE_COERCE).
+   * @returns A value component that validates inputs according to the validators and is coerced.
+   */
+  public coerce(coerce: boolean = DEFAULT_VALUE_COERCE) {
+    this.isCoerced = coerce;
+    return valueComponent(this.validations, this.type, this) as Value<T, E>;
+  }
 }
+
+/**
+ * Creates a value function that captures the state in its closure.
+ *
+ * @typeParam T - The type of the value to validate.
+ * @typeParam E - The type of the error.
+ *
+ * @param validations - The validator components to apply to the value.
+ * @param builder - The builder for the value component.
+ *
+ * @internal
+ */
+const valueFn = <T extends n.DataValue, E>(
+  validations: Validator<T, E>[],
+  builder: ValueBuilder<T, E>,
+) => {
+  // Capture the builder state in closure.
+  const state = { ...builder, validations };
+
+  // The value function to be returned which executes the validations and returns the result.
+  const fn = function (value: T, mode: n.ErrorMode = DEFAULT_ERROR_MODE) {
+    // Early return if optional/nullable
+    if ((value === undefined && state.isOptional) || (value === null && state.isNullable)) {
+      return n.ok(state.isRedacted ? n.data(value).redacted() : n.data(value));
+    }
+
+    // Validation checks
+    if (value === undefined && !state.isOptional) {
+      throw new ValuePanic(
+        'UndefinedNotAllowed',
+        'The value cannot be undefined.',
+        'Did you forget to pass the value or use the optional() option?',
+      );
+    }
+
+    if (value === null && !state.isNullable) {
+      throw new ValuePanic(
+        'NullNotAllowed',
+        'The value cannot be null.',
+        'Did you forget to use the nullable() option?',
+      );
+    }
+
+    // We instantiate a new data container with the original value.
+    const val = n.data(value as T);
+
+    // If coerced, coerce the value to the type of the value.
+    if (state.isCoerced) {
+      // Defensive asserting in order to fix the root cause of the problem.
+      n.logger.assert(
+        (typeof value) === state.type,
+        `Expected type "${state.type}" but got "${typeof value}" with value: ${String(value)}.`,
+      );
+      val.coerce(state.type);
+    } else if ((typeof value) !== state.type) {
+      // This should never happen if the value is coerced.
+      throw new ValuePanic(
+        'InvalidInputType',
+        `Expected type "${state.type}" but got "${typeof value}" with value: ${String(value)}.`,
+        n.doc`
+        Did you forget to coerce the value?
+        Please use the coerce() method to force the value to the expected type "${state.type}".
+        `,
+      );
+    }
+
+    // Run validations in order to validate the value.
+    const result = n.pipe(mode, ...(state.validations as [n.Any]))(val.get());
+
+    // If error, return as is.
+    if (n.isErr(result)) {
+      return result;
+    }
+
+    // If success, return the value (redacted if needed).
+    return n.ok(state.isRedacted ? val.redacted().get() : val.get());
+  };
+
+  return fn;
+};
 
 /**
  * Creates a new value component for the given validations, type and builder.
@@ -294,7 +331,12 @@ const value = <T extends n.DataValue, E>(...validations: Validator<T, E>[]) => {
   // Runtime check to ensure all provided validators have the same type.
   const type = n.info(validations[0]).props.type as string;
   if (!validations.every((rule) => n.info(rule).props.type === type)) {
-    throw new ValuePanic('InvalidType', 'Multiple types are not supported for a value.');
+    const types = validations.map((rule) => `"${n.info(rule).props.type}"`).join(', ');
+    throw new ValuePanic(
+      'InvalidType',
+      'Multiple types are not supported for a value.',
+      `The provided types are: ${types}. Please provide a single type for the value.`,
+    );
   }
 
   // Always create a default value component.

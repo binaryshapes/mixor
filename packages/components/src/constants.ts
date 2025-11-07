@@ -15,4 +15,11 @@ import type { n } from '@nuxo/core';
  */
 const DEFAULT_ERROR_MODE = ('strict' as const) satisfies n.ErrorMode;
 
-export { DEFAULT_ERROR_MODE };
+/**
+ * The default value for the coerced option.
+ *
+ * @public
+ */
+const DEFAULT_VALUE_COERCE = true;
+
+export { DEFAULT_ERROR_MODE, DEFAULT_VALUE_COERCE };
