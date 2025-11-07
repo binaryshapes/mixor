@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.0](https://github.com/binaryshapes/mixor/compare/core@v1.1.0...core@v1.2.0) (2025-11-07)
+
+
+### ✨ Features
+
+* **core:** add assert logging mode to logger ([a1017eb](https://github.com/binaryshapes/mixor/commit/a1017ebfb6c53a4de807e0c7205ccb84c54ebe88))
+* **core:** add coercion functionality to Data class ([dfd3791](https://github.com/binaryshapes/mixor/commit/dfd3791f866053037f6da4559167d7d9e7f6019b))
+* **core:** enhance logging error message in panic module ([39d9f7b](https://github.com/binaryshapes/mixor/commit/39d9f7be519bb08cb222bd94999f3e0da1cf4c13))
+
 ## [1.1.0](https://github.com/binaryshapes/mixor/compare/core@v1.0.0...core@v1.1.0) (2025-11-06)
 
 
