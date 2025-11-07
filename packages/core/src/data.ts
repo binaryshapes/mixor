@@ -7,6 +7,7 @@
  */
 
 import type { PrimitiveTypeExtended } from './generics.ts';
+import { panic } from './panic.ts';
 import { setInspect } from './utils.ts';
 
 /**
@@ -57,6 +58,18 @@ type DataValue =
 type DataType = 'record' | 'primitive';
 
 /**
+ * The panic error for the data module.
+ *
+ * - `InvalidCoerceType`: The coerce type is invalid.
+ *
+ * @public
+ */
+class DataPanic extends panic<
+  'Data',
+  'InvalidCoerceType'
+>('Data') {}
+
+/**
  * A secure data container that wraps values with privacy controls and serialization capabilities.
  *
  * @remarks
@@ -103,6 +116,13 @@ class Data<D extends DataValue> {
   private isRedacted: boolean = false;
 
   /**
+   * Whether the data value has been coerced to the given type.
+   *
+   * @internal
+   */
+  public coerceType: string | undefined;
+
+  /**
    * Creates a new Data container instance.
    *
    * @param value - The value to wrap in the container.
@@ -137,6 +157,58 @@ class Data<D extends DataValue> {
    */
   public redacted(): this {
     this.isRedacted = true;
+    return this;
+  }
+
+  /**
+   * Coerces the data value to the given type.
+   *
+   * @param type - The type to coerce the data value to.
+   * @returns The data container instance for method chaining.
+   *
+   * @public
+   */
+  public coerce(type: string): this {
+    this.coerceType = type;
+
+    // TODO: Add support for other types with another more robust way to coerce the value.
+    switch (type) {
+      case 'string':
+        this.value = String(this.value) as D;
+        break;
+
+      case 'number':
+        this.value = Number(this.value) as D;
+        break;
+
+      case 'boolean':
+        this.value = Boolean(this.value) as D;
+        break;
+
+      case 'symbol':
+        this.value = Symbol(String(this.value)) as D;
+        break;
+
+      case 'bigint':
+        this.value = BigInt(String(this.value)) as D;
+        break;
+
+      case 'date':
+        this.value = new Date(String(this.value)) as D;
+        break;
+
+      case 'regexp':
+        this.value = new RegExp(String(this.value)) as D;
+        break;
+
+      default:
+        throw new DataPanic(
+          'InvalidCoerceType',
+          `Invalid coerce type: "${type}"`,
+          'The allowed types are: string, number, boolean, symbol, bigint, date, regexp.',
+        );
+    }
+
     return this;
   }
 
