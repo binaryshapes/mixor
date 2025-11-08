@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+export * from './alpha.ts';
+export * from './alphanumeric.ts';
 export * from './max-length.ts';
 export * from './min-length.ts';
 export * from './not-empty.ts';
