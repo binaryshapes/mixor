@@ -128,6 +128,7 @@ const EnumRule = <T extends string>(allowedValues: T[]) => {
   if (!n.info(IsEnum).props.type) {
     n.info(IsEnum)
       .type('string')
+      .params(['allowedValues', 'string[]'])
       .doc({
         title: 'IsEnum',
         body: n.doc`

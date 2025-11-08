@@ -47,7 +47,18 @@ n.meta(IsString)
  *
  * @public
  */
-const string = <E extends string | never = never>(...rules: Validator<string, E>[]) =>
-  value<string, E>(...(rules.length === 0 ? [IsString()] : [IsString(), ...rules]));
+const string = <E extends string | never = never>(...rules: Validator<string, E>[]) => {
+  const stringValue = value<string, E>(
+    ...(rules.length === 0 ? [IsString()] : [IsString(), ...rules]),
+  );
+
+  n.info(stringValue)
+    .doc({
+      title: 'string',
+      body: 'A string value is a component that validates a text using one or more rules',
+    });
+
+  return stringValue;
+};
 
 export { string };

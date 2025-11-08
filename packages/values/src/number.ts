@@ -47,7 +47,18 @@ n.meta(IsNumber)
  *
  * @public
  */
-const number = <E extends string | never = never>(...rules: Validator<number, E>[]) =>
-  value<number, E>(...(rules.length === 0 ? [IsNumber()] : [IsNumber(), ...rules]));
+const number = <E extends string | never = never>(...rules: Validator<number, E>[]) => {
+  const numberValue = value<number, E>(
+    ...(rules.length === 0 ? [IsNumber()] : [IsNumber(), ...rules]),
+  );
+
+  n.info(numberValue)
+    .doc({
+      title: 'number',
+      body: 'A number value is a component that validates a number using one or more rules',
+    });
+
+  return numberValue;
+};
 
 export { number };

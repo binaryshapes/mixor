@@ -47,7 +47,18 @@ n.meta(IsBoolean)
  *
  * @public
  */
-const boolean = <E extends string | never = never>(...rules: Validator<boolean, E>[]) =>
-  value<boolean, E>(...(rules.length === 0 ? [IsBoolean()] : [IsBoolean(), ...rules]));
+const boolean = <E extends string | never = never>(...rules: Validator<boolean, E>[]) => {
+  const booleanValue = value<boolean, E>(
+    ...(rules.length === 0 ? [IsBoolean()] : [IsBoolean(), ...rules]),
+  );
+
+  n.info(booleanValue)
+    .doc({
+      title: 'boolean',
+      body: 'Represents a boolean value',
+    });
+
+  return booleanValue;
+};
 
 export { boolean };
