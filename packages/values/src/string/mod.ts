@@ -8,6 +8,11 @@
 
 export * from './alpha.ts';
 export * from './alphanumeric.ts';
+export * from './base64.ts';
+export * from './capitalized.ts';
+export * from './contains.ts';
+export * from './cuid.ts';
+export * from './cuid2.ts';
 export * from './max-length.ts';
 export * from './min-length.ts';
 export * from './not-empty.ts';
