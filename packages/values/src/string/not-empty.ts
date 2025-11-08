@@ -18,18 +18,16 @@ import { n } from '@nuxo/core';
  *
  * @public
  */
-const NotEmptyString = rule(() =>
-  n.assert((value: string) => value.trim().length > 0, 'EMPTY_STRING')
-);
+const NotEmpty = rule(() => n.assert((value: string) => value.trim().length > 0, 'EMPTY_STRING'));
 
-n.info(NotEmptyString)
+n.info(NotEmpty)
   .type('string')
   .doc({
-    title: 'NotEmptyString',
+    title: 'NotEmpty',
     body: n.doc`
     A rule that checks if the string is not empty. It trims the string before validating.
     If the string is empty, the rule will return a failure Result with code 'EMPTY_STRING'.
     `,
   });
 
-export { NotEmptyString };
+export { NotEmpty };
