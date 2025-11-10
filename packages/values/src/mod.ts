@@ -12,4 +12,5 @@ export * from './number.ts';
 export * from './string.ts';
 
 // Specialized rules.
+export * from './number/mod.ts';
 export * from './string/mod.ts';
