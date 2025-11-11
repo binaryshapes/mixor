@@ -78,6 +78,8 @@ type EventValue<T extends Record<n.Any, Value<n.Any, n.Any>>> = n.Pretty<
 type Event<K, T> = n.Component<
   typeof EVENT_TAG,
   EventData<K, T> & {
+    key: K;
+    values: string[];
     (value: T): EventData<K, T>;
   }
 >;
@@ -275,10 +277,34 @@ const event = <K extends string, V extends Record<string, Value<n.Any, n.Any>>>(
  *
  * @public
  */
-const events = <E extends Event<n.Any, n.Any>[]>(...events: E) =>
-  n.component(EVENT_MANAGER_TAG, new EventStore<EventListToRecord<E>>(...events)) as EventManager<
+const events = <E extends Event<n.Any, n.Any>[]>(...events: E) => {
+  const eventManagerComponent = n.component(
+    EVENT_MANAGER_TAG,
+    new EventStore<EventListToRecord<E>>(...events),
+  ) as EventManager<
     EventListToRecord<E>
   >;
+
+  // Only set the documentation if it is not already set (first time only).
+  if (!n.info(eventManagerComponent).props.doc) {
+    n.info(eventManagerComponent)
+      .doc({
+        title: 'EventManager',
+        body: 'A event manager is a component that manages events.',
+      });
+  }
+
+  n.meta(eventManagerComponent)
+    .name(`EventManager for ${events.map((event) => event.key).join(', ')}`)
+    .describe(
+      n.doc`Event manager that handles the following events:
+        ${events.map((event) => `- ${event.key}: ${event.values.join(', ')}`).join('\n')}
+        `,
+    )
+    .children(...events);
+
+  return eventManagerComponent;
+};
 
 export { event, EventPanic, events };
 export type { Event, EventManager };
