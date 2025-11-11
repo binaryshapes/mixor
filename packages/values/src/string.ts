@@ -52,11 +52,14 @@ const string = <E extends string | never = never>(...rules: Validator<string, E>
     ...(rules.length === 0 ? [IsString()] : [IsString(), ...rules]),
   );
 
-  n.info(stringValue)
-    .doc({
-      title: 'string',
-      body: 'A string value is a component that validates a text using one or more rules',
-    });
+  // Only set the documentation if it is not already set.
+  if (!n.info(stringValue).props.doc) {
+    n.info(stringValue)
+      .doc({
+        title: 'string',
+        body: 'A string value is a component that validates a text using one or more rules',
+      });
+  }
 
   return stringValue;
 };

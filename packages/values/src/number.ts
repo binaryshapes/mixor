@@ -52,11 +52,14 @@ const number = <E extends string | never = never>(...rules: Validator<number, E>
     ...(rules.length === 0 ? [IsNumber()] : [IsNumber(), ...rules]),
   );
 
-  n.info(numberValue)
-    .doc({
-      title: 'number',
-      body: 'A number value is a component that validates a number using one or more rules',
-    });
+  // Only set the documentation if it is not already set.
+  if (!n.info(numberValue).props.doc) {
+    n.info(numberValue)
+      .doc({
+        title: 'number',
+        body: 'A number value is a component that validates a number using one or more rules',
+      });
+  }
 
   return numberValue;
 };

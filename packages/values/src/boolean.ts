@@ -52,11 +52,14 @@ const boolean = <E extends string | never = never>(...rules: Validator<boolean, 
     ...(rules.length === 0 ? [IsBoolean()] : [IsBoolean(), ...rules]),
   );
 
-  n.info(booleanValue)
-    .doc({
-      title: 'boolean',
-      body: 'Represents a boolean value',
-    });
+  // Only set the documentation if it is not already set.
+  if (!n.info(booleanValue).props.doc) {
+    n.info(booleanValue)
+      .doc({
+        title: 'boolean',
+        body: 'Represents a boolean value',
+      });
+  }
 
   return booleanValue;
 };
