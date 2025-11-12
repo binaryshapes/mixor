@@ -10,4 +10,5 @@ export * from './env.ts';
 export * from './event.ts';
 export * from './rule.ts';
 export * from './schema.ts';
+export * from './specification.ts';
 export * from './value.ts';
