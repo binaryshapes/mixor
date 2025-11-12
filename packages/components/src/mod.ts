@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+export * from './aggregate.ts';
 export * from './env.ts';
 export * from './event.ts';
 export * from './rule.ts';
