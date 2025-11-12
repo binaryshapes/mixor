@@ -7,8 +7,10 @@
  */
 
 export * from './aggregate.ts';
+export * from './criteria.ts';
 export * from './env.ts';
 export * from './event.ts';
+export * from './repository.ts';
 export * from './rule.ts';
 export * from './schema.ts';
 export * from './specification.ts';
