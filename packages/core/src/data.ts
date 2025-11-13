@@ -235,7 +235,7 @@ class Data<D extends DataValue> {
    * @public
    */
   public get(): D {
-    return this.value;
+    return this.getRedactedValue() as D;
   }
 
   /**
