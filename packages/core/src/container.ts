@@ -76,7 +76,7 @@ const CONTRACT_TAG = 'Contract' as const;
  *
  * @internal
  */
-type ContractInput = Record<string, Component<string, unknown>>;
+type ContractInput = Record<string, Component<string, unknown>> | undefined;
 
 /**
  * The type of the output of the contract.
@@ -94,7 +94,7 @@ type ContractOutput = Component<string, unknown>;
  */
 type ContractParams<I extends ContractInput> = Pretty<
   {
-    [K in keyof I]: I[K]['Type'];
+    [K in keyof I]: I[K] extends Component<string, unknown> ? I[K]['Type'] : never;
   }
 >;
 
@@ -106,9 +106,11 @@ type ContractParams<I extends ContractInput> = Pretty<
  *
  * @internal
  */
-type ContractSignature<I extends ContractInput, O extends ContractOutput> = (
-  input: ContractParams<I>,
-) => O extends never ? void : O['Type'];
+type ContractSignature<I extends ContractInput, O extends ContractOutput> = I extends undefined
+  ? () => O extends never ? void : O['Type']
+  : (
+    input: ContractParams<I>,
+  ) => O extends never ? void : O['Type'];
 
 /**
  * The type of the contract.
@@ -149,7 +151,7 @@ class ContractBuilder<I extends ContractInput = never, O extends ContractOutput 
    * @param input - The input of the contract.
    * @returns The contract.
    */
-  public input<II extends ContractInput>(input: II) {
+  public input<II extends ContractInput = undefined>(input: II = undefined as unknown as II) {
     this.in = input as unknown as I;
     return this as unknown as Contract<II, O>;
   }
@@ -704,10 +706,13 @@ class ContainerBuilder<I extends ContainerImports> {
       di.providers.set(key, item);
     }
 
-    di.containers.set(this, providers);
-
     // Here we create a new component with the container builder and the imports.
-    return component(CONTAINER_TAG, this) as unknown as Container<I>;
+    const container = component(CONTAINER_TAG, this) as unknown as Container<I>;
+
+    // The registration must be a component wrapper of the container builder.
+    di.containers.set(container, providers);
+
+    return container;
   }
 
   /**
