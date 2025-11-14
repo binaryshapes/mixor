@@ -277,7 +277,8 @@ const aggregate = <
   ) => Self,
 ) =>
   n.provider()
-    .use(config.ports ?? {})
+    // This is important to ensure that the ports are defined in the container.
+    .use(config.ports ?? {} as unknown as Ports)
     .provide((adapters) =>
       extend(createAggregate({ ...config, adapters: adapters as AggregateAdapters<Ports> }))
     );
