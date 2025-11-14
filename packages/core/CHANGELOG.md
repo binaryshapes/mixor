@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.1](https://github.com/binaryshapes/mixor/compare/core@v1.2.0...core@v1.2.1) (2025-11-14)
+
+
+### 🐛 Bug fixes
+
+* **core/container:** allow to contract have no input params and resolve container registration issue ([4f5089c](https://github.com/binaryshapes/mixor/commit/4f5089c4d9d7ac0bedb9e51fd9f1238c1c0c8021))
+* **core/container:** change visibility of imports and bindings to private in container builder ([ae3c6b4](https://github.com/binaryshapes/mixor/commit/ae3c6b473417c34e6d5d538980e24a0f18eb27e4))
+* **core/container:** enhance contract types and refine error strings ([e9e3dbb](https://github.com/binaryshapes/mixor/commit/e9e3dbb068d5e33353c57ba02e3651d4e1933cee))
+* **core/data:** return redacted value in Data class get method ([2497c3b](https://github.com/binaryshapes/mixor/commit/2497c3b8dbf85f333bf6fafcc2a502350bd261fb))
+* **core/registry:** update target property exposure to prevent private data leakage ([5c301d1](https://github.com/binaryshapes/mixor/commit/5c301d1a7c509e30c97f3d49dbf74599c40b154e))
+
 ## [1.2.0](https://github.com/binaryshapes/mixor/compare/core@v1.1.0...core@v1.2.0) (2025-11-07)
 
 
