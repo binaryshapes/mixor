@@ -20,11 +20,11 @@ import type { TypeOf } from './types.ts';
 const AGGREGATE_TAG = 'Aggregate' as const;
 
 /**
- * The dependencies of the aggregate.
+ * The ports of the aggregate.
  *
  * @internal
  */
-type AggregateDeps = Record<string, n.Port<n.Any> | n.Provider<n.Any, n.Any>>;
+type AggregatePorts = Record<string, n.Port<n.Any>>;
 
 /**
  * The specifications of the aggregate.
@@ -32,6 +32,43 @@ type AggregateDeps = Record<string, n.Port<n.Any> | n.Provider<n.Any, n.Any>>;
  * @internal
  */
 type AggregateSpecs = Record<string, Specification<n.Any, string>>;
+
+/**
+ * Defines the types of the adapters of the aggregate.
+ *
+ * @typeParam D - The type of the ports of the aggregate.
+ */
+type AggregateAdapters<D extends AggregatePorts> = {
+  [K in keyof D]: D[K] extends n.Port<infer S> ? ReturnType<n.Adapter<n.Port<S>>> : never;
+};
+
+/**
+ * The aggregate component.
+ *
+ * @typeParam Self - The self of the aggregate.
+ * @typeParam T - The type of the schema values.
+ * @typeParam E - The type of the events.
+ * @typeParam Specs - The type of the specifications.
+ * @typeParam Ports - The type of the ports.
+ *
+ * @public
+ */
+type Aggregate<
+  Self,
+  T extends SchemaValues,
+  E,
+  Specs extends AggregateSpecs,
+  Ports extends AggregatePorts,
+> = n.Component<
+  typeof AGGREGATE_TAG,
+  Self & {
+    schema: Schema<T>;
+    events: EventManager<E>;
+    specs: Specs;
+    ports: Ports;
+    adapters: AggregateAdapters<Ports>;
+  }
+>;
 
 /**
  * Panic error for the aggregate module.
@@ -46,107 +83,9 @@ class AggregatePanic
   extends n.panic<typeof AGGREGATE_TAG, 'SchemaNotSet' | 'EventsNotSet'>(AGGREGATE_TAG) {}
 
 /**
- * Builder class for an aggregate.
+ * Creates an aggregate using the given config settings.
  *
- * @remarks
- * Contains the schema, events, specs and deps of the aggregate.
- *
- * @internal
- */
-class AggregateBuilder<
-  T extends SchemaValues = never,
-  E = never,
-  Specs extends AggregateSpecs = never,
-  Deps extends AggregateDeps = never,
-> {
-  public _schema: Schema<T>;
-  public _events: EventManager<E>;
-  public _specs: Specs;
-  public _deps: Deps;
-
-  public constructor() {
-    this._schema = undefined as unknown as Schema<T>;
-    this._events = undefined as unknown as EventManager<E>;
-    this._specs = {} as Specs;
-    this._deps = {} as Deps;
-  }
-
-  /**
-   * Sets the schema of the aggregate.
-   *
-   * @param schema - The schema to set.
-   * @returns The aggregate builder.
-   */
-  public schema<TT extends SchemaValues>(schema: Schema<TT>) {
-    this._schema = schema as unknown as Schema<T>;
-    return this as unknown as AggregateBuilder<TT, E, Specs, Deps>;
-  }
-
-  /**
-   * Sets the events of the aggregate.
-   *
-   * @param events - The events to set.
-   * @returns The aggregate builder.
-   */
-  public events<EE>(events: EventManager<EE>) {
-    this._events = events as unknown as EventManager<E>;
-    return this as unknown as AggregateBuilder<T, EE, Specs, Deps>;
-  }
-
-  /**
-   * Sets the specs of the aggregate.
-   *
-   * @param specs - The specs to set.
-   * @returns The aggregate builder.
-   */
-  public specs<SS extends AggregateSpecs>(specs: SS) {
-    this._specs = specs as unknown as Specs;
-    return this as unknown as AggregateBuilder<T, E, SS, Deps>;
-  }
-
-  /**
-   * Sets the deps of the aggregate.
-   *
-   * @param deps - The deps to set.
-   * @returns The aggregate builder.
-   */
-  public deps<DD extends AggregateDeps>(deps: DD) {
-    this._deps = deps as unknown as Deps;
-    return this as unknown as AggregateBuilder<T, E, Specs, DD>;
-  }
-
-  /**
-   * Build the aggregate class.
-   *
-   * @returns The aggregate component.
-   * @throws AggregatePanic: If the aggregate schema is not set.
-   * @throws AggregatePanic: If the aggregate events are not set.
-   */
-  public build() {
-    if (!this._schema) {
-      throw new AggregatePanic(
-        'SchemaNotSet',
-        'The aggregate schema is not set',
-        'You must use "schema" method in order to set the schema',
-      );
-    }
-
-    if (!this._events) {
-      throw new AggregatePanic(
-        'EventsNotSet',
-        'The aggregate events are not set',
-        'You must use "events" method in order to set the events',
-      );
-    }
-
-    return createAggregate<T, E, Specs, Deps>(this);
-  }
-}
-
-/**
- * Creates an aggregate using the given builder settings.
- *
- * @param builder - The builder for the aggregate.
+ * @param config - The config for the aggregate.
  * @returns The aggregate class.
  *
  * @internal
@@ -154,40 +93,67 @@ class AggregateBuilder<
 const createAggregate = <
   T extends SchemaValues,
   E,
-  Specs extends AggregateSpecs,
-  Deps extends AggregateDeps,
+  Specs extends AggregateSpecs = never,
+  Ports extends AggregatePorts = never,
+  Adapters extends AggregateAdapters<Ports> = never,
 >(
-  builder: AggregateBuilder<T, E, Specs, Deps>,
+  config: {
+    schema: Schema<T>;
+    events: EventManager<E>;
+    specs?: Specs;
+    ports?: Ports;
+    adapters?: Adapters;
+  },
 ) => {
+  // Schema is mandatory.
+  if (!config.schema) {
+    throw new AggregatePanic(
+      'SchemaNotSet',
+      'The aggregate schema is not set',
+      'You must use "schema" method in order to set the schema',
+    );
+  }
+
+  // Events are mandatory.
+  if (!config.events) {
+    throw new AggregatePanic(
+      'EventsNotSet',
+      'The aggregate events are not set',
+      'You must use "events" method in order to set the events',
+    );
+  }
+
   const aggregateClass = class Aggregate {
     /**
      * The state of the aggregate.
      */
     public state: TypeOf<Schema<T>> = {} as TypeOf<Schema<T>>;
+
     /**
      * The schema of the aggregate.
      */
-    public schema = builder._schema;
+    protected schema: Schema<T> = config.schema;
 
     /**
      * The events of the aggregate.
      */
-    public events = builder._events;
+    protected events: EventManager<E> = config.events;
 
     /**
      * The specs of the aggregate.
      */
-    public specs = builder._specs;
+    protected specs: Specs = config.specs ?? undefined as unknown as Specs;
 
     /**
-     * The dependencies of the aggregate.
+     * The ports of the aggregate.
      */
-    public deps = builder._deps;
+    protected ports: Ports = config.ports ?? undefined as unknown as Ports;
 
     /**
      * The adapters of the aggregate.
      */
-    public adapters: Record<string, n.Any> = {};
+    protected static adapters: AggregateAdapters<Ports> = config.adapters ??
+      undefined as unknown as AggregateAdapters<Ports>;
 
     /**
      * Constructor for the aggregate.
@@ -214,7 +180,7 @@ const createAggregate = <
       value: (typeof this.state)[K],
       mode: E = 'all' as E,
     ): n.Result<void, SchemaErrors<T, E>[K]> {
-      const validationResult = builder._schema.values[key](
+      const validationResult = this.schema.values[key](
         value,
         mode,
       ) as n.Result<
@@ -245,7 +211,7 @@ const createAggregate = <
       mode?: Mode,
     ): n.Result<InstanceType<Self>, SchemaErrors<T, Mode>> {
       // Validate the values using the schema.
-      const validationResult = builder._schema(values as n.Any, mode);
+      const validationResult = config.schema(values, mode);
 
       if (n.isErr(validationResult)) {
         return validationResult;
@@ -262,91 +228,59 @@ const createAggregate = <
 
   // Here when the aggregate component is created and registered.
   const aggregateComponent = n.component(AGGREGATE_TAG, aggregateClass, {
-    schema: builder._schema,
-    events: builder._events,
-    specs: Object.values(builder._specs ?? {}),
-    deps: builder._deps ?? {},
-    adapters: {},
+    schema: config.schema,
+    events: config.events,
+    specs: Object.values(config.specs ?? {}),
+    ports: config.ports ?? {},
   });
 
-  // Add the schema, events, specs and deps for uniqueness.
+  // Add the schema, events, specs and ports for uniqueness.
   n.meta(aggregateComponent)
     .children(
-      builder._schema,
-      builder._events,
-      ...Object.values(builder._specs ?? {}),
-      ...Object.values(builder._deps ?? {}),
+      config.schema,
+      config.events,
+      ...Object.values(config.specs ?? {}),
+      ...Object.values(config.ports ?? {}),
     );
 
-  return aggregateComponent as Aggregate<typeof aggregateClass, T, E, Specs, Deps>;
+  return aggregateComponent as Aggregate<typeof aggregateClass, T, E, Specs, Ports>;
 };
 
 /**
- * The aggregate component.
- *
- * @typeParam Self - The self of the aggregate.
- * @typeParam T - The type of the schema values.
- * @typeParam E - The type of the events.
- * @typeParam Specs - The type of the specifications.
- * @typeParam Deps - The type of the dependencies.
- *
- * @internal
- */
-type Aggregate<
-  Self,
-  T extends SchemaValues,
-  E,
-  Specs extends AggregateSpecs,
-  Deps extends AggregateDeps,
-> = n.Component<
-  typeof AGGREGATE_TAG,
-  Self & {
-    schema: Schema<T>;
-    events: EventManager<E>;
-    specs: Specs;
-    deps: Deps;
-    adapters: Record<string, n.Any>;
-  }
->;
-
-/**
- * Creates a new aggregate component.
+ * Creates an aggregate using the given configuration.
  *
  * @remarks
- * An aggregate is a domain-driven concept representing a consistency boundary that encapsulates
- * a cluster of related objects and enforces invariants within that boundary.
- * In the context of the Nuxo library, an aggregate is a {@link Component} type that provides
- * a schema, domain events, and specifications, allowing you to construct, validate, and operate on
- * strongly-typed domain entities in a consistent and composable manner.
+ * Under the hood, this function creates a new provider that will be used to register the aggregate
+ * in a container and resolve the adapters defined in the aggregate.
  *
- * @typeParam T - The type of the aggregate.
- * @typeParam E - The type of the events.
- * @typeParam Deps - The type of the dependencies.
- * @typeParam Specs - The type of the specifications.
- *
- * @returns The aggregate component.
- *
- * @internal
- */
-const aggregate = <
-  T extends SchemaValues,
-  E,
-  Specs extends AggregateSpecs,
-  Deps extends AggregateDeps,
->() => new AggregateBuilder<T, E, Specs, Deps>();
-
-/**
- * Guard function to check if the given object is an aggregate.
- *
- * @param maybeAggregate - The object to check.
- * @returns True if the object is an aggregate, false otherwise.
+ * @param config - The config for the aggregate.
+ * @param extend - The extend method for the aggregate.
+ * @returns The aggregate class as a provider ready to be used in a container.
  *
  * @public
  */
-const isAggregate = (
-  maybeAggregate: n.Any,
-): maybeAggregate is Aggregate<n.Any, n.Any, n.Any, n.Any, n.Any> =>
-  n.isComponent(maybeAggregate, AGGREGATE_TAG);
+const aggregate = <
+  Self,
+  T extends SchemaValues,
+  E,
+  Specs extends AggregateSpecs = never,
+  Ports extends AggregatePorts = never,
+>(
+  config: {
+    schema: Schema<T>;
+    events: EventManager<E>;
+    specs?: Specs;
+    ports?: Ports;
+  },
+  extend: (
+    Aggregate: ReturnType<typeof createAggregate<T, E, Specs, Ports, AggregateAdapters<Ports>>>,
+  ) => Self,
+) =>
+  n.provider()
+    .use(config.ports ?? {})
+    .provide((adapters) =>
+      extend(createAggregate({ ...config, adapters: adapters as AggregateAdapters<Ports> }))
+    );
 
-export { aggregate, isAggregate };
+export { aggregate };
 export type { Aggregate };
