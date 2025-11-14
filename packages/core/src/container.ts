@@ -83,7 +83,7 @@ type ContractInput = Record<string, Component<string, unknown>> | undefined;
  *
  * @internal
  */
-type ContractOutput = Component<string, unknown>;
+type ContractOutput = Component<string, unknown> | undefined;
 
 /**
  * The type of the parameters of the contract.
@@ -99,6 +99,17 @@ type ContractParams<I extends ContractInput> = Pretty<
 >;
 
 /**
+ * The type of the return value of the contract.
+ *
+ * @typeParam O - The output of the contract.
+ *
+ * @internal
+ */
+type ContractReturnType<O extends ContractOutput> = O extends undefined ? void | Promise<void>
+  : O extends Component<string, unknown> ? O['Type'] | Promise<O['Type']>
+  : never;
+
+/**
  * The type of the signature of the contract.
  *
  * @typeParam I - The input of the contract.
@@ -107,10 +118,8 @@ type ContractParams<I extends ContractInput> = Pretty<
  * @internal
  */
 type ContractSignature<I extends ContractInput, O extends ContractOutput> = I extends undefined
-  ? () => O extends never ? void : O['Type']
-  : (
-    input: ContractParams<I>,
-  ) => O extends never ? void : O['Type'];
+  ? () => ContractReturnType<O>
+  : (input: ContractParams<I>) => ContractReturnType<O>;
 
 /**
  * The type of the contract.
@@ -134,7 +143,7 @@ type Contract<I extends ContractInput, O extends ContractOutput> = Component<
  *
  * @internal
  */
-class ContractBuilder<I extends ContractInput = never, O extends ContractOutput = never> {
+class ContractBuilder<I extends ContractInput = undefined, O extends ContractOutput = undefined> {
   /**
    * The input of the contract.
    */
@@ -151,7 +160,7 @@ class ContractBuilder<I extends ContractInput = never, O extends ContractOutput 
    * @param input - The input of the contract.
    * @returns The contract.
    */
-  public input<II extends ContractInput = undefined>(input: II = undefined as unknown as II) {
+  public input<II extends ContractInput>(input: II) {
     this.in = input as unknown as I;
     return this as unknown as Contract<II, O>;
   }
@@ -162,7 +171,7 @@ class ContractBuilder<I extends ContractInput = never, O extends ContractOutput 
    * @param output - The output of the contract.
    * @returns The contract.
    */
-  public output<OO extends ContractOutput>(output: OO = undefined as unknown as OO) {
+  public output<OO extends ContractOutput>(output: OO) {
     this.out = output as unknown as O;
     return component(CONTRACT_TAG, {}, this) as unknown as Contract<I, OO>;
   }
@@ -177,7 +186,7 @@ class ContractBuilder<I extends ContractInput = never, O extends ContractOutput 
  *
  * @public
  */
-const contract = <I extends ContractInput = never, O extends ContractOutput = never>() =>
+const contract = <I extends ContractInput = undefined, O extends ContractOutput = undefined>() =>
   new ContractBuilder<I, O>() as unknown as Contract<I, O>;
 
 // ***********************************************************************************************
@@ -420,8 +429,8 @@ class ProviderBuilder<T, D extends ProviderAllowedDependencies = never> {
       throw new ContainerPanic(
         'InvalidImport',
         'Cannot define dependencies that are not valid',
-        doc`All dependencies must be valid providers or ports.
-
+        doc`
+        All dependencies must be valid providers or ports.
         The invalid dependencies are:
         ${invalidDependencies.map((d) => `- ${d}`).join('\n')}
         `,
@@ -769,8 +778,10 @@ class ContainerBuilder<I extends ContainerImports> {
           throw new ContainerPanic(
             'InvalidBinding',
             'Port has no binding',
-            doc`The port "${key}" requires a binding but none was provided.
-            Did you forget to call bind() for this port?`,
+            doc`
+            The port "${key}" requires a binding but none was provided.
+            Did you forget to call bind() for this port?
+            `,
           );
         }
         resolved[key] = binding;
@@ -781,8 +792,10 @@ class ContainerBuilder<I extends ContainerImports> {
           throw new ContainerPanic(
             'CircularDependency',
             'Circular dependency detected',
-            doc`A circular dependency was detected when resolving provider "${key}".
-            The provider is already being resolved in the current dependency chain.`,
+            doc`
+            A circular dependency was detected when resolving provider "${key}".
+            The provider is already being resolved in the current dependency chain.
+            `,
           );
         }
 
