@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.0](https://github.com/binaryshapes/mixor/compare/components@v1.1.0...components@v1.2.0) (2025-11-14)
+
+
+### ✨ Features
+
+* **components:** add criteria and repository components for enhanced data handling ([56b4fd1](https://github.com/binaryshapes/mixor/commit/56b4fd1a652c2f78a2411c9a6d0ccb9d82865a55))
+* **components:** add specification component for entity validation ([3fc4a80](https://github.com/binaryshapes/mixor/commit/3fc4a808bc8336647e2ce4243f70fc9426884e03))
+* **components:** enhance event manager with auto metadata and info doc ([5279475](https://github.com/binaryshapes/mixor/commit/5279475f76fda310390ec2c021e613365c70d0c9))
+* **components:** introduce aggregate component for domain-driven design ([d1f8611](https://github.com/binaryshapes/mixor/commit/d1f861110c57ca491865fbaf41270dd1effb5fb9))
+* **components:** introduce event and event manager components ([0ad661a](https://github.com/binaryshapes/mixor/commit/0ad661a2170cd72fa83f77071afa01805a0f56a1))
+* **components:** now aggregate acts as a provider in order to support ports and adapters ([ad8476e](https://github.com/binaryshapes/mixor/commit/ad8476e112958cb2087171aa9def735d727c4c1d))
+
+
+### 🐛 Bug fixes
+
+* **components:** ensure ports are correctly defined in aggregate provider ([5e33548](https://github.com/binaryshapes/mixor/commit/5e33548bfeb35e33365d58c8a18ccf231c84bd22))
+
 ## [1.1.0](https://github.com/binaryshapes/mixor/compare/components@v1.0.0...components@v1.1.0) (2025-11-07)
 
 
