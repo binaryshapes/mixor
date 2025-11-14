@@ -585,9 +585,16 @@ class Registry {
       throw new RegistryPanic('NotFound', 'Target does not exist in the registry');
     }
 
+    // FIXME: This is a workaround to avoid showing private properties.
+    const knownKeys = ['id', 'keys', 'tag', 'refCount'];
+    const targetValues = knownKeys.reduce((acc, key) => {
+      acc[key] = reg.target[key];
+      return acc;
+    }, {} as Record<string, Any>);
+
     // Freeze the object to prevent modification.
     return Object.freeze({
-      ...reg.target,
+      ...targetValues,
       ...reg.info?.props,
       ...reg.meta?.[target.metaId]?.props,
     });
