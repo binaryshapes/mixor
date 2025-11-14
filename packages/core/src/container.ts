@@ -621,12 +621,12 @@ class ContainerBuilder<I extends ContainerImports> {
   /**
    * Providers and containers imported and used by the container.
    */
-  public _imports = [] as unknown as I;
+  private imports = [] as unknown as I;
 
   /**
    * Bindings of the container.
    */
-  public _bindings = new Map<PortComponent, AdapterComponent>();
+  private bindings = new Map<PortComponent, AdapterComponent>();
 
   /**
    * Sets the imports of the container.
@@ -635,7 +635,7 @@ class ContainerBuilder<I extends ContainerImports> {
    * @returns The container.
    */
   public import<II extends ContainerImports>(imports: II) {
-    this._imports = imports as unknown as I;
+    this.imports = imports as unknown as I;
     return this as unknown as Container<II>;
   }
 
@@ -674,7 +674,7 @@ class ContainerBuilder<I extends ContainerImports> {
       );
     }
 
-    this._bindings.set(port, adapter);
+    this.bindings.set(port, adapter);
     return this as unknown as Container<I>;
   }
 
@@ -689,7 +689,7 @@ class ContainerBuilder<I extends ContainerImports> {
    */
   public build() {
     const providers = new Map<ProviderComponent, Any>();
-    for (const [, item] of Object.entries(this._imports)) {
+    for (const [, item] of Object.entries(this.imports)) {
       if (isProvider(item)) {
         const resolutions = this.resolve(item.deps);
         providers.set(item, item(resolutions));
@@ -773,7 +773,7 @@ class ContainerBuilder<I extends ContainerImports> {
     for (const [key, item] of Object.entries(deps)) {
       // If the value is a port, we need to get the binding from the _bindings map.
       if (isPort(item)) {
-        const binding = this._bindings.get(item);
+        const binding = this.bindings.get(item);
         if (!binding) {
           throw new ContainerPanic(
             'InvalidBinding',
@@ -825,7 +825,7 @@ class ContainerBuilder<I extends ContainerImports> {
    * @returns The providers of the container.
    */
   public providers(): ContainerProviders<I> {
-    return Object.entries(this._imports)
+    return Object.entries(this.imports)
       .reduce((acc, [key, item]) => {
         if (isProvider(item)) {
           acc[key] = item;
