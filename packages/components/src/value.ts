@@ -77,7 +77,7 @@ type Value<T extends n.DataValue, E, R extends boolean = true> = n.Component<
  *
  * @public
  */
-const ValuePanic = n.panic<
+class ValuePanic extends n.panic<
   typeof VALUE_TAG,
   | 'UndefinedNotAllowed'
   | 'NullNotAllowed'
@@ -85,7 +85,7 @@ const ValuePanic = n.panic<
   | 'InvalidValidator'
   | 'RuleTypeNotDefined'
   | 'InvalidInputType'
->(VALUE_TAG);
+>(VALUE_TAG) {}
 
 /**
  * Value component builder class which provides a set of builder methods in order to build a value

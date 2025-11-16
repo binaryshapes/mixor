@@ -26,7 +26,7 @@ const ENV_TAG = 'Env' as const;
  *
  * @public
  */
-class EnvError extends n.panic<'Env', 'MissingEnvVariables' | 'UnsupportedRuntime'>('Env') {}
+class EnvPanic extends n.panic<'Env', 'MissingEnvVariables' | 'UnsupportedRuntime'>('Env') {}
 
 /**
  * Returns a copy of environment variables from the detected runtime (Node.js, Deno, or Bun).
@@ -51,7 +51,7 @@ const getEnvSource = (): Record<string, string | undefined> => {
     return process.env;
   }
 
-  throw new EnvError(
+  throw new EnvPanic(
     'UnsupportedRuntime',
     'Unsupported runtime: environment variables are not accessible. Please use Deno, Bun, or Node.',
   );
@@ -95,7 +95,7 @@ const env = <V extends SchemaValues>(schema: Schema<V>): Env<V> => {
     // Check if all values are present in the environment variables.
     const missingValues = values.filter((value) => !Object.keys(input).includes(value));
     if (missingValues.length > 0) {
-      throw new EnvError(
+      throw new EnvPanic(
         'MissingEnvVariables',
         `Missing environment variables: ${missingValues.join(', ')}`,
         'Please check your .env file',
@@ -115,5 +115,5 @@ const env = <V extends SchemaValues>(schema: Schema<V>): Env<V> => {
   return envComponent as Env<V>;
 };
 
-export { env, EnvError };
+export { env, EnvPanic };
 export type { Env };
