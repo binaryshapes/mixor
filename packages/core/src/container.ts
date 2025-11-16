@@ -9,6 +9,7 @@
 import { type Component, component, isComponent } from './component.ts';
 import type { Any, Pretty, UnionToIntersection } from './generics.ts';
 import { panic } from './panic.ts';
+import type { EnsureComponent } from './types.ts';
 import { doc } from './utils.ts';
 
 /**
@@ -43,6 +44,8 @@ type AdapterComponent = Component<typeof ADAPTER_TAG, unknown>;
  * - `InvalidBinding`: A adapter cannot be bound to a different port.
  * - `ContainerNotBuilt`: A container that is being imported has not been built.
  * - `InvalidProvider`: The provider is invalid when getting it from the container.
+ * - `InvalidInput`: The input of the contract is not a valid component.
+ * - `InvalidOutput`: The output of the contract is not a valid component.
  *
  * @public
  */
@@ -56,13 +59,13 @@ class ContainerPanic extends panic<
   | 'ContainerNotBuilt'
   | 'InvalidProvider'
   | 'CircularDependency'
+  | 'InvalidInput'
+  | 'InvalidOutput'
 >('Container') {}
 
 // ***********************************************************************************************
 // Contract.
 // ***********************************************************************************************
-
-// TODO: Contracts can be synchronous or asynchronous. Need add a typeParam to indicate that.
 
 /**
  * The tag for the contract component.
@@ -73,17 +76,19 @@ const CONTRACT_TAG = 'Contract' as const;
 
 /**
  * The type of the input of the contract.
+ * Must be a Component, not a primitive type.
  *
  * @internal
  */
-type ContractInput = Record<string, Component<string, unknown>> | undefined;
+type ContractInput = Component<string, Any>;
 
 /**
  * The type of the output of the contract.
+ * Must be a Component, not a primitive type.
  *
  * @internal
  */
-type ContractOutput = Component<string, unknown> | undefined;
+type ContractOutput = Component<string, Any>;
 
 /**
  * The type of the parameters of the contract.
@@ -92,11 +97,14 @@ type ContractOutput = Component<string, unknown> | undefined;
  *
  * @internal
  */
-type ContractParams<I extends ContractInput> = Pretty<
-  {
-    [K in keyof I]: I[K] extends Component<string, unknown> ? I[K]['Type'] : never;
-  }
->;
+type ContractParams<I extends ContractInput | undefined> = I extends Component<string, unknown>
+  ? I['Type']
+  : I extends Record<string, Component<string, unknown>> ? Pretty<
+      {
+        [K in keyof I]: I[K] extends Component<string, unknown> ? I[K]['Type'] : never;
+      }
+    >
+  : never;
 
 /**
  * The type of the return value of the contract.
@@ -105,7 +113,8 @@ type ContractParams<I extends ContractInput> = Pretty<
  *
  * @internal
  */
-type ContractReturnType<O extends ContractOutput> = O extends undefined ? void | Promise<void>
+type ContractReturnType<O extends ContractOutput | undefined> = O extends undefined
+  ? void | Promise<void>
   : O extends Component<string, unknown> ? O['Type'] | Promise<O['Type']>
   : never;
 
@@ -117,8 +126,10 @@ type ContractReturnType<O extends ContractOutput> = O extends undefined ? void |
  *
  * @internal
  */
-type ContractSignature<I extends ContractInput, O extends ContractOutput> = I extends undefined
-  ? () => ContractReturnType<O>
+type ContractSignature<
+  I extends ContractInput | undefined,
+  O extends ContractOutput | undefined,
+> = I extends undefined ? (() => ContractReturnType<O>)
   : (input: ContractParams<I>) => ContractReturnType<O>;
 
 /**
@@ -129,9 +140,15 @@ type ContractSignature<I extends ContractInput, O extends ContractOutput> = I ex
  *
  * @public
  */
-type Contract<I extends ContractInput, O extends ContractOutput> = Component<
+type Contract<
+  I extends ContractInput | undefined = undefined,
+  O extends ContractOutput | undefined = undefined,
+> = Component<
   typeof CONTRACT_TAG,
-  ContractBuilder<I, O>,
+  ContractBuilder<I, O> & {
+    Input: I extends Component<string, unknown> ? I['Type'] : never;
+    Output: O extends Component<string, unknown> ? O['Type'] : never;
+  },
   ContractSignature<I, O>
 >;
 
@@ -143,7 +160,10 @@ type Contract<I extends ContractInput, O extends ContractOutput> = Component<
  *
  * @internal
  */
-class ContractBuilder<I extends ContractInput = undefined, O extends ContractOutput = undefined> {
+class ContractBuilder<
+  I extends ContractInput | undefined = undefined,
+  O extends ContractOutput | undefined = undefined,
+> {
   /**
    * The input of the contract.
    */
@@ -157,10 +177,15 @@ class ContractBuilder<I extends ContractInput = undefined, O extends ContractOut
   /**
    * Sets the input of the contract.
    *
-   * @param input - The input of the contract.
+   * @param input - The input of the contract. Must be a valid Component.
    * @returns The contract.
    */
-  public input<II extends ContractInput>(input: II) {
+  public input<II extends ContractInput>(input: EnsureComponent<II>) {
+    // Runtime validation: ensure input is a Component.
+    if (!isComponent(input)) {
+      throw new ContainerPanic('InvalidInput', 'Contract input must be a Component');
+    }
+
     this.in = input as unknown as I;
     return this as unknown as Contract<II, O>;
   }
@@ -168,12 +193,17 @@ class ContractBuilder<I extends ContractInput = undefined, O extends ContractOut
   /**
    * Sets the output of the contract.
    *
-   * @param output - The output of the contract.
+   * @param output - The output of the contract. Must be a valid Component.
    * @returns The contract.
    */
-  public output<OO extends ContractOutput>(output: OO) {
+  public output<OO extends ContractOutput>(output: EnsureComponent<OO>) {
+    // Runtime validation: ensure output is a Component.
+    if (!isComponent(output)) {
+      throw new ContainerPanic('InvalidOutput', 'Contract output must be a Component');
+    }
+
     this.out = output as unknown as O;
-    return component(CONTRACT_TAG, {}, this) as unknown as Contract<I, OO>;
+    return component(CONTRACT_TAG, this) as unknown as Contract<I, OO>;
   }
 }
 
@@ -186,8 +216,10 @@ class ContractBuilder<I extends ContractInput = undefined, O extends ContractOut
  *
  * @public
  */
-const contract = <I extends ContractInput = undefined, O extends ContractOutput = undefined>() =>
-  new ContractBuilder<I, O>() as unknown as Contract<I, O>;
+const contract = <
+  I extends ContractInput | undefined = undefined,
+  O extends ContractOutput | undefined = undefined,
+>() => new ContractBuilder<I, O>() as Contract<I, O>;
 
 // ***********************************************************************************************
 // Port.

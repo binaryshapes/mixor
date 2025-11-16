@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { Component } from './component.ts';
 import type { Any, FlatArray } from './generics.ts';
 
 /**
@@ -28,4 +29,22 @@ type ApplyErrorMode<E, Mode extends ErrorMode, FE = FlatArray<E>> = Mode extends
   ? Exclude<FE, Array<Any>>
   : [FE];
 
-export type { ApplyErrorMode, ErrorMode };
+/**
+ * Helper type that ensures a type is a Component.
+ * This will be `never` if the input is not a Component (e.g., primitives, functions, objects).
+ * Used to enforce type safety at compile time.
+ *
+ * @public
+ */
+type EnsureComponent<T> = T extends Component<string, Any> ? T extends {
+    Type: Any;
+    Tag: Any;
+    id: string;
+    tag: string;
+    keys: string[];
+    refCount: number;
+  } ? T
+  : never
+  : never;
+
+export type { ApplyErrorMode, EnsureComponent, ErrorMode };
