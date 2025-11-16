@@ -12,9 +12,13 @@ import { n } from '@nuxo/core';
 /**
  * Panic error for the enumerate module.
  *
+ * - EmptyEnumError: The enumeration is empty.
+ * - DuplicateValuesError: The enumeration has duplicate values.
+ * - MixedTypesError: The enumeration has mixed types.
+ *
  * @public
  */
-class EnumerateError extends n.panic<
+class EnumeratePanic extends n.panic<
   'Enumerate',
   'EmptyEnumError' | 'DuplicateValuesError' | 'MixedTypesError'
 >('Enumerate') {}
@@ -63,13 +67,13 @@ interface EnumerateFactory {
 const validateEnumArray = <T extends string>(values: T[]) => {
   // Validate input: throw panic if enum is empty.
   if (values.length === 0) {
-    throw new EnumerateError('EmptyEnumError', 'Enumeration cannot be empty');
+    throw new EnumeratePanic('EmptyEnumError', 'Enumeration cannot be empty');
   }
 
   // Validate input: throw panic if enum has duplicate values.
   const uniqueValues = new Set(values);
   if (uniqueValues.size !== values.length) {
-    throw new EnumerateError(
+    throw new EnumeratePanic(
       'DuplicateValuesError',
       'Enumeration cannot have duplicate values',
     );
@@ -78,12 +82,12 @@ const validateEnumArray = <T extends string>(values: T[]) => {
   // Validate input: throw panic if enum has mixed types.
   const firstValue = values[0];
   if (firstValue === undefined) {
-    throw new EnumerateError('EmptyEnumError', 'Enumeration cannot be empty');
+    throw new EnumeratePanic('EmptyEnumError', 'Enumeration cannot be empty');
   }
   const firstType = typeof firstValue;
   const hasMixedTypes = values.some((value) => (typeof value) !== firstType);
   if (hasMixedTypes) {
-    throw new EnumerateError('MixedTypesError', 'Enumeration cannot have mixed types');
+    throw new EnumeratePanic('MixedTypesError', 'Enumeration cannot have mixed types');
   }
 
   return values;
@@ -177,4 +181,4 @@ const enumerate: EnumerateFactory = <T extends string[] | Record<string, string 
   return enumValue;
 };
 
-export { enumerate, EnumerateError };
+export { enumerate, EnumeratePanic };
