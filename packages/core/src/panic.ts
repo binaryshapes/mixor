@@ -82,4 +82,4 @@ const panic = <S extends string, T extends string>(scope: S) =>
     }
   };
 
-export { panic };
+export { panic, PanicError };
