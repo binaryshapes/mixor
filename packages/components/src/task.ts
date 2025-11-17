@@ -9,6 +9,7 @@
 import { n } from '@nuxo/core';
 import { delay } from '@std/async';
 
+import type { DEFAULT_ERROR_MODE } from './constants.ts';
 import { isSchema, type Schema, type SchemaErrors, type SchemaValues } from './schema.ts';
 import { isValue } from './value.ts';
 
@@ -25,13 +26,6 @@ const TASK_TAG = 'Task' as const;
  * @internal
  */
 const DEFAULT_TASK_TYPE = 'async' as const;
-
-/**
- * The default error mode for the task.
- *
- * @internal
- */
-const DEFAULT_ERROR_MODE = 'strict' as const;
 
 /**
  * The type of the task contract. For now, it must be a contract with a schema input and output.
@@ -55,7 +49,7 @@ type ErrorHandler<E> = (errors: E) => n.Result<never, n.Any>;
  *
  * @internal
  */
-type FallbackHandler = (error: n.PanicError<n.Any, n.Any>) => void;
+type FallbackHandler = (error: n.PanicError<n.Any, n.Any>) => Promise<void>;
 
 /**
  * Type representing the contract errors.
@@ -72,6 +66,8 @@ type ContractErrors<C> = C extends n.Contract<infer I, infer O> ?
       : never)
     | (O extends Schema<infer OO extends SchemaValues> ? SchemaErrors<OO, typeof DEFAULT_ERROR_MODE>
       : never)
+    | 'HandlerError'
+    | 'FallbackError'
   : never;
 
 /**
@@ -104,29 +100,13 @@ type ContractCaller<
   : never;
 
 /**
- * Task internal state type for managing retry attempts and configuration.
- *
- * @internal
- */
-type TaskState<C extends TaskContract, Name extends string = never> = {
-  name: Name;
-  attempts: number;
-  throwOnError: boolean;
-  maxRetries: number;
-  retryDelay: number;
-  lastError?: Error;
-  contract: C;
-  handlerFn?: ContractHandler<C, typeof DEFAULT_TASK_TYPE>;
-  errorHandler?: ErrorHandler<n.Any>;
-  fallbackHandler?: FallbackHandler;
-};
-
-/**
  * Panic error for the task module.
  *
  * - HandlerNotSet: The handler function is not set.
  * - InvalidRetries: The retries are not a positive number.
  * - InvalidRetryDelay: The retry delay is not a positive number.
+ * - HandlerError: The handler function failed with an error.
+ * - FallbackError: The fallback handler failed with an error.
  *
  * @public
  */
@@ -135,7 +115,8 @@ class TaskPanic extends n.panic<
   | 'HandlerNotSet'
   | 'InvalidRetries'
   | 'InvalidRetryDelay'
-  | 'InvalidName'
+  | 'HandlerError'
+  | 'FallbackError'
 >(TASK_TAG) {}
 
 /**
@@ -148,41 +129,36 @@ class TaskPanic extends n.panic<
  *
  * @public
  */
-class TaskBuilder<C extends TaskContract, Name extends string = never> {
+class TaskBuilder<C extends TaskContract, Key extends string = never> {
   /**
-   * Internal state of the task.
+   * The handler function that processes the input and produces the output.
    */
-  public state: TaskState<C, Name>;
+  public handlerFn?: ContractHandler<C, typeof DEFAULT_TASK_TYPE>;
+
+  /**
+   * The error handler function that processes expected errors such as input or output validations
+   * or business logic errors.
+   */
+  public errorHandler?: ErrorHandler<n.Any>;
+
+  /**
+   * The fallback handler function that processes the unexpected errors.
+   */
+  public fallbackHandler?: FallbackHandler;
 
   /**
    * Creates a task builder.
    *
    * @param contract - The contract to build the task for.
    */
-  constructor(name: Name, contract: C) {
-    this.state = {
-      name,
-      contract,
-      attempts: 0,
-      throwOnError: false,
-      maxRetries: 1,
-      retryDelay: 1000,
-    };
-  }
-
-  /**
-   * Sets the name of the task.
-   *
-   * @param name - The name of the task.
-   * @returns The task instance for method chaining.
-   */
-  public name<N extends string>(name: N) {
-    if (!name || typeof name !== 'string') {
-      throw new TaskPanic('InvalidName', 'Name must be a non-empty string');
-    }
-    this.state.name = name as unknown as Name;
-    return this as unknown as Task<C, N>;
-  }
+  constructor(
+    public key: Key,
+    public contract: C,
+    public attempts = 0,
+    public throwOnError = false,
+    public maxRetries = 0,
+    public delay = 1000,
+  ) {}
 
   /**
    * Sets the handler function that processes the input and produces the output.
@@ -191,8 +167,8 @@ class TaskBuilder<C extends TaskContract, Name extends string = never> {
    * @returns The task instance for method chaining.
    */
   public handler(fn: ContractHandler<C, typeof DEFAULT_TASK_TYPE>) {
-    this.state.handlerFn = fn;
-    return this as unknown as Task<C, Name>;
+    this.handlerFn = fn;
+    return this as unknown as Task<C, Key>;
   }
 
   /**
@@ -202,8 +178,8 @@ class TaskBuilder<C extends TaskContract, Name extends string = never> {
    * @returns The task instance for method chaining.
    */
   public errors(fn: ErrorHandler<ContractErrors<C>>) {
-    this.state.errorHandler = fn;
-    return this as unknown as Task<C, Name>;
+    this.errorHandler = fn;
+    return this as unknown as Task<C, Key>;
   }
 
   /**
@@ -213,8 +189,8 @@ class TaskBuilder<C extends TaskContract, Name extends string = never> {
    * @returns The task instance for method chaining.
    */
   public fallback(fn: FallbackHandler) {
-    this.state.fallbackHandler = fn;
-    return this as unknown as Task<C, Name>;
+    this.fallbackHandler = fn;
+    return this as unknown as Task<C, Key>;
   }
 
   /**
@@ -224,8 +200,8 @@ class TaskBuilder<C extends TaskContract, Name extends string = never> {
    * @returns The task instance for method chaining.
    */
   public throwable(throwOnError: boolean) {
-    this.state.throwOnError = throwOnError;
-    return this as unknown as Task<C, Name>;
+    this.throwOnError = throwOnError;
+    return this as unknown as Task<C, Key>;
   }
 
   /**
@@ -238,8 +214,8 @@ class TaskBuilder<C extends TaskContract, Name extends string = never> {
     if (maxRetries < 0) {
       throw new TaskPanic('InvalidRetries', 'Retries must be a positive number');
     }
-    this.state.maxRetries = maxRetries;
-    return this as unknown as Task<C, Name>;
+    this.maxRetries = maxRetries;
+    return this as unknown as Task<C, Key>;
   }
 
   /**
@@ -252,99 +228,114 @@ class TaskBuilder<C extends TaskContract, Name extends string = never> {
     if (delay < 0) {
       throw new TaskPanic('InvalidRetryDelay', 'Retry delay must be a positive number');
     }
-    this.state.retryDelay = delay;
-    return this as unknown as Task<C, Name>;
+    this.delay = delay;
+    return this as unknown as Task<C, Key>;
+  }
+
+  /**
+   * Builds the task component with the builder configuration.
+   *
+   * @returns The task component.
+   */
+  public build(): Task<C, Key> {
+    // The handler function is required to build the task component.
+    if (!this.handlerFn) {
+      throw new TaskPanic('HandlerNotSet', 'Handler function not set');
+    }
+
+    const fn = taskFn(this);
+    const tc = n.component(TASK_TAG, fn, this);
+
+    // Adding the contract as a child of the task component.
+    n.meta(tc).children(this.contract);
+
+    // Adding the task component as a referenced object of the contract.
+    n.info(this.contract).refs(tc);
+
+    return tc as Task<C, Key>;
   }
 }
 
 /**
  * Task component type that represents a configurable task.
  *
- * @typeParam C - The type of the contract.
+ * @typeParam C - The type of the contract related to the task.
+ * @typeParam Key - The key of the task.
  *
  * @public
  */
-type Task<C extends TaskContract, Name extends string = never> = n.Component<
+type Task<C extends TaskContract, Key extends string = never> = n.Component<
   typeof TASK_TAG,
-  ContractCaller<C, typeof DEFAULT_TASK_TYPE> & TaskBuilder<C, Name> & {
+  ContractCaller<C, typeof DEFAULT_TASK_TYPE> & TaskBuilder<C, Key> & {
     Errors: ContractErrors<C>;
   },
   ContractHandler<C, typeof DEFAULT_TASK_TYPE>
 >;
 
 /**
- * Creates a task component for the given contract.
+ * The function that is used to execute the task.
  *
- * @remarks
- * A task component is a representation of a contract implementation. It handles input validation,
- * business logic execution, output validation, error handling, and retry logic with exponential
- * backoff technique.
+ * @typeParam C - The type of the contract.
+ * @typeParam Name - The name of the task.
  *
- * @param name - The name of the task.
- * @param contract - The {@link Contract} to build the task for.
- * @returns A task component.
+ * @param taskBuilder - The task builder to use.
+ * @returns The task function.
+ *
+ * @internal
  */
-function task<C extends TaskContract, Name extends string = never>(
-  name: Name,
-  contract: C,
-): Task<C, Name> {
-  const taskBuilder = new TaskBuilder(name, contract);
-  const taskFn = async (input: n.Any) => {
-    const state = taskBuilder.state;
-    if (!state.handlerFn) {
+const taskFn = <C extends TaskContract, Key extends string = never>(
+  taskBuilder: TaskBuilder<C, Key>,
+) => {
+  const fn = async (input: n.Any) => {
+    if (!taskBuilder.handlerFn) {
       throw new TaskPanic('HandlerNotSet', 'Handler function not set');
     }
 
-    const { maxRetries, retryDelay } = state;
-    let lastError: n.Any;
-    let attempt = 1;
+    let lastError: n.PanicError<string, string>;
+    let attempt = 0;
 
-    while (attempt <= maxRetries) {
-      if (maxRetries > 1) {
-        n.logger.debug(`Attempt ${attempt} of ${maxRetries}`);
-      }
-
-      state.attempts = attempt;
+    while (attempt < taskBuilder.maxRetries + 1) {
+      taskBuilder.attempts = attempt;
 
       try {
         let inputResult: n.Any;
         // Validate input.
-        if (isSchema(state.contract.in) || isValue(state.contract.in)) {
-          inputResult = state.contract.in(input);
+        if (isSchema(taskBuilder.contract.in) || isValue(taskBuilder.contract.in)) {
+          inputResult = taskBuilder.contract.in(input);
         } else {
           inputResult = input;
         }
 
         // Expected input error handling.
         if (n.isErr(inputResult)) {
-          if (state.errorHandler) {
-            return state.errorHandler({ input: inputResult.error });
+          if (taskBuilder.errorHandler) {
+            return taskBuilder.errorHandler({ input: inputResult.error });
           }
           return inputResult;
         }
 
         // Execute handler.
-        const handlerResult = await state.handlerFn(
+        const handlerResult = await taskBuilder.handlerFn(
           n.isOk(inputResult) ? inputResult.value : inputResult,
         );
 
         // Expected handler function error.
         if (n.isErr(handlerResult)) {
-          if (state.errorHandler) {
-            return state.errorHandler({ handler: handlerResult.error });
+          if (taskBuilder.errorHandler) {
+            return taskBuilder.errorHandler({ handler: handlerResult.error });
           }
           return handlerResult;
         }
 
         // Validate output.
-        if (isSchema(state.contract.out) || isValue(state.contract.out)) {
-          const outputResult = state.contract.out(
+        if (isSchema(taskBuilder.contract.out) || isValue(taskBuilder.contract.out)) {
+          const outputResult = taskBuilder.contract.out(
             n.isOk(handlerResult) ? handlerResult.value : handlerResult,
           );
           // Expected output error handling.
           if (n.isErr(outputResult)) {
-            if (state.errorHandler) {
-              return state.errorHandler({ output: outputResult.error });
+            if (taskBuilder.errorHandler) {
+              return taskBuilder.errorHandler({ output: outputResult.error });
             }
             return outputResult;
           }
@@ -353,43 +344,71 @@ function task<C extends TaskContract, Name extends string = never>(
         return handlerResult;
       } catch (error) {
         // Use fallbackHandler if configured for cleanup.
-        lastError = error;
+        lastError = error instanceof Error
+          ? new TaskPanic('HandlerError', error.message)
+          : new TaskPanic('HandlerError', 'Handler function failed with unknown error');
+
         attempt++;
 
         // If we still have retries left, wait and retry.
-        if (attempt <= maxRetries) {
-          const delayMs = retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
+        if (attempt < taskBuilder.maxRetries + 1) {
+          n.logger.debug(`Attempt ${attempt} of ${taskBuilder.maxRetries}`);
+
+          const delayMs = taskBuilder.delay * Math.pow(2, attempt - 1); // Exponential backoff
           await delay(delayMs);
           continue;
         }
 
         // No more retries, handle with fallback for cleanup then throw.
-        if (state.fallbackHandler) {
-          n.logger.debug(`Rolling back failed task: ${state.name}`);
+        if (taskBuilder.fallbackHandler) {
+          n.logger.debug(`Rolling back failed task: ${taskBuilder.key}`);
 
-          // If throwOnError is false, return the fallback handler.
-          if (!state.throwOnError) {
-            return state.fallbackHandler(lastError);
+          // TODO: It would be great to have a retry mechanism for the fallback handler.
+          try {
+            await taskBuilder.fallbackHandler(lastError);
+          } catch (error) {
+            const fallbackError = error instanceof Error
+              ? new TaskPanic('FallbackError', error.message)
+              : new TaskPanic('FallbackError', 'Fallback handler failed with unknown error');
+
+            n.logger.debug(`Fallback handler failed: ${fallbackError.message}`);
+
+            if (taskBuilder.throwOnError) {
+              throw fallbackError;
+            }
+
+            return n.err(fallbackError.code);
           }
 
-          state.fallbackHandler(lastError);
-        }
+          if (taskBuilder.throwOnError) {
+            throw lastError;
+          }
 
-        throw lastError;
+          return n.err(lastError.code);
+        }
       }
     }
-
-    throw lastError;
   };
 
-  // Add the task builder methods to the run function.
-  const taskComponent = n.component(TASK_TAG, taskFn, taskBuilder);
+  return fn;
+};
 
-  // Add the contract as a child of the task component.
-  n.meta(taskComponent).children(contract);
-
-  return taskComponent as Task<C, Name>;
-}
+/**
+ * Creates a task builder in order to configure a new task component before building it.
+ *
+ * @remarks
+ * A task component is a representation of a contract implementation. It handles input validation,
+ * business logic execution, output validation, error handling, and retry logic with exponential
+ * backoff technique.
+ *
+ * @param key - The key of the task.
+ * @param contract - The {@link Contract} to build the task for.
+ * @returns A task builder ready to be built into a task component.
+ */
+const task = <C extends TaskContract, Key extends string = never>(
+  key: Key,
+  contract: C,
+): TaskBuilder<C, Key> => new TaskBuilder(key, contract);
 
 export { task, TaskPanic };
 export type { Task, TaskContract };
