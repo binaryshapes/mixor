@@ -511,8 +511,17 @@ class Registry {
       reg.target.refCount++;
       const metaId = this.metaId(id, reg.target.refCount);
 
-      // We the existing target but with the new metaId.
-      return Object.assign(reg.target, { metaId });
+      // Make a deep copy of the target and apply the new metaId as a proxy.
+      const proxy = new Proxy(reg.target, {
+        get(target, prop, receiver) {
+          if (prop === 'metaId') {
+            return metaId;
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      });
+
+      return proxy;
     }
 
     // Otherwise, we create a new registry record.
@@ -521,7 +530,7 @@ class Registry {
     Object.defineProperty(record, 'toString', { value: () => id });
 
     // XXX: Not all uniqueness need to be merged.
-    const merged = merge(record, { metaId: () => this.metaId(id, 1) }, ...uniqueness);
+    const merged = merge(record, { metaId: Registry.metaId(id, 1) }, ...uniqueness);
 
     // Add the registry record to the instances map.
     this.store.set(id, { target: merged });
