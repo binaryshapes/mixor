@@ -10,5 +10,8 @@
       "README.md",
       "LICENSE"
     ]
+  },
+  "imports": {
+    "@std/async": "jsr:@std/async@^1.0.15"
   }
 }
