@@ -16,6 +16,11 @@ const vars = {
    * The filename for the exported registry.
    */
   REGISTRY_FILENAME: 'nuxo-registry.json',
+
+  /**
+   * Whether to enable debug mode.
+   */
+  NUXO_DEBUG: true,
 };
 
 /**
