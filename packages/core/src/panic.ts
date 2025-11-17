@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { config } from './config.ts';
 import { logger } from './logger.ts';
 
 /**
@@ -42,12 +43,14 @@ class PanicError<S extends string, T extends string> extends Error {
     this.code = `${scope}.${tag}`;
     this.hint = hint;
 
-    // Print the panic error to the console.
-    logger.error(`${tag}: ${message}`);
+    if (config.get('NUXO_DEBUG')) {
+      // Print the panic error to the console.
+      logger.error(`${tag}: ${message}`);
 
-    // The hint will be printed as a debug message.
-    if (hint) {
-      logger.hint(`Hint: ${hint}`);
+      // The hint will be printed as a debug message.
+      if (hint) {
+        logger.hint(`Hint: ${hint}`);
+      }
     }
   }
 
