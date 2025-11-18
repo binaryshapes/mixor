@@ -6,13 +6,17 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { Any, MergeUnion, Prettify, PrimitiveTypeExtended } from './generics.ts';
+import type { Any, PrimitiveTypeExtended } from './generics.ts';
 import { logger } from './logger.ts';
 import { isErr, isOk, ok, type Result } from './result.ts';
 
 // TODO: Check if is necessary to allow async functions in all flow operators.
 // FIXME: The bind operator destructs classes instances in the flow value.
 // TODO: Add constructors for parallel and sequential flows.
+
+// XXX: This is a temporary solution to avoid expand classes instances in the flow value.
+type MergeUnion<T> = T;
+type Prettify<T> = T;
 
 /**
  * A function that can be used as a step in a flow.
@@ -83,8 +87,8 @@ type FlowStep = {
  * @internal
  */
 type FlowReturnType<I, O, E, A extends 'sync' | 'async' = 'sync'> = A extends 'async'
-  ? ((v: I) => Promise<Result<MergeUnion<O>, E>>)
-  : ((v: I) => Result<MergeUnion<O>, E>);
+  ? ((input: I) => Promise<Result<MergeUnion<O>, E>>)
+  : ((input: I) => Result<MergeUnion<O>, E>);
 
 /**
  * Binds a new property to the input object.
@@ -165,12 +169,13 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
 
     // Build the flow function.
     const buildFlow = isAsync
-      ? async (v: I) =>
+      ? async (input: I) =>
         await this.steps.reduce(
-          async (v, step) => await mappings[step.mapping](await v, step),
-          ok(v) as Any,
+          async (value, step) => await mappings[step.mapping](await value, step),
+          ok(input) as Any,
         )
-      : (v: I) => this.steps.reduce((v, step) => mappings[step.mapping](v, step), ok(v));
+      : (input: I) =>
+        this.steps.reduce((value, step) => mappings[step.mapping](value, step), ok(input));
 
     return buildFlow as FlowReturnType<I, O, E, A>;
   }
