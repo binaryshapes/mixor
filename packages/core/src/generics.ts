@@ -281,6 +281,30 @@ type UnionToIntersection<U> = (U extends Any ? (k: U) => void : never) extends (
 ) => void ? I
   : never;
 
+/**
+ * Opaque is a type that makes a type opaque, preventing it from being widened.
+ *
+ * @typeParam T - The type to make opaque.
+ * @returns The opaque type.
+ *
+ * @public
+ */
+type Opaque<T> = T & { readonly __opaque__: unique symbol };
+
+/**
+ * Obtain the instance type of a class.
+ *
+ * @remarks
+ * This ensure that the instance type is not widened and is exactly the same as the class type.
+ * See {@link Opaque} for more information.
+ *
+ * @typeParam T - The class to obtain the instance type of.
+ * @returns The instance type of the class.
+ *
+ * @public
+ */
+type InstanceClass<T extends new (...args: Any[]) => Any> = Opaque<InstanceType<T>>;
+
 export type {
   Any,
   DeepAwaited,
@@ -288,10 +312,12 @@ export type {
   FlatArray,
   HasPromise,
   IfReadonly,
+  InstanceClass,
   IsPrimitive,
   IsPromise,
   Literal,
   MergeUnion,
+  Opaque,
   PreserveReadonly,
   Prettify,
   Pretty,
