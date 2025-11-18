@@ -21,13 +21,6 @@ import { isValue } from './value.ts';
 const TASK_TAG = 'Task' as const;
 
 /**
- * The default task type.
- *
- * @internal
- */
-const DEFAULT_TASK_TYPE = 'async' as const;
-
-/**
  * The type of the task contract. For now, it must be a contract with a schema input and output.
  *
  * @internal
@@ -52,6 +45,26 @@ type ErrorHandler<E> = (errors: E) => n.Result<never, n.Any>;
 type FallbackHandler = (error: n.PanicError<n.Any, n.Any>) => Promise<void>;
 
 /**
+ * The type of the task dependencies.
+ *
+ * @internal
+ */
+type TaskDependencies = Record<string, n.Provider<n.Any, n.Any>>;
+
+type InputErrors<C extends TaskContract> = C extends n.Contract<infer I, n.Any>
+  ? I extends Schema<infer II extends SchemaValues> ? SchemaErrors<II, typeof DEFAULT_ERROR_MODE>
+  : I extends { Errors: infer E } ? E
+  : never
+  : never;
+
+type OutputErrors<C extends TaskContract> = C extends n.Contract<n.Any, infer O>
+  ? O extends Schema<infer OO extends SchemaValues> ? SchemaErrors<OO, typeof DEFAULT_ERROR_MODE>
+  : O extends { Errors: infer E } ? E
+  : O extends n.Provider<infer T, n.Any> ? T extends { Errors: infer E } ? E : never
+  : never
+  : never;
+
+/**
  * Type representing the contract errors.
  *
  * @remarks
@@ -61,28 +74,26 @@ type FallbackHandler = (error: n.PanicError<n.Any, n.Any>) => Promise<void>;
  *
  * @public
  */
-type ContractErrors<C> = C extends n.Contract<infer I, infer O> ?
-    | (I extends Schema<infer II extends SchemaValues> ? SchemaErrors<II, typeof DEFAULT_ERROR_MODE>
-      : never)
-    | (O extends Schema<infer OO extends SchemaValues> ? SchemaErrors<OO, typeof DEFAULT_ERROR_MODE>
-      : never)
-    | 'HandlerError'
-    | 'FallbackError'
+type ContractErrors<C extends TaskContract> =
+  | InputErrors<C>
+  | OutputErrors<C>
+  // TODO: This must only be integrated when the task is not throwable.
+  | { task: 'Task.HandlerError' | 'Task.FallbackError' };
+
+type ContractInput<C extends TaskContract> = C extends n.Contract<infer I, n.Any>
+  ? I extends { Tag: 'Aggregate' } ? I
+  : C['Input']
   : never;
 
-/**
- * Type representing the contract handler function.
- *
- * @typeParam C - The contract type.
- *
- * @public
- */
-type ContractHandler<
-  C extends TaskContract,
-  Async extends 'async' | 'sync' = typeof DEFAULT_TASK_TYPE,
-> = C extends n.Contract<n.Any, n.Any> ? (
-    input: C['Input'],
-  ) => n.Promisify<n.Result<C['Output'], ContractErrors<C>>, Async>
+type ContractOutput<C extends TaskContract> = C extends n.Contract<n.Any, infer O>
+  ? O extends { Tag: 'Aggregate' } ? O
+  : O extends n.Provider<infer T, n.Any> ? T
+  : C['Output']
+  : never;
+
+type ContractCallerOutput<C extends TaskContract> = C extends n.Contract<n.Any, n.Any>
+  ? ContractOutput<C> extends new (...args: n.Any[]) => n.Any ? InstanceType<ContractOutput<C>>
+  : C['Output']
   : never;
 
 /**
@@ -92,17 +103,48 @@ type ContractHandler<
  *
  * @public
  */
-type ContractCaller<
+type TaskSignature<C extends TaskContract> = (
+  input: ContractInput<C>,
+) => n.Promisify<n.Result<ContractCallerOutput<C>, ContractErrors<C>> & {}, 'async'>;
+
+type TaskHandler<
   C extends TaskContract,
-  Async extends 'async' | 'sync' = typeof DEFAULT_TASK_TYPE,
-> = C extends n.Contract<n.Any, n.Any>
-  ? (input: C['Input']) => n.Promisify<n.Result<C['Output'], ContractErrors<C>>, Async>
-  : never;
+  D extends TaskDependencies = never,
+> = (
+  deps: {
+    [K in keyof D]: D[K]['Type'];
+  },
+) => TaskSignature<C>;
+
+/**
+ * Task component type that represents a configurable task.
+ *
+ * @typeParam C - The type of the contract related to the task.
+ * @typeParam Key - The key of the task.
+ *
+ * @public
+ */
+type Task<
+  C extends TaskContract,
+  D extends TaskDependencies = never,
+> = n.Component<
+  typeof TASK_TAG,
+  TaskSignature<C> & TaskBuilder<C, D> & {
+    Errors: ContractErrors<C>;
+    Input: ContractInput<C>;
+    Output: ContractOutput<C>;
+    CallerOutput: ContractCallerOutput<C>;
+    Handler: TaskHandler<C, D>;
+    Caller: TaskSignature<C>;
+    Dependencies: D;
+  }
+>;
 
 /**
  * Panic error for the task module.
  *
  * - HandlerNotSet: The handler function is not set.
+ * - CallerNotSet: The caller function is not set.
  * - InvalidRetries: The retries are not a positive number.
  * - InvalidRetryDelay: The retry delay is not a positive number.
  * - HandlerError: The handler function failed with an error.
@@ -113,6 +155,7 @@ type ContractCaller<
 class TaskPanic extends n.panic<
   typeof TASK_TAG,
   | 'HandlerNotSet'
+  | 'CallerNotSet'
   | 'InvalidRetries'
   | 'InvalidRetryDelay'
   | 'HandlerError'
@@ -129,11 +172,19 @@ class TaskPanic extends n.panic<
  *
  * @public
  */
-class TaskBuilder<C extends TaskContract, Key extends string = never> {
+class TaskBuilder<
+  C extends TaskContract,
+  D extends TaskDependencies = never,
+> {
   /**
    * The handler function that processes the input and produces the output.
    */
-  public handlerFn?: ContractHandler<C, typeof DEFAULT_TASK_TYPE>;
+  public handlerFn?: TaskHandler<C, D>;
+
+  /**
+   * The caller function that is used to call the task.
+   */
+  public callerFn?: TaskSignature<C>;
 
   /**
    * The error handler function that processes expected errors such as input or output validations
@@ -147,18 +198,33 @@ class TaskBuilder<C extends TaskContract, Key extends string = never> {
   public fallbackHandler?: FallbackHandler;
 
   /**
+   * The dependencies of the task.
+   */
+  public dependencies?: D;
+
+  /**
    * Creates a task builder.
    *
    * @param contract - The contract to build the task for.
    */
   constructor(
-    public key: Key,
     public contract: C,
     public attempts = 0,
     public throwOnError = false,
-    public maxRetries = 0,
-    public delay = 1000,
+    public maxRetries = 3,
+    public delay = 200,
   ) {}
+
+  /**
+   * Sets the dependencies of the task.
+   *
+   * @param dependencies - The dependencies of the task.
+   * @returns The task instance for method chaining.
+   */
+  public use<DD extends TaskDependencies>(dependencies: DD) {
+    this.dependencies = dependencies as unknown as D;
+    return this as unknown as Task<C, DD>;
+  }
 
   /**
    * Sets the handler function that processes the input and produces the output.
@@ -166,9 +232,9 @@ class TaskBuilder<C extends TaskContract, Key extends string = never> {
    * @param fn - The function that handles the business logic.
    * @returns The task instance for method chaining.
    */
-  public handler(fn: ContractHandler<C, typeof DEFAULT_TASK_TYPE>) {
+  public handler(fn: TaskHandler<C, D>) {
     this.handlerFn = fn;
-    return this as unknown as Task<C, Key>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -179,7 +245,7 @@ class TaskBuilder<C extends TaskContract, Key extends string = never> {
    */
   public errors(fn: ErrorHandler<ContractErrors<C>>) {
     this.errorHandler = fn;
-    return this as unknown as Task<C, Key>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -190,7 +256,7 @@ class TaskBuilder<C extends TaskContract, Key extends string = never> {
    */
   public fallback(fn: FallbackHandler) {
     this.fallbackHandler = fn;
-    return this as unknown as Task<C, Key>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -201,7 +267,7 @@ class TaskBuilder<C extends TaskContract, Key extends string = never> {
    */
   public throwable(throwOnError: boolean) {
     this.throwOnError = throwOnError;
-    return this as unknown as Task<C, Key>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -215,7 +281,7 @@ class TaskBuilder<C extends TaskContract, Key extends string = never> {
       throw new TaskPanic('InvalidRetries', 'Retries must be a positive number');
     }
     this.maxRetries = maxRetries;
-    return this as unknown as Task<C, Key>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -229,7 +295,7 @@ class TaskBuilder<C extends TaskContract, Key extends string = never> {
       throw new TaskPanic('InvalidRetryDelay', 'Retry delay must be a positive number');
     }
     this.delay = delay;
-    return this as unknown as Task<C, Key>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -237,40 +303,32 @@ class TaskBuilder<C extends TaskContract, Key extends string = never> {
    *
    * @returns The task component.
    */
-  public build(): Task<C, Key> {
-    // The handler function is required to build the task component.
-    if (!this.handlerFn) {
-      throw new TaskPanic('HandlerNotSet', 'Handler function not set');
-    }
+  public build(): n.Provider<Task<C, D>, D> {
+    // Creating a task provider
+    const taskProvider = n.provider()
+      .use(this.dependencies ?? {} as unknown as D)
+      .provide((deps) => {
+        // The handler function is required to build the task component.
+        if (!this.handlerFn) {
+          throw new TaskPanic('HandlerNotSet', 'Handler function not set');
+        }
 
-    const fn = taskFn(this);
-    const tc = n.component(TASK_TAG, fn, this);
+        this.callerFn = this.handlerFn(deps);
+        const fn = taskFn<C, D>(this);
+        const tc = n.component(TASK_TAG, fn, this);
 
-    // Adding the contract as a child of the task component.
-    n.meta(tc).children(this.contract);
+        // Adding the contract as a child of the task component.
+        n.meta(tc).children(this.contract);
 
-    // Adding the task component as a referenced object of the contract.
-    n.info(this.contract).refs(tc);
+        // Adding the task component as a referenced object of the contract.
+        n.info(this.contract).refs(tc);
 
-    return tc as Task<C, Key>;
+        return tc;
+      });
+
+    return taskProvider as unknown as n.Provider<Task<C, D>, D>;
   }
 }
-
-/**
- * Task component type that represents a configurable task.
- *
- * @typeParam C - The type of the contract related to the task.
- * @typeParam Key - The key of the task.
- *
- * @public
- */
-type Task<C extends TaskContract, Key extends string = never> = n.Component<
-  typeof TASK_TAG,
-  ContractCaller<C, typeof DEFAULT_TASK_TYPE> & TaskBuilder<C, Key> & {
-    Errors: ContractErrors<C>;
-  },
-  ContractHandler<C, typeof DEFAULT_TASK_TYPE>
->;
 
 /**
  * The function that is used to execute the task.
@@ -283,12 +341,15 @@ type Task<C extends TaskContract, Key extends string = never> = n.Component<
  *
  * @internal
  */
-const taskFn = <C extends TaskContract, Key extends string = never>(
-  taskBuilder: TaskBuilder<C, Key>,
+const taskFn = <
+  C extends TaskContract,
+  D extends TaskDependencies = never,
+>(
+  taskBuilder: TaskBuilder<C, D>,
 ) => {
   const fn = async (input: n.Any) => {
-    if (!taskBuilder.handlerFn) {
-      throw new TaskPanic('HandlerNotSet', 'Handler function not set');
+    if (!taskBuilder.callerFn) {
+      throw new TaskPanic('CallerNotSet', 'Caller function not set');
     }
 
     let lastError: n.PanicError<string, string>;
@@ -315,7 +376,7 @@ const taskFn = <C extends TaskContract, Key extends string = never>(
         }
 
         // Execute handler.
-        const handlerResult = await taskBuilder.handlerFn(
+        const handlerResult = await taskBuilder.callerFn(
           n.isOk(inputResult) ? inputResult.value : inputResult,
         );
 
@@ -361,7 +422,7 @@ const taskFn = <C extends TaskContract, Key extends string = never>(
 
         // No more retries, handle with fallback for cleanup then throw.
         if (taskBuilder.fallbackHandler) {
-          n.logger.debug(`Rolling back failed task: ${taskBuilder.key}`);
+          n.logger.debug(`Rolling back failed task: ${taskBuilder}`);
 
           // TODO: It would be great to have a retry mechanism for the fallback handler.
           try {
@@ -377,14 +438,14 @@ const taskFn = <C extends TaskContract, Key extends string = never>(
               throw fallbackError;
             }
 
-            return n.err(fallbackError.code);
+            return n.err({ panic: fallbackError.code });
           }
 
           if (taskBuilder.throwOnError) {
             throw lastError;
           }
 
-          return n.err(lastError.code);
+          return n.err({ panic: lastError.code });
         }
       }
     }
@@ -405,10 +466,12 @@ const taskFn = <C extends TaskContract, Key extends string = never>(
  * @param contract - The {@link Contract} to build the task for.
  * @returns A task builder ready to be built into a task component.
  */
-const task = <C extends TaskContract, Key extends string = never>(
-  key: Key,
+const task = <
+  C extends TaskContract,
+  D extends TaskDependencies = never,
+>(
   contract: C,
-): TaskBuilder<C, Key> => new TaskBuilder(key, contract);
+): TaskBuilder<C, D> => new TaskBuilder(contract);
 
 export { task, TaskPanic };
 export type { Task, TaskContract };
