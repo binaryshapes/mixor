@@ -7,6 +7,8 @@
  */
 
 import { n } from '@nuxo/core';
+
+import { DEFAULT_ERROR_MODE } from './constants.ts';
 import type { EventManager } from './event.ts';
 import type { Schema, SchemaErrors, SchemaValues } from './schema.ts';
 import type { Specification } from './specification.ts';
@@ -62,12 +64,14 @@ type Aggregate<
 > = n.Component<
   typeof AGGREGATE_TAG,
   Self & {
+    Errors: SchemaErrors<T, typeof DEFAULT_ERROR_MODE>;
     schema: Schema<T>;
     events: EventManager<E>;
     specs: Specs;
     ports: Ports;
     adapters: AggregateAdapters<Ports>;
-  }
+  },
+  Self
 >;
 
 /**
@@ -175,17 +179,20 @@ const createAggregate = <
      * @param mode - The validation mode.
      * @returns The result of the validation.
      */
-    public set<E extends n.ErrorMode, K extends keyof SchemaErrors<T, E> & keyof typeof this.state>(
+    public set<
+      K extends keyof SchemaErrors<T, Mode> & keyof typeof this.state,
+      Mode extends n.ErrorMode,
+    >(
       key: K,
       value: (typeof this.state)[K],
-      mode: E = 'all' as E,
-    ): n.Result<void, SchemaErrors<T, E>[K]> {
+      mode: Mode = 'all' as Mode,
+    ): n.Result<void, SchemaErrors<T, Mode>[K]> {
       const validationResult = this.schema.values[key](
         value,
         mode,
       ) as n.Result<
         (typeof this.state)[K],
-        SchemaErrors<T, E>[K]
+        SchemaErrors<T, Mode>[K]
       >;
 
       // If the validation fails, return the error.
@@ -199,16 +206,28 @@ const createAggregate = <
     }
 
     /**
+     * Retrieves and removes all events from the store.
+     *
+     * @returns The events that were in the store.
+     */
+    public pullEvents() {
+      return this.events.pull();
+    }
+
+    /**
      * Creates a new aggregate instance with the given values.
      *
      * @param values - The values to set.
      * @param mode - The validation mode.
      * @returns The result of the validation.
      */
-    public static create<Self extends typeof Aggregate, Mode extends n.ErrorMode = never>(
+    public static create<
+      Self extends new (...args: n.Any[]) => n.Any,
+      Mode extends n.ErrorMode = typeof DEFAULT_ERROR_MODE,
+    >(
       this: Self,
       values: TypeOf<Schema<T>>,
-      mode?: Mode,
+      mode: Mode = DEFAULT_ERROR_MODE as Mode,
     ): n.Result<InstanceType<Self>, SchemaErrors<T, Mode>> {
       // Validate the values using the schema.
       const validationResult = config.schema(values, mode);
@@ -218,11 +237,11 @@ const createAggregate = <
       }
 
       // Fancy inspect for the aggregate instance.
-      const aggregateInstance = new (this as unknown as typeof Aggregate)(validationResult.value);
+      const aggregateInstance = new (this as n.Any)(validationResult.value);
       n.setInspect(aggregateInstance, () => aggregateInstance.state);
 
       // Ensure the aggregate instance is of the correct type.
-      return n.ok(aggregateInstance as unknown as InstanceType<Self>);
+      return n.ok(aggregateInstance as InstanceType<Self>);
     }
   };
 
@@ -279,9 +298,7 @@ const aggregate = <
   n.provider()
     // This is important to ensure that the ports are defined in the container.
     .use(config.ports ?? {} as unknown as Ports)
-    .provide((adapters) =>
-      extend(createAggregate({ ...config, adapters: adapters as AggregateAdapters<Ports> }))
-    );
+    .provide((adapters) => extend(createAggregate({ ...config, adapters })));
 
 export { aggregate };
 export type { Aggregate };
