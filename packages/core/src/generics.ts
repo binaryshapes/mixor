@@ -181,6 +181,51 @@ type PreserveReadonly<T, U> = {
 };
 
 /**
+ * Checks if a type is a plain object.
+ *
+ * @typeParam T - The type to check.
+ * @returns True if the type is a plain object, false otherwise.
+ *
+ * @internal
+ */
+type IsPlainObject<T> = T extends readonly Any[] ? false
+  : T extends (...args: Any[]) => Any ? false
+  : T extends object ? true
+  : false;
+
+/**
+ * Gets only the plain objects from a type.
+ *
+ * @typeParam T - The type to get the plain objects from.
+ * @returns The plain objects from the type.
+ *
+ * @internal
+ */
+type OnlyObjects<T> = T extends Any ? (IsPlainObject<T> extends true ? T : never) : never;
+
+/**
+ * Gets the keys of a type.
+ *
+ * @typeParam T - The type to get the keys from.
+ * @returns The keys of the type.
+ *
+ * @internal
+ */
+type Keys<T> = T extends Any ? Extract<keyof T, string> : never;
+
+/**
+ * Merges the values of a property in a type.
+ *
+ * @typeParam T - The type to merge the values from.
+ * @typeParam K - The key to merge the values from.
+ * @returns The merged values.
+ *
+ * @internal
+ */
+type MergeValues<T, K extends PropertyKey> = T extends Any ? (K extends keyof T ? T[K] : never)
+  : never;
+
+/**
  * Merges a union type into a single type.
  * Preserves readonly modifiers per property.
  *
@@ -189,18 +234,11 @@ type PreserveReadonly<T, U> = {
  *
  * @public
  */
-type MergeUnion<T> = IsPrimitive<T> extends true ? T
-  : T extends object ? Prettify<
-      PreserveReadonly<
-        T,
-        {
-          [K in UnionKeys<T>]: T extends Any ? (K extends keyof T ? T[K] : never) : never;
-        }
-      >
-    >
-  : {
-    [K in UnionKeys<T>]: T extends Any ? (K extends keyof T ? T[K] : never) : never;
-  };
+type MergeUnion<T> = Pretty<
+  {
+    [K in Keys<OnlyObjects<T>>]: MergeValues<OnlyObjects<T>, K>;
+  }
+>;
 
 /**
  * Flattens an array type.
@@ -249,7 +287,7 @@ type Promisify<T, Async extends 'async' | 'sync' = 'async'> = Async extends 'asy
  * @public
  */
 type RemoveNevers<T extends Record<string, Any>> = {
-  [K in keyof T as T[K] extends never ? never : K]: T[K];
+  [K in keyof T as never extends T[K] ? never : K]: T[K];
 };
 
 /**
