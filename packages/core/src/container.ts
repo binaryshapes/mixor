@@ -269,14 +269,14 @@ const IMPLEMENTATION_TAG = 'Implementation' as const;
 /**
  * The key for the implementation error.
  *
- * @internal
+ * @public
  */
 const LOGIC_ERROR_KEY = '__logic' as const;
 
 /**
  * The key for panic error.
  *
- * @internal
+ * @public
  */
 const PANIC_ERROR_KEY = '__panic' as const;
 
@@ -476,7 +476,7 @@ const implementation = <
  * @param maybeImplementation - The object to check.
  * @returns True if the object is an implementation, false otherwise.
  *
- * @internal
+ * @public
  */
 const isImplementation = (
   maybeImplementation: Any,
