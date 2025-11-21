@@ -9,10 +9,6 @@
 import { n } from '@nuxo/core';
 import { delay } from '@std/async';
 
-import type { DEFAULT_ERROR_MODE } from './constants.ts';
-import { isSchema, type Schema, type SchemaErrors, type SchemaValues } from './schema.ts';
-import { isValue } from './value.ts';
-
 /**
  * The tag for the task component.
  *
@@ -21,24 +17,23 @@ import { isValue } from './value.ts';
 const TASK_TAG = 'Task' as const;
 
 /**
- * The type of the task contract. For now, it must be a contract with a schema input and output.
+ * The type of the task contract.
+ *
+ * @remarks
+ * A task contract can be any contract type. The contract defines the input validation,
+ * output validation, and error types for the task.
  *
  * @internal
  */
 type TaskContract = n.Contract<n.Any, n.Any>;
 
 /**
- * A function that can be used to handle expected errors.
- *
- * @typeParam E - The type of the error schema. Must be a SchemaErrors.
- *
- * @internal
- */
-type ErrorHandler<E> = (errors: E) => n.Result<never, n.Any>;
-
-/**
  * A function that can be used to handle unexpected errors (throws) as a side-effect.
- * This is typically used to clean up resources or undo operations.
+ *
+ * @remarks
+ * This handler is called when all retry attempts have been exhausted and the task
+ * has failed. It's typically used to clean up resources, undo operations, or perform
+ * rollback logic. The handler receives the last error that occurred.
  *
  * @internal
  */
@@ -47,97 +42,64 @@ type FallbackHandler = (error: n.PanicError<n.Any, n.Any>) => Promise<void>;
 /**
  * The type of the task dependencies.
  *
+ * @remarks
+ * Task dependencies are providers that are injected into the handler function.
+ * The dependencies are resolved when the task is built and passed to the handler.
+ *
  * @internal
  */
 type TaskDependencies = Record<string, n.Provider<n.Any, n.Any>>;
 
-type InputErrors<C extends TaskContract> = C extends n.Contract<infer I, n.Any>
-  ? I extends Schema<infer II extends SchemaValues> ? SchemaErrors<II, typeof DEFAULT_ERROR_MODE>
-  : I extends { Errors: infer E } ? E
-  : never
-  : never;
-
-type OutputErrors<C extends TaskContract> = C extends n.Contract<n.Any, infer O>
-  ? O extends Schema<infer OO extends SchemaValues> ? SchemaErrors<OO, typeof DEFAULT_ERROR_MODE>
-  : O extends { Errors: infer E } ? E
-  : O extends n.Provider<infer T, n.Any> ? T extends { Errors: infer E } ? E : never
-  : never
-  : never;
-
 /**
- * Type representing the contract errors.
+ * The type of the task caller.
  *
  * @remarks
- * Includes the input, output and handler errors.
+ * This is a conditional type that represents the handler function signature.
+ * - If the task has no dependencies (`D` is `never`), it's a function with no parameters.
+ * - If the task has dependencies, it's a function that receives the resolved dependencies.
  *
- * @typeParam C - The contract type.
+ * The function must return either an implementation function or an implementation component.
  *
- * @public
+ * @typeParam C - The type of the contract.
+ * @typeParam D - The type of the dependencies.
+ * @typeParam E - The type of the error.
+ *
+ * @internal
  */
-type ContractErrors<C extends TaskContract> =
-  | InputErrors<C>
-  | OutputErrors<C>
-  // TODO: This must only be integrated when the task is not throwable.
-  | { task: 'Task.HandlerError' | 'Task.FallbackError' };
-
-type ContractInput<C extends TaskContract> = C extends n.Contract<infer I, n.Any>
-  ? I extends { Tag: 'Aggregate' } ? I
-  : C['Input']
-  : never;
-
-type ContractOutput<C extends TaskContract> = C extends n.Contract<n.Any, infer O>
-  ? O extends { Tag: 'Aggregate' } ? O
-  : O extends n.Provider<infer T, n.Any> ? T
-  : C['Output']
-  : never;
-
-type ContractCallerOutput<C extends TaskContract> = C extends n.Contract<n.Any, n.Any>
-  ? ContractOutput<C> extends new (...args: n.Any[]) => n.Any ? InstanceType<ContractOutput<C>>
-  : C['Output']
-  : never;
-
-/**
- * Type representing the contract caller function.
- *
- * @typeParam C - The contract type.
- *
- * @public
- */
-type TaskSignature<C extends TaskContract> = (
-  input: ContractInput<C>,
-) => n.Promisify<n.Result<ContractCallerOutput<C>, ContractErrors<C>> & {}, 'async'>;
-
-type TaskHandler<
+type TaskCaller<
   C extends TaskContract,
-  D extends TaskDependencies = never,
-> = (
+  D extends TaskDependencies,
+  E,
+> = [D] extends [never] ? () => n.Implementation<C, E, true>['Function'] : (
   deps: {
     [K in keyof D]: D[K]['Type'];
   },
-) => TaskSignature<C>;
+) => n.Implementation<C, E, true>['Function'];
 
 /**
  * Task component type that represents a configurable task.
  *
+ * @remarks
+ * A task is a callable component that implements a contract with additional features:
+ * - Retry logic with exponential backoff
+ * - Fallback handlers for error cleanup
+ * - Optional dependency injection
+ * - Error handling and recovery
+ *
  * @typeParam C - The type of the contract related to the task.
- * @typeParam Key - The key of the task.
+ * @typeParam D - The type of the task dependencies (providers).
+ * @typeParam E - The type of the error that the task can return.
  *
  * @public
  */
 type Task<
   C extends TaskContract,
   D extends TaskDependencies = never,
+  E = never,
 > = n.Component<
   typeof TASK_TAG,
-  TaskSignature<C> & TaskBuilder<C, D> & {
-    Errors: ContractErrors<C>;
-    Input: ContractInput<C>;
-    Output: ContractOutput<C>;
-    CallerOutput: ContractCallerOutput<C>;
-    Handler: TaskHandler<C, D>;
-    Caller: TaskSignature<C>;
-    Dependencies: D;
-  }
+  & n.Implementation<C, E, true>['Signature']
+  & TaskBuilder<C, D, E>
 >;
 
 /**
@@ -166,31 +128,35 @@ class TaskPanic extends n.panic<
  * Task builder type.
  *
  * @remarks
- * Provides a fluent API for configuring the task.
+ * Provides a fluent API for configuring the task. Use the builder methods to set:
+ * - Dependencies (via {@link TaskBuilder.use}).
+ * - Handler function (via {@link TaskBuilder.handler}).
+ * - Fallback handler (via {@link TaskBuilder.fallback}).
+ * - Retry configuration (via {@link TaskBuilder.retries} and {@link TaskBuilder.retryDelay}).
+ * - Error handling behavior (via {@link TaskBuilder.throwable}).
+ *
+ * Call {@link TaskBuilder.build} to create the final task component wrapped in a provider.
  *
  * @typeParam C - The type of the contract.
+ * @typeParam D - The type of the task dependencies.
+ * @typeParam E - The type of the error that the task can return.
  *
  * @public
  */
 class TaskBuilder<
   C extends TaskContract,
   D extends TaskDependencies = never,
+  E = never,
 > {
   /**
    * The handler function that processes the input and produces the output.
    */
-  public handlerFn?: TaskHandler<C, D>;
+  public handlerFn?: TaskCaller<C, D, E>;
 
   /**
    * The caller function that is used to call the task.
    */
-  public callerFn?: TaskSignature<C>;
-
-  /**
-   * The error handler function that processes expected errors such as input or output validations
-   * or business logic errors.
-   */
-  public errorHandler?: ErrorHandler<n.Any>;
+  public callerFn?: n.Implementation<C, E, true>['Function'] | n.Implementation<C, E, true>;
 
   /**
    * The fallback handler function that processes the unexpected errors.
@@ -206,6 +172,10 @@ class TaskBuilder<
    * Creates a task builder.
    *
    * @param contract - The contract to build the task for.
+   * @param attempts - The current attempt number (used internally for retry logic).
+   * @param throwOnError - Whether to throw errors instead of returning failed results.
+   * @param maxRetries - The maximum number of retry attempts (default: 3).
+   * @param delay - The base delay in milliseconds between retries (default: 200).
    */
   constructor(
     public contract: C,
@@ -229,123 +199,180 @@ class TaskBuilder<
   /**
    * Sets the handler function that processes the input and produces the output.
    *
-   * @param fn - The function that handles the business logic.
-   * @returns The task instance for method chaining.
-   */
-  public handler(fn: TaskHandler<C, D>) {
-    this.handlerFn = fn;
-    return this as unknown as Task<C, D>;
-  }
-
-  /**
-   * Sets the error handler for expected errors.
+   * @remarks
+   * The handler can be:
+   * - A function that returns an implementation function (if dependencies are needed, it receives
+   *   them as a parameter).
+   * - A function that returns an existing implementation component.
    *
-   * @param fn - The function that handles expected errors.
+   * If the handler returns an existing implementation, nested error keys are automatically cleaned.
+   *
+   * @typeParam EE - The error type of the handler function.
+   * @param fn - The function that handles the business logic. Must return an implementation function
+   *   or component.
    * @returns The task instance for method chaining.
    */
-  public errors(fn: ErrorHandler<ContractErrors<C>>) {
-    this.errorHandler = fn;
-    return this as unknown as Task<C, D>;
+  public handler<EE>(fn: TaskCaller<C, D, EE>) {
+    // XXX: This is the way to remove the nested error if the given fn is already an implementation.
+    type CleanErrors<E> = E extends { [n.LOGIC_ERROR_KEY]: n.Any } ? E[typeof n.LOGIC_ERROR_KEY]
+      : E;
+
+    this.handlerFn = fn as unknown as TaskCaller<C, D, E>;
+    return this as unknown as Task<C, D, CleanErrors<EE>>;
   }
 
   /**
    * Sets the fallback handler for unexpected errors.
    *
-   * @param fn - The function that handles unexpected errors.
+   * @remarks
+   * The fallback handler is called when all retry attempts have been exhausted.
+   * It's used for cleanup operations, rollback logic, or logging. If the fallback
+   * handler itself throws an error, it will be handled according to the
+   * {@link throwable} configuration.
+   *
+   * @param fn - The function that handles unexpected errors (called after all retries fail).
    * @returns The task instance for method chaining.
    */
   public fallback(fn: FallbackHandler) {
     this.fallbackHandler = fn;
-    return this as unknown as Task<C, D>;
+    return this as unknown as Task<C, D, E>;
   }
 
   /**
-   * Sets the throw on error flag.
+   * Sets whether the task should throw errors instead of returning failed results.
    *
-   * @param throwOnError - The throw on error flag.
+   * @remarks
+   * When `true`, the task will throw panic errors instead of returning `Result` with errors.
+   * This affects both handler errors and fallback handler errors.
+   *
+   * @param throwOnError - Whether to throw errors instead of returning failed results.
    * @returns The task instance for method chaining.
    */
   public throwable(throwOnError: boolean) {
     this.throwOnError = throwOnError;
-    return this as unknown as Task<C, D>;
+    return this as unknown as Task<C, D, E>;
   }
 
   /**
    * Sets the maximum number of retry attempts for the task.
    *
-   * @param maxRetries - The maximum number of retry attempts.
+   * @remarks
+   * The task will retry up to `maxRetries` times if the handler throws an error.
+   * The total number of attempts is `maxRetries + 1` (initial attempt + retries).
+   * Retries use exponential backoff based on the delay set by {@link retryDelay}.
+   *
+   * @param maxRetries - The maximum number of retry attempts (must be >= 0).
    * @returns The task instance for method chaining.
+   * @throws {TaskPanic} If maxRetries is negative.
    */
   public retries(maxRetries: number) {
     if (maxRetries < 0) {
       throw new TaskPanic('InvalidRetries', 'Retries must be a positive number');
     }
     this.maxRetries = maxRetries;
-    return this as unknown as Task<C, D>;
+    return this as unknown as Task<C, D, E>;
   }
 
   /**
-   * Sets the delay between retry attempts in milliseconds.
+   * Sets the base delay between retry attempts in milliseconds.
    *
-   * @param delay - The delay in milliseconds between retry attempts.
+   * @remarks
+   * This is the base delay used for exponential backoff. The actual delay for each
+   * retry attempt is calculated as: `delay * 2^(attempt - 1)`.
+   * For example, with delay=200ms:
+   * - First retry: 200ms
+   * - Second retry: 400ms
+   * - Third retry: 800ms
+   *
+   * @param delay - The base delay in milliseconds between retry attempts (must be >= 0).
    * @returns The task instance for method chaining.
+   * @throws {TaskPanic} If delay is negative.
    */
   public retryDelay(delay: number) {
     if (delay < 0) {
       throw new TaskPanic('InvalidRetryDelay', 'Retry delay must be a positive number');
     }
     this.delay = delay;
-    return this as unknown as Task<C, D>;
+    return this as unknown as Task<C, D, E>;
   }
 
   /**
    * Builds the task component with the builder configuration.
    *
-   * @returns The task component.
+   * @remarks
+   * This method:
+   * 1. Validates that a handler has been set.
+   * 2. Resolves the handler function (wrapping it in an implementation if needed).
+   * 3. Creates the task component with retry and error handling logic.
+   * 4. Wraps the task in a provider for dependency injection.
+   *
+   * The returned provider can be used in containers or called directly if no dependencies
+   * are needed.
+   *
+   * @returns A provider that, when resolved, returns the task component.
+   * @throws {TaskPanic} If the handler function has not been set.
    */
-  public build(): n.Provider<Task<C, D>, D> {
-    // Creating a task provider
-    const taskProvider = n.provider()
-      .use(this.dependencies ?? {} as unknown as D)
-      .provide((deps) => {
-        // The handler function is required to build the task component.
-        if (!this.handlerFn) {
-          throw new TaskPanic('HandlerNotSet', 'Handler function not set');
-        }
+  public build(): n.Provider<Task<C, D, E>, D> {
+    let prov: n.Provider<Task<C, D, E>, D> = n.provider();
 
+    // Adding the dependencies to the provider (if any).
+    if (this.dependencies) {
+      prov = prov.use(this.dependencies);
+    }
+
+    return prov.provide((deps) => {
+      // The handler function is required to build the task component.
+      if (!this.handlerFn) {
+        throw new TaskPanic('HandlerNotSet', 'Handler function not set');
+      }
+
+      if (n.isImplementation(this.handlerFn(deps))) {
         this.callerFn = this.handlerFn(deps);
-        const fn = taskFn<C, D>(this);
-        const tc = n.component(TASK_TAG, fn, this);
+      } // The caller is a component that implements the contract (implementation).
+      else {
+        this.callerFn = n.implementation(this.contract, this.handlerFn(deps));
+      }
+      const fn = taskFn<C, D, E>(this);
+      const tc = n.component(TASK_TAG, fn, this);
 
-        // Adding the contract as a child of the task component.
-        n.meta(tc).children(this.contract);
+      // Adding the contract as a child of the task component.
+      n.meta(tc).children(this.contract);
 
-        // Adding the task component as a referenced object of the contract.
-        n.info(this.contract).refs(tc);
+      // Adding the task component as a referenced object of the contract.
+      n.info(this.contract).refs(tc);
 
-        return tc;
-      });
-
-    return taskProvider as unknown as n.Provider<Task<C, D>, D>;
+      return tc;
+    }) as unknown as n.Provider<Task<C, D, E>, D>;
   }
 }
 
 /**
  * The function that is used to execute the task.
  *
- * @typeParam C - The type of the contract.
- * @typeParam Name - The name of the task.
+ * @remarks
+ * This function implements the task execution logic with:
+ * - Retry mechanism with exponential backoff.
+ * - Error handling and fallback support.
+ * - Attempt tracking.
  *
- * @param taskBuilder - The task builder to use.
- * @returns The task function.
+ * The function will retry up to `maxRetries` times if the handler throws an error.
+ * After all retries are exhausted, the fallback handler (if set) is called for cleanup.
+ *
+ * @typeParam C - The type of the contract.
+ * @typeParam D - The type of the task dependencies.
+ * @typeParam E - The type of the error.
+ *
+ * @param taskBuilder - The task builder containing the configuration and handler.
+ * @returns The task execution function that can be called with the contract's input.
  *
  * @internal
  */
 const taskFn = <
   C extends TaskContract,
   D extends TaskDependencies = never,
+  E = never,
 >(
-  taskBuilder: TaskBuilder<C, D>,
+  taskBuilder: TaskBuilder<C, D, E>,
 ) => {
   const fn = async (input: n.Any) => {
     if (!taskBuilder.callerFn) {
@@ -359,50 +386,7 @@ const taskFn = <
       taskBuilder.attempts = attempt;
 
       try {
-        let inputResult: n.Any;
-        // Validate input.
-        if (isSchema(taskBuilder.contract.in) || isValue(taskBuilder.contract.in)) {
-          inputResult = taskBuilder.contract.in(input);
-        } else {
-          inputResult = input;
-        }
-
-        // Expected input error handling.
-        if (n.isErr(inputResult)) {
-          if (taskBuilder.errorHandler) {
-            return taskBuilder.errorHandler({ input: inputResult.error });
-          }
-          return inputResult;
-        }
-
-        // Execute handler.
-        const handlerResult = await taskBuilder.callerFn(
-          n.isOk(inputResult) ? inputResult.value : inputResult,
-        );
-
-        // Expected handler function error.
-        if (n.isErr(handlerResult)) {
-          if (taskBuilder.errorHandler) {
-            return taskBuilder.errorHandler({ handler: handlerResult.error });
-          }
-          return handlerResult;
-        }
-
-        // Validate output.
-        if (isSchema(taskBuilder.contract.out) || isValue(taskBuilder.contract.out)) {
-          const outputResult = taskBuilder.contract.out(
-            n.isOk(handlerResult) ? handlerResult.value : handlerResult,
-          );
-          // Expected output error handling.
-          if (n.isErr(outputResult)) {
-            if (taskBuilder.errorHandler) {
-              return taskBuilder.errorHandler({ output: outputResult.error });
-            }
-            return outputResult;
-          }
-        }
-
-        return handlerResult;
+        return await taskBuilder.callerFn(input);
       } catch (error) {
         // Use fallbackHandler if configured for cleanup.
         lastError = error instanceof Error
@@ -458,13 +442,24 @@ const taskFn = <
  * Creates a task builder in order to configure a new task component before building it.
  *
  * @remarks
- * A task component is a representation of a contract implementation. It handles input validation,
- * business logic execution, output validation, error handling, and retry logic with exponential
- * backoff technique.
+ * A task component is a representation of a contract implementation. It handles:
+ * - Input validation (via the contract's input component).
+ * - Business logic execution (via the handler function).
+ * - Output validation (via the contract's output component).
+ * - Error handling and recovery.
+ * - Retry logic with exponential backoff.
+ * - Fallback handlers for cleanup operations.
  *
- * @param key - The key of the task.
- * @param contract - The {@link Contract} to build the task for.
- * @returns A task builder ready to be built into a task component.
+ * Use the builder methods to configure the task, then call {@link TaskBuilder.build} to
+ * create the final task component wrapped in a provider.
+ *
+ * @typeParam C - The type of the contract.
+ * @typeParam D - The type of the task dependencies.
+ *
+ * @param contract - The contract to build the task for.
+ * @returns A task builder ready to be configured and built into a task component.
+ *
+ * @public
  */
 const task = <
   C extends TaskContract,
