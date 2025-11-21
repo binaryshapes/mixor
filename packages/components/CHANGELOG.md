@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.2.0](https://github.com/binaryshapes/mixor/compare/components@v1.1.0...components@v1.2.0) (2025-11-21)
+
+
+### ✨ Features
+
+* **components/aggregate:** enhance aggregate typing and expose pullEvents method ([303807f](https://github.com/binaryshapes/mixor/commit/303807fc3185fa2e099fdac5d07def69cccd4f68))
+* **components/schema:** extend Schema type to include Errors type using DEFAULT_ERROR_MODE ([f987c5d](https://github.com/binaryshapes/mixor/commit/f987c5d09e5c827d75c38480159db97883462b89))
+* **components:** add criteria and repository components for enhanced data handling ([56b4fd1](https://github.com/binaryshapes/mixor/commit/56b4fd1a652c2f78a2411c9a6d0ccb9d82865a55))
+* **components:** add specification component for entity validation ([3fc4a80](https://github.com/binaryshapes/mixor/commit/3fc4a808bc8336647e2ce4243f70fc9426884e03))
+* **components:** enhance event manager with auto metadata and info doc ([5279475](https://github.com/binaryshapes/mixor/commit/5279475f76fda310390ec2c021e613365c70d0c9))
+* **components:** introduce aggregate component for domain-driven design ([d1f8611](https://github.com/binaryshapes/mixor/commit/d1f861110c57ca491865fbaf41270dd1effb5fb9))
+* **components:** introduce event and event manager components ([0ad661a](https://github.com/binaryshapes/mixor/commit/0ad661a2170cd72fa83f77071afa01805a0f56a1))
+* **components:** introduce task component for asynchronous fault-tolerant functions ([62b74a0](https://github.com/binaryshapes/mixor/commit/62b74a0e045b7820799221a04a04614c5363ca9c))
+* **components:** now aggregate acts as a provider in order to support ports and adapters ([ad8476e](https://github.com/binaryshapes/mixor/commit/ad8476e112958cb2087171aa9def735d727c4c1d))
+
+
+### 🐛 Bug fixes
+
+* **components:** ensure ports are correctly defined in aggregate provider ([5e33548](https://github.com/binaryshapes/mixor/commit/5e33548bfeb35e33365d58c8a18ccf231c84bd22))
+
+
+### 🔧 Miscellaneous chores
+
+* **components:** add imports section for async utilities in deno.json ([228c713](https://github.com/binaryshapes/mixor/commit/228c713f27b2a429ca805d589a358955697d71cb))
+
+
+### 🔄 Code refactoring
+
+* **components/task:** enhance task component structure and error handling ([3206555](https://github.com/binaryshapes/mixor/commit/3206555d7f99be7904f329fdfae7a22b129a8adb))
+* **components/task:** enhance task component types and structure ([9b47d7a](https://github.com/binaryshapes/mixor/commit/9b47d7ae3ea705bba264ebcea7097392de38e06b))
+* **components/task:** simplify task provider building logic and enhance error handling ([5f3817d](https://github.com/binaryshapes/mixor/commit/5f3817d0730b8c07ebc93b45065cfc448d90589e))
+* **components/task:** streamline task component types and enhance error handling ([07a9b57](https://github.com/binaryshapes/mixor/commit/07a9b571cf8abfe993a1f42c0e280bca31cec2f0))
+* **components:** rename EnvError to EnvPanic and update related references ([b679fbf](https://github.com/binaryshapes/mixor/commit/b679fbfe28459550f6c351fb8a0c7bf4e4e7776f))
+
 ## [1.1.0](https://github.com/binaryshapes/mixor/compare/components@v1.0.0...components@v1.1.0) (2025-11-07)
 
 
