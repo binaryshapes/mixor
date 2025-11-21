@@ -8,11 +8,11 @@
 
 import { type Component, component, isComponent } from './component.ts';
 import { flow } from './flow.ts';
-import type { Any, MergeUnion, Pretty, UnionToIntersection } from './generics.ts';
+import type { Any, MergeUnion, Pretty, Promisify, UnionToIntersection } from './generics.ts';
 import { logger } from './logger.ts';
 import { panic } from './panic.ts';
 import { meta } from './registry.ts';
-import { err, ok, type Result, type ResultFunction } from './result.ts';
+import { err, isResult, ok, type Result, type ResultFunction } from './result.ts';
 import type { EnsureComponent } from './types.ts';
 import { doc } from './utils.ts';
 
@@ -302,10 +302,9 @@ const PANIC_ERROR_CODE = 'PANIC_ERROR' as const;
  *
  * @internal
  */
-type ImplementationFunction<C extends Contract<Any, Any>, E, A extends boolean = false> = (
+type ImplementationFunction<C extends Contract<Any, Any>, E, A extends boolean> = (
   input: C['Params'],
-) => A extends true ? Promise<Result<C['Return'], E | C['Errors']>>
-  : Result<C['Return'], E | C['Errors']>;
+) => Promisify<Result<C['Return'], E | C['Errors']>, A>;
 
 /**
  * The signature of the function that implements the contract.
@@ -321,24 +320,18 @@ type ImplementationFunction<C extends Contract<Any, Any>, E, A extends boolean =
  *
  * @internal
  */
-type ImplementationSignature<C extends Contract<Any, Any>, E, A extends boolean = false> = (
+type ImplementationSignature<C extends Contract<Any, Any>, E, A extends boolean> = (
   input: C['Params'],
-) => A extends true ? Promise<
-    Result<
-      C['Return'],
-      [E] extends [never] ? C['Errors']
-        : MergeUnion<
-          { [LOGIC_ERROR_KEY]: E; [PANIC_ERROR_KEY]: typeof PANIC_ERROR_CODE } | C['Errors']
-        >
-    >
-  >
-  : Result<
+) => Promisify<
+  Result<
     C['Return'],
     [E] extends [never] ? C['Errors']
       : MergeUnion<
         { [LOGIC_ERROR_KEY]: E; [PANIC_ERROR_KEY]: typeof PANIC_ERROR_CODE } | C['Errors']
       >
-  >;
+  >,
+  A
+>;
 
 /**
  * The type of the implementation.
@@ -404,23 +397,27 @@ const implementation = <
     );
   }
 
+  // We don't want to raise runtime errors, so we just log the error and return a failed result.
   const handlePanic = (error: Any) => {
-    // We don't want to raise runtime errors, so we just log the error and return a failed result.
     logger.error(`Unexpected error in implementation for contract ${contract.id}`);
     logger.hint(`Original error: ${error instanceof Error ? error.message : String(error)}`);
     return err({ [PANIC_ERROR_KEY]: PANIC_ERROR_CODE });
   };
 
+  // Process the input and output of the contract.
+  const processInputOutput = (input: unknown, fn: (input: unknown) => Result<unknown, unknown>) =>
+    typeof fn === 'function' ? isResult(fn(input)) ? fn(input) : ok(input) : ok(input);
+
   const asyncFn = async (input: C['Params']) => {
     const implementationFlow = flow<typeof input>()
       // 1. If the contract input is a function, call it.
-      .map((input) => typeof contract.in === 'function' ? contract.in(input) : ok(input))
+      .map((input) => processInputOutput(input, contract.in))
       // 2. Call the implementation.
       .map(async (input) => await implementationFn(input))
       // 3. If the implementation returns an error, return the expected error (if exists).
       .mapErr((error) => err({ [LOGIC_ERROR_KEY]: error as Any }))
       // 4. If the implementation returns a value, call the contract output (if exists).
-      .map((input) => typeof contract.out === 'function' ? contract.out(input) : ok(input))
+      .map((input) => processInputOutput(input, contract.out))
       .build();
 
     try {
@@ -433,13 +430,13 @@ const implementation = <
   const syncFn = (input: C['Params']) => {
     const implementationFlow = flow<typeof input>()
       // 1. If the contract input is a function, call it.
-      .map((input) => typeof contract.in === 'function' ? contract.in(input) : ok(input))
+      .map((input) => processInputOutput(input, contract.in))
       // 2. Call the implementation.
       .map((input) => implementationFn(input) as Result<C['Return'], Any>)
       // 3. If the implementation returns an error, return the expected error (if exists).
       .mapErr((error) => err({ [LOGIC_ERROR_KEY]: error as Any }))
       // 4. If the implementation returns a value, call the contract output (if exists).
-      .map((input) => typeof contract.out === 'function' ? contract.out(input) : ok(input))
+      .map((input) => processInputOutput(input, contract.out))
       .build();
 
     try {
@@ -455,7 +452,7 @@ const implementation = <
     {
       contract,
       // In order to have different implementations for the same contract, we need to store
-      // the implementation function.
+      // the implementation function itself.
       implementationFn,
     },
   );
@@ -500,17 +497,29 @@ const PORT_TAG = 'Port' as const;
  *
  * @internal
  */
-type PortShape = Record<string, Component<typeof CONTRACT_TAG, unknown>>;
+// type PortShape = Record<string, Component<typeof CONTRACT_TAG, unknown>>;
+type PortShape = Record<string, Contract<ContractInput, ContractOutput>>;
 
 /**
- * The type of the shape of the port.
+ * The type of the implementation of the port.
  *
  * @typeParam S - The shape of the port.
  *
  * @internal
  */
-type PortType<S extends PortShape> = {
-  [K in keyof S]: S[K]['Type'];
+type PortImplementation<S extends PortShape> = {
+  [K in keyof S]: Implementation<S[K], Any, boolean>['Function'];
+};
+
+/**
+ * The signature of the port.
+ *
+ * @typeParam S - The shape of the port.
+ *
+ * @internal
+ */
+type PortSignature<S extends PortShape> = {
+  [K in keyof S]: Implementation<S[K], Any, boolean>['Signature'];
 };
 
 /**
@@ -520,7 +529,11 @@ type PortType<S extends PortShape> = {
  *
  * @public
  */
-type Port<S extends PortShape> = Component<typeof PORT_TAG, S, PortType<S>>;
+type Port<S extends PortShape> = Component<
+  typeof PORT_TAG,
+  & S
+  & { Implementation: PortImplementation<S>; Signatures: PortSignature<S> }
+>;
 
 /**
  * Creates a new port from the given shape.
@@ -554,33 +567,42 @@ const isPort = (maybePort: Any): maybePort is Port<PortShape> => isComponent(may
  */
 const ADAPTER_TAG = 'Adapter' as const;
 
-// TODO: Implement the adapter implementation.
-type AdapterImplementation<P extends PortComponent, PType extends P['Type']> = never;
-
 /**
  * The type of the adapter.
  *
- * @typeParam P - The port of the adapter.
+ * @typeParam S - The shape of the port.
  *
  * @public
  */
-type Adapter<P extends PortComponent> = Component<
+type Adapter<S extends PortShape> = Component<
   typeof ADAPTER_TAG,
-  (() => P['Type']) & { port: P }
+  (() => PortSignature<S>) & { port: Port<S> }
 >;
 
 /**
  * Creates a new adapter component for the given port.
  *
- * @typeParam P - The shape of the port.
+ * @typeParam S - The shape of the port.
  * @param port - The port to create an adapter for.
  * @param implementation - The implementation of the port's type.
  * @returns A new adapter component.
  *
  * @public
  */
-const adapter = <P extends PortShape>(port: Port<P>, implementation: Port<P>['Type']) =>
-  component(ADAPTER_TAG, () => implementation, { port }) as Adapter<Port<P>>;
+const adapter = <S extends PortShape>(
+  port: Port<S>,
+  adapterFn: Port<S>['Implementation'],
+) => {
+  // Transform the adapter function into a record of implementation components.
+  const adapterImp = {} as Record<keyof S, Any>;
+  for (const [key, fn] of Object.entries(adapterFn) as [keyof S, Any][]) {
+    adapterImp[key] = isImplementation(fn) ? fn : implementation(port[key], fn);
+  }
+
+  const adapterComponent = component(ADAPTER_TAG, () => adapterImp, { port });
+  meta(adapterComponent).children(port);
+  return adapterComponent as Adapter<Port<S>>;
+};
 
 /**
  * Type guard function that determines whether an object is an adapter.
@@ -590,7 +612,7 @@ const adapter = <P extends PortShape>(port: Port<P>, implementation: Port<P>['Ty
  *
  * @internal
  */
-const isAdapter = (maybeAdapter: Any): maybeAdapter is Adapter<Port<PortShape>> =>
+const isAdapter = (maybeAdapter: Any): maybeAdapter is Adapter<PortShape> =>
   isComponent(maybeAdapter, ADAPTER_TAG);
 
 // ***********************************************************************************************
@@ -643,7 +665,7 @@ type ProviderFunction<T, D extends ProviderAllowedDependencies> = (
  * @internal
  */
 type ProviderSignatureArgs<D extends ProviderAllowedDependencies> = {
-  [K in keyof D]: D[K] extends Port<infer S> ? Adapter<Port<S>>
+  [K in keyof D]: D[K] extends Port<infer S> ? Adapter<S>
     : D[K]['Type'];
 };
 
