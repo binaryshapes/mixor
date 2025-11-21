@@ -53,10 +53,10 @@ type SchemaType<V extends SchemaValues> = n.UndefToOptional<
  * @remarks
  * This type extracts the error types from each Value component in the schema, creating a mapped
  * type that represents the structure of validation errors. The error format depends on the
- * validation mode ('strict' or 'all').
+ * validation mode ({@link n.ErrorMode}).
  *
  * @typeParam V - The schema values type.
- * @typeParam Mode - The error mode ('strict' or 'all').
+ * @typeParam Mode - The error mode ({@link n.ErrorMode}).
  *
  * @public
  */
@@ -183,7 +183,7 @@ type RequiredSchema<V extends SchemaValues> = n.Pretty<
  */
 type Schema<V extends SchemaValues> = n.Component<
   typeof SCHEMA_TAG,
-  SchemaFunction<V> & SchemaBuilder<V>,
+  SchemaFunction<V> & SchemaBuilder<V> & { Errors: SchemaErrors<V, typeof DEFAULT_ERROR_MODE> },
   SchemaType<V>,
   SchemaMeta<V>
 >;
