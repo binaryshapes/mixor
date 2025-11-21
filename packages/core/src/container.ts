@@ -7,8 +7,12 @@
  */
 
 import { type Component, component, isComponent } from './component.ts';
-import type { Any, Pretty, UnionToIntersection } from './generics.ts';
+import { flow } from './flow.ts';
+import type { Any, MergeUnion, Pretty, UnionToIntersection } from './generics.ts';
+import { logger } from './logger.ts';
 import { panic } from './panic.ts';
+import { meta } from './registry.ts';
+import { err, ok, type Result, type ResultFunction } from './result.ts';
 import type { EnsureComponent } from './types.ts';
 import { doc } from './utils.ts';
 
@@ -46,6 +50,7 @@ type AdapterComponent = Component<typeof ADAPTER_TAG, unknown>;
  * - `InvalidProvider`: The provider is invalid when getting it from the container.
  * - `InvalidInput`: The input of the contract is not a valid component.
  * - `InvalidOutput`: The output of the contract is not a valid component.
+ * - `AlreadyAnImplementation`: Attempting to wrap an existing implementation.
  *
  * @public
  */
@@ -61,6 +66,7 @@ class ContainerPanic extends panic<
   | 'CircularDependency'
   | 'InvalidInput'
   | 'InvalidOutput'
+  | 'AlreadyAnImplementation'
 >('Container') {}
 
 // ***********************************************************************************************
@@ -99,11 +105,6 @@ type ContractOutput = Component<string, Any>;
  */
 type ContractParams<I extends ContractInput | undefined> = I extends Component<string, unknown>
   ? I['Type']
-  : I extends Record<string, Component<string, unknown>> ? Pretty<
-      {
-        [K in keyof I]: I[K] extends Component<string, unknown> ? I[K]['Type'] : never;
-      }
-    >
   : never;
 
 /**
@@ -113,24 +114,40 @@ type ContractParams<I extends ContractInput | undefined> = I extends Component<s
  *
  * @internal
  */
-type ContractReturnType<O extends ContractOutput | undefined> = O extends undefined
+type ContractReturn<O extends ContractOutput | undefined> = O extends undefined
   ? void | Promise<void>
-  : O extends Component<string, unknown> ? O['Type'] | Promise<O['Type']>
+  : O extends Component<string, unknown>
+    ? O['Type'] extends new (...args: Any[]) => Any ? InstanceType<O['Type']>
+    : O['Type']
   : never;
 
 /**
- * The type of the signature of the contract.
+ * The type of the errors of the contract input.
  *
  * @typeParam I - The input of the contract.
+ *
+ * @internal
+ */
+type ContractInputErrors<I extends ContractInput | undefined> = I extends Component<string, Any>
+  ? I extends { Errors: infer E } ? E
+  : I extends ResultFunction<Any, infer E> ? E
+  : I extends Provider<infer T, Any> ? T extends { Errors: infer E } ? E : never
+  : never
+  : never;
+
+/**
+ * The type of the errors of the contract output.
+ *
  * @typeParam O - The output of the contract.
  *
  * @internal
  */
-type ContractSignature<
-  I extends ContractInput | undefined,
-  O extends ContractOutput | undefined,
-> = I extends undefined ? (() => ContractReturnType<O>)
-  : (input: ContractParams<I>) => ContractReturnType<O>;
+type ContractOutputErrors<O extends ContractOutput | undefined> = O extends Component<string, Any>
+  ? O extends { Errors: infer E } ? E
+  : O extends ResultFunction<Any, infer E> ? E
+  : O extends Provider<infer T, Any> ? T extends { Errors: infer E } ? E : never
+  : never
+  : never;
 
 /**
  * The type of the contract.
@@ -145,11 +162,15 @@ type Contract<
   O extends ContractOutput | undefined = undefined,
 > = Component<
   typeof CONTRACT_TAG,
-  ContractBuilder<I, O> & {
-    Input: I extends Component<string, unknown> ? I['Type'] : never;
-    Output: O extends Component<string, unknown> ? O['Type'] : never;
-  },
-  ContractSignature<I, O>
+  & ContractBuilder<I, O>
+  & {
+    /** Parameters of the contract. */
+    Params: ContractParams<I>;
+    /** Return value of the contract. */
+    Return: ContractReturn<O>;
+    /** Errors of the contract (input and output together). */
+    Errors: MergeUnion<ContractInputErrors<I> | ContractOutputErrors<O>>;
+  }
 >;
 
 /**
@@ -177,8 +198,12 @@ class ContractBuilder<
   /**
    * Sets the input of the contract.
    *
+   * @remarks
+   * This method sets the input component for validation. The contract is not yet complete
+   * after calling this method. Call {@link output} to finalize the contract.
+   *
    * @param input - The input of the contract. Must be a valid Component.
-   * @returns The contract.
+   * @returns The contract builder with the input set (allows method chaining).
    */
   public input<II extends ContractInput>(input: EnsureComponent<II>) {
     // Runtime validation: ensure input is a Component.
@@ -191,10 +216,14 @@ class ContractBuilder<
   }
 
   /**
-   * Sets the output of the contract.
+   * Sets the output of the contract and creates the final contract component.
+   *
+   * @remarks
+   * Unlike {@link input}, this method creates and returns the final contract component.
+   * After calling this method, the contract is complete and ready to use.
    *
    * @param output - The output of the contract. Must be a valid Component.
-   * @returns The contract.
+   * @returns The completed contract component.
    */
   public output<OO extends ContractOutput>(output: EnsureComponent<OO>) {
     // Runtime validation: ensure output is a Component.
@@ -210,9 +239,14 @@ class ContractBuilder<
 /**
  * Creates a new contract builder in order to create a new contract.
  *
+ * @remarks
+ * Use the builder methods {@link ContractBuilder.input} and {@link ContractBuilder.output}
+ * to define the contract's input and output. The contract is finalized when
+ * {@link ContractBuilder.output} is called.
+ *
  * @typeParam I - The input of the contract.
  * @typeParam O - The output of the contract.
- * @returns A new contract builder.
+ * @returns A new contract builder (typed as Contract for convenience).
  *
  * @public
  */
@@ -220,6 +254,234 @@ const contract = <
   I extends ContractInput | undefined = undefined,
   O extends ContractOutput | undefined = undefined,
 >() => new ContractBuilder<I, O>() as Contract<I, O>;
+
+// ***********************************************************************************************
+// Implementation.
+// ***********************************************************************************************
+
+/**
+ * The tag for the implementation component.
+ *
+ * @internal
+ */
+const IMPLEMENTATION_TAG = 'Implementation' as const;
+
+/**
+ * The key for the implementation error.
+ *
+ * @internal
+ */
+const LOGIC_ERROR_KEY = '__logic' as const;
+
+/**
+ * The key for panic error.
+ *
+ * @internal
+ */
+const PANIC_ERROR_KEY = '__panic' as const;
+
+/**
+ * The code for the implementation error.
+ *
+ * @internal
+ */
+const PANIC_ERROR_CODE = 'PANIC_ERROR' as const;
+
+/**
+ * The type of the function that implements the contract.
+ *
+ * @remarks
+ * This is the raw implementation function type, before it's wrapped with error handling.
+ * The function receives the contract's input parameters and returns a Result with either
+ * the contract's return type or an error (which can be either the implementation's error
+ * type or the contract's error type).
+ *
+ * @typeParam C - The contract to implement.
+ * @typeParam E - The error type of the implementation.
+ * @typeParam A - Whether the implementation function is async.
+ *
+ * @internal
+ */
+type ImplementationFunction<C extends Contract<Any, Any>, E, A extends boolean = false> = (
+  input: C['Params'],
+) => A extends true ? Promise<Result<C['Return'], E | C['Errors']>>
+  : Result<C['Return'], E | C['Errors']>;
+
+/**
+ * The signature of the function that implements the contract.
+ *
+ * @remarks
+ * This signature wraps the implementation function and adds error handling.
+ * Errors from the implementation are wrapped with {@link LOGIC_ERROR_KEY}, and
+ * panic errors are wrapped with {@link PANIC_ERROR_KEY}.
+ *
+ * @typeParam C - The contract to implement.
+ * @typeParam E - The error type of the implementation.
+ * @typeParam A - Whether the implementation function is async.
+ *
+ * @internal
+ */
+type ImplementationSignature<C extends Contract<Any, Any>, E, A extends boolean = false> = (
+  input: C['Params'],
+) => A extends true ? Promise<
+    Result<
+      C['Return'],
+      [E] extends [never] ? C['Errors']
+        : MergeUnion<
+          { [LOGIC_ERROR_KEY]: E; [PANIC_ERROR_KEY]: typeof PANIC_ERROR_CODE } | C['Errors']
+        >
+    >
+  >
+  : Result<
+    C['Return'],
+    [E] extends [never] ? C['Errors']
+      : MergeUnion<
+        { [LOGIC_ERROR_KEY]: E; [PANIC_ERROR_KEY]: typeof PANIC_ERROR_CODE } | C['Errors']
+      >
+  >;
+
+/**
+ * The type of the implementation.
+ *
+ * @remarks
+ * An implementation is a callable component that implements a contract. It includes:
+ * - The contract it implements.
+ * - The signature that wraps the implementation function with error handling.
+ * - The original implementation function.
+ *
+ * @typeParam C - The contract to create an implementation for.
+ * @typeParam E - The error type of the implementation.
+ * @typeParam A - Whether the implementation function is async.
+ *
+ * @public
+ */
+type Implementation<C extends Contract<Any, Any>, E, A extends boolean = false> = Component<
+  typeof IMPLEMENTATION_TAG,
+  ImplementationSignature<C, E, A> & {
+    /** Contract of the implementation. */
+    contract: C;
+    /** Signature of the implementation. */
+    Signature: ImplementationSignature<C, E, A>;
+    /** Function of the implementation. */
+    Function: ImplementationFunction<C, E, A>;
+  }
+>;
+
+/**
+ * Creates a new implementation component for the given contract.
+ *
+ * @remarks
+ * This implementation automatically:
+ * 1. Validates the input using the contract's input component (if defined).
+ * 2. Executes the implementation function.
+ * 3. Validates the output using the contract's output component (if defined).
+ * 4. Catches any runtime errors and returns a failed result (no panic error is raised).
+ *
+ * The implementation function must return a {@link Result} type. Errors from the implementation
+ * are wrapped with {@link LOGIC_ERROR_KEY}, and unexpected runtime errors are wrapped with
+ * {@link PANIC_ERROR_KEY}.
+ *
+ * @typeParam C - The contract to create an implementation for.
+ * @typeParam F - The implementation function of the contract.
+ * @param contract - The contract to create an implementation for.
+ * @param implementationFn - The implementation function that implements the contract logic.
+ * @returns A new implementation component that can be called with the contract's input parameters.
+ *
+ * @public
+ */
+const implementation = <
+  C extends Contract<Any, Any>,
+  F extends ImplementationFunction<C, Any, boolean>,
+>(
+  contract: C,
+  implementationFn: F,
+) => {
+  if (isImplementation(implementationFn)) {
+    throw new ContainerPanic(
+      'AlreadyAnImplementation',
+      'Attempting to wrap an existing implementation',
+      `Check if is necessary to wrap the implementation again: ${implementationFn.id}`,
+    );
+  }
+
+  const handlePanic = (error: Any) => {
+    // We don't want to raise runtime errors, so we just log the error and return a failed result.
+    logger.error(`Unexpected error in implementation for contract ${contract.id}`);
+    logger.hint(`Original error: ${error instanceof Error ? error.message : String(error)}`);
+    return err({ [PANIC_ERROR_KEY]: PANIC_ERROR_CODE });
+  };
+
+  const asyncFn = async (input: C['Params']) => {
+    const implementationFlow = flow<typeof input>()
+      // 1. If the contract input is a function, call it.
+      .map((input) => typeof contract.in === 'function' ? contract.in(input) : ok(input))
+      // 2. Call the implementation.
+      .map(async (input) => await implementationFn(input))
+      // 3. If the implementation returns an error, return the expected error (if exists).
+      .mapErr((error) => err({ [LOGIC_ERROR_KEY]: error as Any }))
+      // 4. If the implementation returns a value, call the contract output (if exists).
+      .map((input) => typeof contract.out === 'function' ? contract.out(input) : ok(input))
+      .build();
+
+    try {
+      return await implementationFlow(input);
+    } catch (error) {
+      return handlePanic(error);
+    }
+  };
+
+  const syncFn = (input: C['Params']) => {
+    const implementationFlow = flow<typeof input>()
+      // 1. If the contract input is a function, call it.
+      .map((input) => typeof contract.in === 'function' ? contract.in(input) : ok(input))
+      // 2. Call the implementation.
+      .map((input) => implementationFn(input) as Result<C['Return'], Any>)
+      // 3. If the implementation returns an error, return the expected error (if exists).
+      .mapErr((error) => err({ [LOGIC_ERROR_KEY]: error as Any }))
+      // 4. If the implementation returns a value, call the contract output (if exists).
+      .map((input) => typeof contract.out === 'function' ? contract.out(input) : ok(input))
+      .build();
+
+    try {
+      return implementationFlow(input);
+    } catch (error) {
+      return handlePanic(error);
+    }
+  };
+
+  const implementationComponent = component(
+    IMPLEMENTATION_TAG,
+    implementationFn.constructor.name === 'AsyncFunction' ? asyncFn : syncFn,
+    {
+      contract,
+      // In order to have different implementations for the same contract, we need to store
+      // the implementation function.
+      implementationFn,
+    },
+  );
+
+  // Adding the contract as a child of the implementation component.
+  meta(implementationComponent).children(contract);
+
+  // Inferring the error and async type of the implementation.
+  type E = F extends ImplementationFunction<C, infer EE, boolean> ? EE : never;
+  type A = F extends ImplementationFunction<C, Any, true> ? true : false;
+
+  return implementationComponent as Implementation<C, E, A>;
+};
+
+/**
+ * Type guard function that determines whether an object is an implementation.
+ *
+ * @param maybeImplementation - The object to check.
+ * @returns True if the object is an implementation, false otherwise.
+ *
+ * @internal
+ */
+const isImplementation = (
+  maybeImplementation: Any,
+): maybeImplementation is Implementation<Any, Any> =>
+  isComponent(maybeImplementation, IMPLEMENTATION_TAG);
 
 // ***********************************************************************************************
 // Port.
@@ -291,6 +553,9 @@ const isPort = (maybePort: Any): maybePort is Port<PortShape> => isComponent(may
  * @internal
  */
 const ADAPTER_TAG = 'Adapter' as const;
+
+// TODO: Implement the adapter implementation.
+type AdapterImplementation<P extends PortComponent, PType extends P['Type']> = never;
 
 /**
  * The type of the adapter.
@@ -941,5 +1206,16 @@ const container = <I extends ContainerImports>() => new ContainerBuilder<I>();
 const isContainer = (maybeContainer: Any): maybeContainer is Container<Any> =>
   isComponent(maybeContainer, CONTAINER_TAG);
 
-export { adapter, container, contract, di, port, provider };
-export type { Adapter, Container, Contract, Port, Provider };
+export {
+  adapter,
+  container,
+  contract,
+  di,
+  implementation,
+  isImplementation,
+  LOGIC_ERROR_KEY,
+  PANIC_ERROR_KEY,
+  port,
+  provider,
+};
+export type { Adapter, Container, Contract, Implementation, Port, Provider };
