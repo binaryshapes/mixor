@@ -313,36 +313,33 @@ class TaskBuilder<
    * @throws {TaskPanic} If the handler function has not been set.
    */
   public build(): n.Provider<Task<C, D, E>, D> {
-    let prov: n.Provider<Task<C, D, E>, D> = n.provider();
+    let taskProvider = n.provider<Task<C, D, E>, D>();
 
-    // Adding the dependencies to the provider (if any).
+    // Add the dependencies to the provider (if any).
     if (this.dependencies) {
-      prov = prov.use(this.dependencies);
+      taskProvider = taskProvider.use(this.dependencies);
     }
 
-    return prov.provide((deps) => {
+    return taskProvider.provide((deps) => {
       // The handler function is required to build the task component.
       if (!this.handlerFn) {
         throw new TaskPanic('HandlerNotSet', 'Handler function not set');
       }
 
-      if (n.isImplementation(this.handlerFn(deps))) {
-        this.callerFn = this.handlerFn(deps);
-      } // The caller is a component that implements the contract (implementation).
-      else {
-        this.callerFn = n.implementation(this.contract, this.handlerFn(deps));
-      }
-      const fn = taskFn<C, D, E>(this);
-      const tc = n.component(TASK_TAG, fn, this);
+      // Only create a new implementation if the handler is just a function.
+      this.callerFn = n.isImplementation(this.handlerFn(deps))
+        ? this.handlerFn(deps)
+        : n.implementation(this.contract, this.handlerFn(deps));
 
-      // Adding the contract as a child of the task component.
-      n.meta(tc).children(this.contract);
+      // Create the task component and add the contract as a child.
+      const taskComponent = n.component(TASK_TAG, taskFn(this), this);
+      n.meta(taskComponent).children(this.contract);
 
-      // Adding the task component as a referenced object of the contract.
-      n.info(this.contract).refs(tc);
+      // Add the task component as a referenced object of the contract.
+      n.info(this.contract).refs(taskComponent);
 
-      return tc;
-    }) as unknown as n.Provider<Task<C, D, E>, D>;
+      return taskComponent;
+    }) as n.Provider<Task<C, D, E>, D>;
   }
 }
 
@@ -386,6 +383,8 @@ const taskFn = <
       taskBuilder.attempts = attempt;
 
       try {
+        // This call automatically applies the contract input and output validation.
+        // Remember the task caller function is wrapped in a contract implementation.
         return await taskBuilder.callerFn(input);
       } catch (error) {
         // Use fallbackHandler if configured for cleanup.
