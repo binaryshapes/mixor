@@ -270,13 +270,14 @@ type UndefToOptional<T> = Prettify<
  * Sets the promise type of a type.
  *
  * @typeParam T - The type to set the promise type of.
- * @typeParam Async - The promise type to set.
+ * @typeParam Async - Whether the type is async.
  * @returns The type with the promise type set.
  *
  * @public
  */
-type Promisify<T, Async extends 'async' | 'sync' = 'async'> = Async extends 'async' ? Promise<T>
-  : T;
+type Promisify<T, Async extends boolean> = Async extends true
+  ? (IsPromise<T> extends true ? T : Promise<T>)
+  : (IsPromise<T> extends true ? Awaited<T> : T);
 
 /**
  * Removes never values from a record type.
