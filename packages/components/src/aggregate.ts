@@ -41,7 +41,7 @@ type AggregateSpecs = Record<string, Specification<n.Any, string>>;
  * @typeParam D - The type of the ports of the aggregate.
  */
 type AggregateAdapters<D extends AggregatePorts> = {
-  [K in keyof D]: D[K] extends n.Port<infer S> ? ReturnType<n.Adapter<n.Port<S>>> : never;
+  [K in keyof D]: D[K]['Type'];
 };
 
 /**
