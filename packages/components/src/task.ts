@@ -25,7 +25,7 @@ const TASK_TAG = 'Task' as const;
  *
  * @internal
  */
-type TaskContract = n.Contract<n.Any, n.Any>;
+type TaskContract = n.Contract<n.Any, n.Any, n.Any, true>;
 
 /**
  * A function that can be used to handle unexpected errors (throws) as a side-effect.
@@ -62,19 +62,17 @@ type TaskDependencies = Record<string, n.Provider<n.Any, n.Any>>;
  *
  * @typeParam C - The type of the contract.
  * @typeParam D - The type of the dependencies.
- * @typeParam E - The type of the error.
  *
  * @internal
  */
 type TaskCaller<
   C extends TaskContract,
   D extends TaskDependencies,
-  E,
-> = [D] extends [never] ? () => n.Implementation<C, E, true>['Function'] : (
+> = [D] extends [never] ? () => n.Implementation<C>['Signature'] : (
   deps: {
     [K in keyof D]: D[K]['Type'];
   },
-) => n.Implementation<C, E, true>['Function'];
+) => n.Implementation<C>['Signature'];
 
 /**
  * Task component type that represents a configurable task.
@@ -88,18 +86,16 @@ type TaskCaller<
  *
  * @typeParam C - The type of the contract related to the task.
  * @typeParam D - The type of the task dependencies (providers).
- * @typeParam E - The type of the error that the task can return.
  *
  * @public
  */
 type Task<
   C extends TaskContract,
   D extends TaskDependencies = never,
-  E = never,
 > = n.Component<
   typeof TASK_TAG,
-  & n.Implementation<C, E, true>['Signature']
-  & TaskBuilder<C, D, E>
+  & n.Implementation<C>['Signature']
+  & TaskBuilder<C, D>
 >;
 
 /**
@@ -139,24 +135,22 @@ class TaskPanic extends n.panic<
  *
  * @typeParam C - The type of the contract.
  * @typeParam D - The type of the task dependencies.
- * @typeParam E - The type of the error that the task can return.
  *
- * @public
+ * @internal
  */
 class TaskBuilder<
   C extends TaskContract,
   D extends TaskDependencies = never,
-  E = never,
 > {
   /**
    * The handler function that processes the input and produces the output.
    */
-  public handlerFn?: TaskCaller<C, D, E>;
+  public handlerFn: TaskCaller<C, D> = undefined as unknown as TaskCaller<C, D>;
 
   /**
    * The caller function that is used to call the task.
    */
-  public callerFn?: n.Implementation<C, E, true>['Function'] | n.Implementation<C, E, true>;
+  public callerFn: n.Implementation<C>['Signature'] | n.Implementation<C> | undefined = undefined;
 
   /**
    * The fallback handler function that processes the unexpected errors.
@@ -212,13 +206,9 @@ class TaskBuilder<
    *   or component.
    * @returns The task instance for method chaining.
    */
-  public handler<EE>(fn: TaskCaller<C, D, EE>) {
-    // XXX: This is the way to remove the nested error if the given fn is already an implementation.
-    type CleanErrors<E> = E extends { [n.LOGIC_ERROR_KEY]: n.Any } ? E[typeof n.LOGIC_ERROR_KEY]
-      : E;
-
-    this.handlerFn = fn as unknown as TaskCaller<C, D, E>;
-    return this as unknown as Task<C, D, CleanErrors<EE>>;
+  public handler(fn: TaskCaller<C, D>) {
+    this.handlerFn = fn as unknown as TaskCaller<C, D>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -235,7 +225,7 @@ class TaskBuilder<
    */
   public fallback(fn: FallbackHandler) {
     this.fallbackHandler = fn;
-    return this as unknown as Task<C, D, E>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -250,7 +240,7 @@ class TaskBuilder<
    */
   public throwable(throwOnError: boolean) {
     this.throwOnError = throwOnError;
-    return this as unknown as Task<C, D, E>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -270,7 +260,7 @@ class TaskBuilder<
       throw new TaskPanic('InvalidRetries', 'Retries must be a positive number');
     }
     this.maxRetries = maxRetries;
-    return this as unknown as Task<C, D, E>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -293,7 +283,7 @@ class TaskBuilder<
       throw new TaskPanic('InvalidRetryDelay', 'Retry delay must be a positive number');
     }
     this.delay = delay;
-    return this as unknown as Task<C, D, E>;
+    return this as unknown as Task<C, D>;
   }
 
   /**
@@ -312,8 +302,8 @@ class TaskBuilder<
    * @returns A provider that, when resolved, returns the task component.
    * @throws {TaskPanic} If the handler function has not been set.
    */
-  public build(): n.Provider<Task<C, D, E>, D> {
-    let taskProvider = n.provider<Task<C, D, E>, D>();
+  public build(): n.Provider<Task<C, D>, D> {
+    let taskProvider = n.provider<Task<C, D>, D>();
 
     // Add the dependencies to the provider (if any).
     if (this.dependencies) {
@@ -329,7 +319,7 @@ class TaskBuilder<
       // Only create a new implementation if the handler is just a function.
       this.callerFn = n.isImplementation(this.handlerFn(deps))
         ? this.handlerFn(deps)
-        : n.implementation(this.contract, this.handlerFn(deps));
+        : n.implementation(this.contract, this.handlerFn(deps) as n.Any);
 
       // Create the task component and add the contract as a child.
       const taskComponent = n.component(TASK_TAG, taskFn(this), this);
@@ -339,7 +329,7 @@ class TaskBuilder<
       n.info(this.contract).refs(taskComponent);
 
       return taskComponent;
-    }) as n.Provider<Task<C, D, E>, D>;
+    }) as n.Provider<Task<C, D>, D>;
   }
 }
 
@@ -357,7 +347,6 @@ class TaskBuilder<
  *
  * @typeParam C - The type of the contract.
  * @typeParam D - The type of the task dependencies.
- * @typeParam E - The type of the error.
  *
  * @param taskBuilder - The task builder containing the configuration and handler.
  * @returns The task execution function that can be called with the contract's input.
@@ -367,9 +356,8 @@ class TaskBuilder<
 const taskFn = <
   C extends TaskContract,
   D extends TaskDependencies = never,
-  E = never,
 >(
-  taskBuilder: TaskBuilder<C, D, E>,
+  taskBuilder: TaskBuilder<C, D>,
 ) => {
   const fn = async (input: n.Any) => {
     if (!taskBuilder.callerFn) {
