@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { rule, type Validator, value } from '@nuxo/components';
+import { rule, type Validator, type Value, value } from '@nuxo/components';
 import { n } from '@nuxo/core';
 
 /**
@@ -47,7 +47,10 @@ n.meta(IsNumber)
  *
  * @public
  */
-const number = <E extends string | never = never>(...rules: Validator<number, E>[]) => {
+
+function number(): Value<number, never, true>;
+function number<E extends string>(...rules: Validator<number, E>[]): Value<number, E, true>;
+function number<E extends string | never = never>(...rules: Validator<number, E>[]) {
   const numberValue = value<number, E>(
     ...(rules.length === 0 ? [IsNumber()] : [IsNumber(), ...rules]),
   );
@@ -62,6 +65,6 @@ const number = <E extends string | never = never>(...rules: Validator<number, E>
   }
 
   return numberValue;
-};
+}
 
 export { number };

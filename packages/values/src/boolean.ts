@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { rule, type Validator, value } from '@nuxo/components';
+import { rule, type Validator, type Value, value } from '@nuxo/components';
 import { n } from '@nuxo/core';
 
 /**
@@ -47,7 +47,9 @@ n.meta(IsBoolean)
  *
  * @public
  */
-const boolean = <E extends string | never = never>(...rules: Validator<boolean, E>[]) => {
+function boolean(): Value<boolean, never, true>;
+function boolean<E extends string>(...rules: Validator<boolean, E>[]): Value<boolean, E, true>;
+function boolean<E extends string | never = never>(...rules: Validator<boolean, E>[]) {
   const booleanValue = value<boolean, E>(
     ...(rules.length === 0 ? [IsBoolean()] : [IsBoolean(), ...rules]),
   );
@@ -62,6 +64,6 @@ const boolean = <E extends string | never = never>(...rules: Validator<boolean, 
   }
 
   return booleanValue;
-};
+}
 
 export { boolean };

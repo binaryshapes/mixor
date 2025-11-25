@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { rule, type Validator, value } from '@nuxo/components';
+import { rule, type Validator, type Value, value } from '@nuxo/components';
 import { n } from '@nuxo/core';
 
 /**
@@ -47,7 +47,11 @@ n.meta(IsString)
  *
  * @public
  */
-const string = <E extends string | never = never>(...rules: Validator<string, E>[]) => {
+function string(): Value<string, never, true>;
+function string<E extends string>(...rules: Validator<string, E>[]): Value<string, E, true>;
+function string<E extends string | never = never>(
+  ...rules: Validator<string, E>[]
+): Value<string, E, true> {
   const stringValue = value<string, E>(
     ...(rules.length === 0 ? [IsString()] : [IsString(), ...rules]),
   );
@@ -62,6 +66,6 @@ const string = <E extends string | never = never>(...rules: Validator<string, E>
   }
 
   return stringValue;
-};
+}
 
 export { string };
