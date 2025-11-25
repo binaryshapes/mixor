@@ -205,12 +205,10 @@ type ContractOutputErrors<
 type ContractErrors<
   C extends Contract<Any, Any, Any, boolean>,
   E extends string = C extends Contract<Any, Any, infer E, boolean> ? E : never,
-> = Partial<
-  MergeUnion<
-    | ContractInputErrors<C>
-    | ContractOutputErrors<C>
-    | { $error: E | typeof PANIC_ERROR_CODE }
-  >
+> = MergeUnion<
+  | { $input: ContractInputErrors<C> }
+  | { $output: ContractOutputErrors<C> }
+  | { $error: E | typeof PANIC_ERROR_CODE }
 >;
 
 /**
@@ -511,21 +509,50 @@ const implementation = <C extends Contract<Any, Any, Any, boolean>>(
   const handlePanic = (error: Any) => {
     logger.error(`Unexpected error in implementation for contract ${contract.id}`);
     logger.hint(`Original error: ${error instanceof Error ? error.message : String(error)}`);
-    return err({ panic: PANIC_ERROR_CODE });
+    return err({ $error: PANIC_ERROR_CODE });
   };
 
   // Process the input and output of the contract.
   const processInputOutput = (input: unknown, fn: (input: unknown) => Result<unknown, unknown>) =>
     typeof fn === 'function' ? isResult(fn(input)) ? fn(input) : ok(input) : ok(input);
 
+  // Format the errors for the contract depending on the target (see sync and async functions).
+  const formatErrors = (errors: Any, target: '$input' | '$output' | '$error') => {
+    console.log('errors', errors, target);
+    if (typeof errors === 'string') {
+      return err({ [target]: errors });
+    }
+
+    if (target === '$input') {
+      return err(('$input' in errors) ? errors : { $input: errors });
+    }
+
+    if (target === '$error') {
+      return err(('$input' in errors) || ('$error' in errors) ? errors : { $error: errors });
+    }
+
+    if (target === '$output') {
+      return err(
+        ('$input' in errors) || ('$output' in errors) || ('$error' in errors)
+          ? errors
+          : { $output: errors },
+      );
+    }
+
+    return err(errors);
+  };
+
   const asyncFn = async (input: ContractParams<C>) => {
     const implementationFlow = flow<typeof input>()
       // 1. If the contract input is a function, call it.
       .map((input) => processInputOutput(input, contract.in))
+      .mapErr((error) => formatErrors(error, '$input'))
       // 2. Call the implementation.
       .map(async (input) => await implementationFn(input as ContractParams<C>) as Any)
+      .mapErr((error) => formatErrors(error, '$error'))
       // 3. If the implementation returns a value, call the contract output (if exists).
       .map((input) => processInputOutput(input, contract.out))
+      .mapErr((error) => formatErrors(error, '$output'))
       .build();
 
     try {
@@ -539,10 +566,13 @@ const implementation = <C extends Contract<Any, Any, Any, boolean>>(
     const implementationFlow = flow<typeof input>()
       // 1. If the contract input is a function, call it.
       .map((input) => processInputOutput(input, contract.in))
+      .mapErr((error) => formatErrors(error, '$input'))
       // 2. Call the implementation.
       .map((input) => implementationFn(input as ContractParams<C>) as Any)
+      .mapErr((error) => formatErrors(error, '$error'))
       // 3. If the implementation returns a value, call the contract output (if exists).
       .map((input) => processInputOutput(input, contract.out))
+      .mapErr((error) => formatErrors(error, '$output'))
       .build();
 
     try {
