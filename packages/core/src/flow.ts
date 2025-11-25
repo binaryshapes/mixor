@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { Any, PrimitiveTypeExtended } from './generics.ts';
+import type { Any, MergeUnion as MergeUnionOriginal, PrimitiveTypeExtended } from './generics.ts';
 import { logger } from './logger.ts';
 import { isErr, isOk, ok, type Result } from './result.ts';
 
@@ -87,8 +87,16 @@ type FlowStep = {
  * @internal
  */
 type FlowReturnType<I, O, E, A extends 'sync' | 'async' = 'sync'> = A extends 'async'
-  ? ((input: I) => Promise<Result<MergeUnion<O>, E>>)
-  : ((input: I) => Result<MergeUnion<O>, E>);
+  ? ((input: I) => Promise<
+    Result<
+      MergeUnion<O>,
+      MergeUnionOriginal<E>
+    >
+  >)
+  : ((input: I) => Result<
+    MergeUnion<O>,
+    MergeUnionOriginal<E>
+  >);
 
 /**
  * Binds a new property to the input object.
