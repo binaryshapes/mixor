@@ -58,7 +58,8 @@ type Value<T extends n.DataValue, E, R extends boolean = true> = n.Component<
         mode?: M,
       ): n.Result<T, n.ApplyErrorMode<E, M>>;
     })
-  & ValueBuilder<T, E>,
+  & ValueBuilder<T, E>
+  & { Errors: n.ApplyErrorMode<E, (typeof DEFAULT_ERROR_MODE)> },
   T,
   ValueMeta<T>
 >;
