@@ -226,18 +226,55 @@ type MergeValues<T, K extends PropertyKey> = T extends Any ? (K extends keyof T 
   : never;
 
 /**
+ * Checks if a type is a union that contains at least one plain object.
+ *
+ * @typeParam T - The type to check.
+ * @returns True if the type is a union containing plain objects.
+ *
+ * @internal
+ */
+type IsUnionOfPlainObjects<T> = OnlyObjects<T> extends never ? false : true;
+
+/**
+ * Deeply merges the values of a property in a type.
+ * If the merged value is a union of plain objects, it recursively merges them.
+ * Removes undefined from the resulting type.
+ *
+ * @typeParam T - The type to merge the values from.
+ * @typeParam K - The key to merge the values from.
+ * @returns The deeply merged values with undefined removed.
+ *
+ * @internal
+ */
+type DeepMergeValues<T, K extends PropertyKey> = MergeValues<T, K> extends infer V
+  ? IsUnionOfPlainObjects<V> extends true ? MergeUnion<V>
+  : V
+  : never;
+
+/**
  * Merges a union type into a single type.
- * Preserves readonly modifiers per property.
+ * Preserves readonly modifiers per property and removes never values.
+ * Recursively merges nested objects.
+ * See {@link RemoveNevers} for more information.
  *
  * @typeParam T - The type to merge.
- * @returns The merged type.
+ * @typeParam P - Whether to make the merged type partial.
  *
  * @public
  */
-type MergeUnion<T> = Pretty<
-  {
-    [K in Keys<OnlyObjects<T>>]: MergeValues<OnlyObjects<T>, K>;
-  }
+type MergeUnion<T, P extends boolean = true> = Pretty<
+  RemoveUndefined<
+    RemoveNevers<
+      P extends true ? Partial<
+          {
+            [K in Keys<OnlyObjects<T>>]: DeepMergeValues<OnlyObjects<T>, K>;
+          }
+        >
+        : {
+          [K in Keys<OnlyObjects<T>>]: DeepMergeValues<OnlyObjects<T>, K>;
+        }
+    >
+  >
 >;
 
 /**
@@ -288,8 +325,74 @@ type Promisify<T, Async extends boolean> = Async extends true
  * @public
  */
 type RemoveNevers<T extends Record<string, Any>> = {
-  [K in keyof T as never extends T[K] ? never : K]: T[K];
+  [K in keyof T as T[K] extends never ? never : K]: T[K];
 };
+
+/**
+ * Checks if a type is an empty object type.
+ *
+ * @typeParam T - The type to check.
+ * @returns True if the type is an empty object.
+ *
+ * @internal
+ */
+type IsEmptyObject<T> = T extends object ? keyof T extends never ? true
+  : false
+  : false;
+
+/**
+ * Removes undefined and empty objects from a type recursively.
+ * Removes properties that are only undefined, only empty objects, or undefined | empty object.
+ * Removes undefined from unions.
+ * Applies recursively to nested objects.
+ *
+ * @typeParam T - The type to remove undefined and empty objects from.
+ * @returns The type with undefined and empty objects removed recursively.
+ *
+ * @public
+ */
+type RemoveUndefined<T> = T extends readonly Any[] ? T
+  : T extends object
+    ? RemoveUndefinedHelper<T> extends infer R ? IsEmptyObject<R> extends true ? never
+      : R
+    : never
+  : Exclude<T, undefined>;
+
+/**
+ * Helper type for RemoveUndefined that processes object properties.
+ *
+ * @typeParam T - The object type to process.
+ * @returns The processed object type.
+ *
+ * @internal
+ */
+type RemoveUndefinedHelper<T extends object> = Pretty<
+  {
+    [
+      K in keyof T as T[K] extends undefined ? never
+        : [Exclude<T[K], undefined>] extends [never] ? never
+        : IsEmptyObject<Exclude<T[K], undefined>> extends true ? never
+        : ProcessedUndefined<T[K]> extends never ? never
+        : K
+    ]: ProcessedUndefined<T[K]>;
+  }
+>;
+
+/**
+ * Processes a value by removing undefined and applying RemoveUndefined recursively.
+ * Returns never if the result is an empty object.
+ *
+ * @typeParam V - The value type to process.
+ * @returns The processed value, or never if it's an empty object.
+ *
+ * @internal
+ */
+type ProcessedUndefined<V> = Exclude<V, undefined> extends infer U
+  ? U extends object ? RemoveUndefined<U> extends infer R ? IsEmptyObject<R> extends true ? never
+      : R
+    : never
+  : U
+  : never;
 
 /**
  * Creates a type that requires at least one property from the given type to be present.
@@ -364,6 +467,7 @@ export type {
   PrimitiveTypeExtended,
   Promisify,
   RemoveNevers,
+  RemoveUndefined,
   RequireAtLeastOne,
   UndefToOptional,
   UnionKeys,
