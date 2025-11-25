@@ -74,10 +74,11 @@ function ok<T>(value?: T): Result<T, never> {
 
 /**
  * The error type supported by the result.
+ * @typeParam L - Error string literal type.
  *
  * @internal
  */
-type ResultError = string | string[] | Record<string, string | string[]>;
+type ResultError<L extends string> = L | L[] | Record<string, L | L[]>;
 
 /**
  * Creates a failed result with the given error.
@@ -88,7 +89,7 @@ type ResultError = string | string[] | Record<string, string | string[]>;
  *
  * @public
  */
-function err<E extends ResultError>(error: E): Result<never, E> {
+function err<L extends string, E extends ResultError<L>>(error: E): Result<never, E> {
   return {
     _id: 'Result',
     _tag: 'Err',
