@@ -219,7 +219,7 @@ const createAggregate = <
      *
      * @param values - The values to set.
      * @param mode - The validation mode.
-     * @returns The result of the validation.
+     * @returns Either the aggregate instance or the errors as a `$output` validation error.
      */
     public static create<
       Self extends new (...args: n.Any[]) => n.Any,
@@ -228,12 +228,12 @@ const createAggregate = <
       this: Self,
       values: TypeOf<Schema<T>>,
       mode: Mode = DEFAULT_ERROR_MODE as Mode,
-    ): n.Result<InstanceType<Self>, SchemaErrors<T, Mode>> {
+    ): n.Result<InstanceType<Self>, { $output: SchemaErrors<T, Mode> }> {
       // Validate the values using the schema.
       const validationResult = config.schema(values, mode);
 
       if (n.isErr(validationResult)) {
-        return validationResult;
+        return n.err({ $output: validationResult.error } as n.Any);
       }
 
       // Fancy inspect for the aggregate instance.
