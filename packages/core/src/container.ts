@@ -8,7 +8,14 @@
 
 import { type Component, component, isComponent } from './component.ts';
 import { flow } from './flow.ts';
-import type { Any, MergeUnion, Pretty, Promisify, UnionToIntersection } from './generics.ts';
+import type {
+  Any,
+  FilterEmptyObjects,
+  MergeUnion,
+  Pretty,
+  Promisify,
+  UnionToIntersection,
+} from './generics.ts';
 import { logger } from './logger.ts';
 import { panic } from './panic.ts';
 import { meta } from './registry.ts';
@@ -1017,15 +1024,17 @@ type ContainerImports = Record<string, ProviderComponent | ContainerComponent>;
 type ExtractPorts<
   Path extends string,
   I extends ProviderAllowedDependencies,
-> = UnionToIntersection<
-  {
-    [IK in keyof I]: I[IK] extends PortComponent ? {
-        [Key in `${Path}.${IK & string}`]: I[IK];
-      }
-      : I[IK] extends Provider<Any, infer II> ? ExtractPorts<`${Path}.${IK & string}`, II>
-      : never;
-  }[keyof I]
->;
+> = [I] extends [never] ? Record<PropertyKey, never>
+  : keyof I extends never ? Record<PropertyKey, never>
+  : UnionToIntersection<
+    {
+      [IK in keyof I]: I[IK] extends PortComponent ? {
+          [Key in `${Path}.${IK & string}`]: I[IK];
+        }
+        : I[IK] extends Provider<Any, infer II> ? ExtractPorts<`${Path}.${IK & string}`, II>
+        : never;
+    }[keyof I]
+  >;
 
 /**
  * Extracts all ports from all providers in the container imports with concatenated keys.
@@ -1037,11 +1046,13 @@ type ExtractPorts<
  */
 type ContainerPorts<I extends ContainerImports> = Pretty<
   UnionToIntersection<
-    {
-      [K in keyof I]: I[K] extends Provider<Any, infer D> ? ExtractPorts<K & string, D>
-        : I[K] extends Container<Any> ? I[K]['Ports']
-        : never;
-    }[keyof I]
+    FilterEmptyObjects<
+      {
+        [K in keyof I]: I[K] extends Provider<Any, infer D> ? ExtractPorts<K & string, D>
+          : I[K] extends Container<Any> ? I[K]['Ports']
+          : never;
+      }[keyof I]
+    >
   >
 >;
 
@@ -1363,7 +1374,8 @@ class ContainerBuilder<I extends ContainerImports> {
  *
  * @public
  */
-const container = <I extends ContainerImports>() => new ContainerBuilder<I>();
+const container = <I extends ContainerImports>(): Container<I> =>
+  new ContainerBuilder<I>() as Container<I>;
 
 /**
  * Type guard function that determines whether an object is a container.
