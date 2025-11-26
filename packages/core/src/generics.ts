@@ -447,10 +447,21 @@ type Opaque<T> = T & { readonly __opaque__: unique symbol };
  */
 type InstanceClass<T extends new (...args: Any[]) => Any> = Opaque<InstanceType<T>>;
 
+/**
+ * Filters out empty object types from a union type.
+ *
+ * @typeParam T - The union type to filter.
+ *
+ * @public
+ */
+type FilterEmptyObjects<T> = T extends Any ? T extends Record<PropertyKey, never> ? never : T
+  : never;
+
 export type {
   Any,
   DeepAwaited,
   Equal,
+  FilterEmptyObjects,
   FlatArray,
   HasPromise,
   IfReadonly,
