@@ -8,6 +8,8 @@
 
 import { n } from '@nuxo/core';
 
+import type { Schema, SchemaValues, Value } from '@nuxo/components';
+import { criteria, rule, value } from '@nuxo/components';
 import type { Criteria } from './criteria.ts';
 
 /**
@@ -18,91 +20,121 @@ import type { Criteria } from './criteria.ts';
 const REPOSITORY_TAG = 'Repository' as const;
 
 /**
- * Represents the entity related to a repository.
- *
- * @internal
- */
-type RepositoryEntity = { Type: n.Any; Tag: 'Schema' };
-
-/**
  * Represents the criteria related to a repository.
  *
  * @internal
  */
-type RepositoryCriteria<E extends RepositoryEntity> = Record<
+type RepositoryCriteria<S extends SchemaValues, E extends Schema<S> = Schema<S>> = Record<
   string,
   Criteria<E['Type'], n.Any[]>
 >;
 
 /**
- * Represents the data source related to a repository.
+ * Creates a data source port for the repository.
  *
  * @remarks
- * The data source is a interface that must be implemented by the data source. For instance, you
- * can create data sources for different databases (like postgres, mysql, etc.) or ORMs
- * (like Prisma, TypeORM, Drizzle, Convex, Mongoose, etc ).
+ * The data source port is a record of contracts that are used to match, match all, save,
+ * delete, count and all items from the repository.
  *
- * @public
+ * @param entity - The entity of the repository.
+ * @returns The data source port.
+ *
+ * @internal
  */
-interface RepositoryDataSource<E extends RepositoryEntity> {
-  /**
-   * Matches an item from the data source.
-   *
-   * @remarks
-   * If the item does not exist, it will return undefined.
-   *
-   * @param criteria - The criteria to match the item.
-   * @returns The item if it matches the criteria, undefined otherwise.
-   */
-  match(criteria: Criteria<E['Type'], n.Any[]>): E['Type'] | undefined;
+const createDataSource = <S extends SchemaValues>(entity: Schema<S>) => {
+  // Dummy criteria to match the entity.
+  const c = criteria((() => ({})) as n.Any) as Criteria<Schema<S>['Type']>;
 
-  /**
-   * Matches all items from the data source.
-   *
-   * @remarks
-   * If the items do not exist, it will return an empty array.
-   */
-  matchAll(criteria: Criteria<E['Type'], n.Any[]>): E['Type'][];
+  // Dummy rule to check if the value is a number.
+  const IsNumber = rule(() =>
+    n.assert((value: number) => typeof value === 'number', 'INVALID_NUMBER' as never)
+  );
 
-  /**
-   * Saves an item to the data source.
-   *
-   * @remarks
-   * If the item already exists, it will be updated (upsert).
-   *
-   * @param item - The item to save.
-   * @returns True if the item was saved, false otherwise.
-   */
-  save(item: E['Type']): boolean;
+  type EntityArray<T> = n.Component<'EntityArray', T[]>;
 
-  /**
-   * Deletes an item from the data source.
-   *
-   * @remarks
-   * If the item does not exist, it will return false.
-   *
-   * @param criteria - The criteria to delete the item.
-   * @returns True if the item was deleted, false otherwise.
-   */
-  delete(criteria: Criteria<E['Type'], n.Any[]>): boolean;
+  // Internal dummy array schema component.
+  const arraySchema = <S extends SchemaValues>(schema: Schema<S>) => {
+    return n.component('EntityArray', {}, schema) as EntityArray<Schema<S>['Type']>;
+  };
 
-  /**
-   * Counts the number of items in the data source.
-   *
-   * @remarks
-   * If the data source does not support counting, it will return an error.
-   *
-   * @returns The number of items in the data source.
-   */
-  count(): number;
+  return n.port({
+    /**
+     * Matches an item from the data source.
+     *
+     * @remarks
+     * If the item does not exist, it will return a failure Result with code 'NOT_FOUND'.
+     *
+     * @param criteria - The criteria to match the item.
+     * @returns The item if it matches the criteria, undefined otherwise.
+     */
+    match: n.contract()
+      .input(c)
+      .output(entity)
+      .errors('NOT_FOUND')
+      .async()
+      .build(),
 
-  /**
-   * Returns all items from the data source.
-   *
-   * @returns All items from the data source.
-   */
-  all(): E['Type'][];
-}
+    /**
+     * Matches all items from the data source.
+     *
+     * @remarks
+     * If the items do not exist, it will return a failure Result with code 'NOT_FOUND'.
+     */
+    matchAll: n.contract()
+      .input(c)
+      .output(arraySchema(entity))
+      .errors('NOT_FOUND')
+      .async()
+      .build(),
+
+    /**
+     * Saves an item to the data source.
+     *
+     * @remarks
+     * If the item already exists, it will be updated (upsert).
+     *
+     * @param item - The item to save.
+     */
+    save: n.contract()
+      .input(entity)
+      .async()
+      .build(),
+
+    /**
+     * Deletes an item from the data source.
+     *
+     * @remarks
+     * If the item does not exist, it will return a failure Result with code 'NOT_FOUND'.
+     *
+     * @param criteria - The criteria to delete the item.
+     */
+    delete: n.contract()
+      .input(c)
+      .errors('NOT_FOUND')
+      .async()
+      .build(),
+
+    /**
+     * Counts the number of items in the data source.
+     *
+     * @returns The number of items in the data source.
+     */
+    count: n.contract()
+      .output(value(IsNumber()) as Value<number, never, true>)
+      .async()
+      .build(),
+
+    /**
+     * Returns all items from the data source.
+     *
+     * @returns Number of items in the data source.
+     */
+    all: n.contract()
+      .output(arraySchema(entity))
+      .async()
+      .build(),
+  });
+};
 
 /**
  * Repository component type.
@@ -112,29 +144,27 @@ interface RepositoryDataSource<E extends RepositoryEntity> {
  *
  * @public
  */
-type Repository<E extends RepositoryEntity, C extends RepositoryCriteria<E>> = n.Component<
+type Repository<
+  S extends SchemaValues,
+  C extends RepositoryCriteria<S>,
+> = n.Component<
   typeof REPOSITORY_TAG,
-  RepositoryBuilder<E, C> & RepositoryDataSource<E>
+  RepositoryBuilder<S, C>
 >;
-
-/**
- * Panic error for the repository module.
- *
- * @public
- */
-class RepositoryPanic
-  extends n.panic<typeof REPOSITORY_TAG, 'DataSourceNotFound'>(REPOSITORY_TAG) {}
 
 /**
  * Repository builder class that is used to build the repository.
  *
  * @internal
  */
-class RepositoryBuilder<E extends RepositoryEntity, C extends RepositoryCriteria<E>> {
+class RepositoryBuilder<
+  S extends SchemaValues,
+  C extends RepositoryCriteria<S>,
+> {
   /**
    * The data source to be used in the repository.
    */
-  private ds: RepositoryDataSource<E> | undefined;
+  private ds: ReturnType<typeof createDataSource<S>>['Type'];
 
   /**
    * Creates a new repository builder and sets the entity, criteria and data source elements
@@ -145,60 +175,70 @@ class RepositoryBuilder<E extends RepositoryEntity, C extends RepositoryCriteria
    * @param ds - The data source to be used in the repository.
    */
   constructor(
-    private readonly entity: E,
+    private readonly entity: Schema<S>,
     private readonly criteria: C,
-  ) {}
-
-  public dataSource(ds: RepositoryDataSource<E>) {
+    ds: ReturnType<typeof createDataSource<S>>['Type'],
+  ) {
     this.ds = ds;
-    return this as unknown as Repository<E, C>;
   }
 
-  public match<K extends keyof C>(key: K, ...params: Parameters<C[K]>) {
-    if (!this.ds) {
-      throw new RepositoryPanic('DataSourceNotFound', 'Data source not found');
-    }
-
-    return this.ds.match(this.criteria[key](...params) as Criteria<E['Type'], n.Any[]>);
+  /**
+   * Matches an item from the repository using the given criteria.
+   *
+   * @remarks
+   * If the item does not exist, it will return a failure Result with code 'NOT_FOUND'.
+   */
+  public async match<K extends keyof C>(key: K, ...params: Parameters<C[K]>) {
+    return await this.ds.match(this.criteria[key](...params));
   }
 
+  /**
+   * Matches all items from the repository using the given criteria.
+   *
+   * @remarks
+   * If the items do not exist, it will return a failure Result with code 'NOT_FOUND'.
+   */
   public matchAll<K extends keyof C>(key: K, ...params: Parameters<C[K]>) {
-    if (!this.ds) {
-      throw new RepositoryPanic('DataSourceNotFound', 'Data source not found');
-    }
-
-    return this.ds.matchAll(this.criteria[key](...params) as Criteria<E['Type'], n.Any[]>);
+    return this.ds.matchAll(this.criteria[key](...params));
   }
 
-  public save(item: E['Type']) {
-    if (!this.ds) {
-      throw new RepositoryPanic('DataSourceNotFound', 'Data source not found');
-    }
-
+  /**
+   * Saves an item to the repository.
+   *
+   * @remarks
+   * If the item already exists, it will be updated (upsert).
+   */
+  public save(item: Schema<S>['Type']) {
     return this.ds.save(item);
   }
 
-  public delete(criteria: Criteria<E['Type'], n.Any[]>) {
-    if (!this.ds) {
-      throw new RepositoryPanic('DataSourceNotFound', 'Data source not found');
-    }
-
-    return this.ds.delete(criteria);
+  /**
+   * Deletes an item from the repository.
+   *
+   * @remarks
+   * If the item does not exist, it will return a failure Result with code 'NOT_FOUND'.
+   */
+  public delete<K extends keyof C>(key: K, ...params: Parameters<C[K]>) {
+    return this.ds.delete(this.criteria[key](...params));
   }
 
+  /**
+   * Counts the number of items in the repository.
+   *
+   * @remarks
+   * If the data source does not support counting, it will return a failure Result with code 'NOT_SUPPORTED'.
+   */
   public count() {
-    if (!this.ds) {
-      throw new RepositoryPanic('DataSourceNotFound', 'Data source not found');
-    }
-
     return this.ds.count();
   }
 
+  /**
+   * Returns all items from the repository.
+   *
+   * @remarks
+   * If the data source does not support returning all items, it will return a failure Result with code 'NOT_SUPPORTED'.
+   */
   public all() {
-    if (!this.ds) {
-      throw new RepositoryPanic('DataSourceNotFound', 'Data source not found');
-    }
-
     return this.ds.all();
   }
 }
@@ -216,20 +256,36 @@ class RepositoryBuilder<E extends RepositoryEntity, C extends RepositoryCriteria
  *
  * @public
  */
-const repository = <E extends RepositoryEntity, C extends RepositoryCriteria<E>>(
-  entity: E,
+const repository = <
+  S extends SchemaValues,
+  C extends RepositoryCriteria<S>,
+>(
+  entity: Schema<S>,
   criteria: C,
-) => {
-  const repositoryComponent = n.component(
-    REPOSITORY_TAG,
-    new RepositoryBuilder<E, C>(entity, criteria),
-  );
+): n.Provider<Repository<S, C>, { DataSource: ReturnType<typeof createDataSource<S>> }> => {
+  // Data source type used in the repository.
+  type DS = ReturnType<typeof createDataSource<S>>['Type'];
 
-  // Adding the entity and criteria as children of the repository component.
-  n.meta(repositoryComponent).children(entity, ...Object.values(criteria));
+  // Data source to be used in the repository.
+  const ds = createDataSource(entity);
 
-  return repositoryComponent as Repository<E, C>;
+  // Builds the repository using the data source adapter.
+  const createRepository = (ds: DS) => {
+    const repo = n.component(
+      REPOSITORY_TAG,
+      new RepositoryBuilder<S, C>(entity, criteria, ds),
+    );
+
+    n.meta(repo).children(entity, ...Object.values(criteria));
+
+    return repo as Repository<S, C>;
+  };
+
+  // Builds the repository provider using the data source adapter.
+  return n.provider()
+    .use({ DataSource: ds })
+    .provide(({ DataSource }) => createRepository(DataSource));
 };
 
-export { repository, RepositoryBuilder };
-export type { Repository, RepositoryDataSource };
+export { createDataSource, repository, RepositoryBuilder };
+export type { Repository };
