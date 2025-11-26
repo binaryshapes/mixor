@@ -134,7 +134,7 @@ type ContractParams<
  * @remarks
  * Extracts the return type from a contract. If the contract has an output component,
  * this returns the Type of that component (or InstanceType if it's a class constructor).
- * If there's no output, it returns `void` or `Promise<void>`.
+ * If there's no output, it returns `void`.
  *
  * @typeParam C - The contract.
  * @typeParam O - The output of the contract (inferred from C).
@@ -144,7 +144,7 @@ type ContractParams<
 type ContractReturn<
   C extends Contract<Any, Any, Any, boolean>,
   O = C extends Contract<Any, infer O, Any, boolean> ? O : never,
-> = O extends undefined ? void | Promise<void>
+> = O extends undefined ? void
   : O extends Component<string, unknown>
     ? O['Type'] extends new (...args: Any[]) => Any ? InstanceType<O['Type']>
     : O['Type']
@@ -525,7 +525,6 @@ const implementation = <C extends Contract<Any, Any, Any, boolean>>(
 
   // Format the errors for the contract depending on the target (see sync and async functions).
   const formatErrors = (errors: Any, target: '$input' | '$output' | '$error') => {
-    console.log('errors', errors, target);
     if (typeof errors === 'string') {
       return err({ [target]: errors });
     }
@@ -791,8 +790,11 @@ type ProviderAllowedDependencies = Record<string, PortComponent | ProviderCompon
  *
  * @internal
  */
-type ProviderDependencies<D extends ProviderAllowedDependencies> = {
-  [K in keyof D]: D[K]['Type'];
+type ProviderDependencies<
+  D extends ProviderAllowedDependencies,
+  GetType extends boolean = false,
+> = [D] extends [never] ? Record<PropertyKey, never> : {
+  [K in keyof D]: GetType extends true ? D[K]['Type'] : D[K];
 };
 
 /**
@@ -804,7 +806,7 @@ type ProviderDependencies<D extends ProviderAllowedDependencies> = {
  * @internal
  */
 type ProviderFunction<T, D extends ProviderAllowedDependencies> = (
-  deps: ProviderDependencies<D>,
+  deps: ProviderDependencies<D, true>,
 ) => T;
 
 /**
@@ -843,7 +845,10 @@ type Provider<
   D extends ProviderAllowedDependencies = never,
 > = Component<
   typeof PROVIDER_TAG,
-  ProviderSignature<T, D> & ProviderBuilder<T, D>,
+  & ProviderSignature<T, D>
+  & ProviderBuilder<T, D>
+  // Expose the dependencies of the provider as properties of the provider component.
+  & ProviderDependencies<D>,
   T
 >;
 
@@ -928,6 +933,11 @@ class ProviderBuilder<T, D extends ProviderAllowedDependencies = never> {
 
     // Set the dependencies of the provider.
     this.deps = dependencies as unknown as D;
+
+    // We need to assign the dependencies to the provider builder to make them
+    // available as properties of the provider component.
+    Object.assign(this, { ...this.deps });
+
     return this as unknown as Provider<T, DD>;
   }
 
