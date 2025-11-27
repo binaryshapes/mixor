@@ -198,8 +198,8 @@ class RepositoryBuilder<
    * @remarks
    * If the items do not exist, it will return a failure Result with code 'NOT_FOUND'.
    */
-  public matchAll<K extends keyof C>(key: K, ...params: Parameters<C[K]>) {
-    return this.ds.matchAll(this.criteria[key](...params));
+  public async matchAll<K extends keyof C>(key: K, ...params: Parameters<C[K]>) {
+    return await this.ds.matchAll(this.criteria[key](...params));
   }
 
   /**
@@ -208,8 +208,8 @@ class RepositoryBuilder<
    * @remarks
    * If the item already exists, it will be updated (upsert).
    */
-  public save(item: Schema<S>['Type']) {
-    return this.ds.save(item);
+  public async save(item: Schema<S>['Type']) {
+    return await this.ds.save(item);
   }
 
   /**
@@ -218,8 +218,8 @@ class RepositoryBuilder<
    * @remarks
    * If the item does not exist, it will return a failure Result with code 'NOT_FOUND'.
    */
-  public delete<K extends keyof C>(key: K, ...params: Parameters<C[K]>) {
-    return this.ds.delete(this.criteria[key](...params));
+  public async delete<K extends keyof C>(key: K, ...params: Parameters<C[K]>) {
+    return await this.ds.delete(this.criteria[key](...params));
   }
 
   /**
@@ -228,8 +228,8 @@ class RepositoryBuilder<
    * @remarks
    * If the data source does not support counting, it will return a failure Result with code 'NOT_SUPPORTED'.
    */
-  public count() {
-    return this.ds.count();
+  public async count() {
+    return await this.ds.count();
   }
 
   /**
@@ -238,8 +238,8 @@ class RepositoryBuilder<
    * @remarks
    * If the data source does not support returning all items, it will return a failure Result with code 'NOT_SUPPORTED'.
    */
-  public all() {
-    return this.ds.all();
+  public async all() {
+    return await this.ds.all();
   }
 }
 
