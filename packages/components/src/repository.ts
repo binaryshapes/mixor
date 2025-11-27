@@ -50,6 +50,11 @@ const createDataSource = <S extends SchemaValues>(entity: Schema<S>) => {
     n.assert((value: number) => typeof value === 'number', 'INVALID_NUMBER' as never)
   );
 
+  // Dummy rule to check if the value is a boolean.
+  const IsBoolean = rule(() =>
+    n.assert((value: boolean) => typeof value === 'boolean', 'INVALID_BOOLEAN' as never)
+  );
+
   type EntityArray<T> = n.Component<'EntityArray', T[]>;
 
   // Internal dummy array schema component.
@@ -131,6 +136,18 @@ const createDataSource = <S extends SchemaValues>(entity: Schema<S>) => {
      */
     all: n.contract()
       .output(arraySchema(entity))
+      .async()
+      .build(),
+
+    /**
+     * Checks if an item exists in the data source.
+     *
+     * @param criteria - The criteria to check if the item exists.
+     * @returns True if the item exists, false otherwise.
+     */
+    exists: n.contract()
+      .input(c)
+      .output(value(IsBoolean()) as Value<boolean, never, true>)
       .async()
       .build(),
   });
@@ -217,6 +234,8 @@ class RepositoryBuilder<
    *
    * @remarks
    * If the item does not exist, it will return a failure Result with code 'NOT_FOUND'.
+   *
+   * @param criteria - The criteria to delete the item.
    */
   public async delete<K extends keyof C>(key: K, ...params: Parameters<C[K]>) {
     return await this.ds.delete(this.criteria[key](...params));
@@ -225,8 +244,7 @@ class RepositoryBuilder<
   /**
    * Counts the number of items in the repository.
    *
-   * @remarks
-   * If the data source does not support counting, it will return a failure Result with code 'NOT_SUPPORTED'.
+   * @returns The number of items in the repository.
    */
   public async count() {
     return await this.ds.count();
@@ -235,11 +253,20 @@ class RepositoryBuilder<
   /**
    * Returns all items from the repository.
    *
-   * @remarks
-   * If the data source does not support returning all items, it will return a failure Result with code 'NOT_SUPPORTED'.
+   * @returns All items from the repository.
    */
   public async all() {
     return await this.ds.all();
+  }
+
+  /**
+   * Checks if an item exists in the repository.
+   *
+   * @param criteria - The criteria to check if the item exists.
+   * @returns True if the item exists, false otherwise.
+   */
+  public async exists<K extends keyof C>(key: K, ...params: Parameters<C[K]>) {
+    return await this.ds.exists(this.criteria[key](...params));
   }
 }
 
