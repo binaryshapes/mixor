@@ -1,0 +1,20 @@
+{
+  "name": "@nuxo/db",
+  "version": "1.0.0",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/mod.ts",
+    "./transformers": "./src/transformers/mod.ts"
+  },
+  "publish": {
+    "include": [
+      "src/**/*.ts",
+      "deno.json",
+      "README.md",
+      "LICENSE"
+    ]
+  },
+  "imports": {
+    "drizzle-orm": "npm:drizzle-orm@^0.44.7"
+  }
+}
