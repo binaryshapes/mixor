@@ -317,9 +317,10 @@ class TaskBuilder<
       }
 
       // Only create a new implementation if the handler is just a function.
-      this.callerFn = n.isImplementation(this.handlerFn(deps))
-        ? this.handlerFn(deps)
-        : n.implementation(this.contract, this.handlerFn(deps) as n.Any);
+      const callerFn = this.handlerFn(deps as D);
+      this.callerFn = n.isImplementation(callerFn)
+        ? callerFn
+        : n.implementation(this.contract, callerFn);
 
       // Create the task component and add the contract as a child.
       const taskComponent = n.component(TASK_TAG, taskFn(this), this);
