@@ -102,6 +102,7 @@ const createDataSource = <S extends SchemaValues>(entity: Schema<S>) => {
      */
     save: n.contract()
       .input(entity)
+      .errors('ALREADY_EXISTS')
       .async()
       .build(),
 
@@ -179,11 +180,6 @@ class RepositoryBuilder<
   C extends RepositoryCriteria<S>,
 > {
   /**
-   * The data source to be used in the repository.
-   */
-  private ds: ReturnType<typeof createDataSource<S>>['Type'];
-
-  /**
    * Creates a new repository builder and sets the entity, criteria and data source elements
    * to be used in the repository.
    *
@@ -194,10 +190,8 @@ class RepositoryBuilder<
   constructor(
     private readonly entity: Schema<S>,
     private readonly criteria: C,
-    ds: ReturnType<typeof createDataSource<S>>['Type'],
-  ) {
-    this.ds = ds;
-  }
+    private readonly ds: ReturnType<typeof createDataSource<S>>['Type'],
+  ) {}
 
   /**
    * Matches an item from the repository using the given criteria.
@@ -314,5 +308,5 @@ const repository = <
     .provide(({ DataSource }) => createRepository(DataSource));
 };
 
-export { createDataSource, repository, RepositoryBuilder };
+export { repository };
 export type { Repository };
