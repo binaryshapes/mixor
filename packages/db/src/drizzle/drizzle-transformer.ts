@@ -76,7 +76,7 @@ const DrizzleTransformer = <T>(
     const fieldConditions: SQL[] = [];
 
     for (const [field, condition] of Object.entries(criteriaValue)) {
-      if (field.startsWith('$')) continue; // Skip logical operators
+      if (field.startsWith('$')) continue; // Skip logical operators.
 
       const column = getColumn(field as keyof T);
 
@@ -103,19 +103,19 @@ const DrizzleTransformer = <T>(
               fieldConditions.push(lte(column as SQL, value));
               break;
             case '$contains':
-              // SQL LIKE with %value%
+              // SQL LIKE with %value%.
               fieldConditions.push(ilike(column as SQL, `%${value}%`));
               break;
             case '$startsWith':
-              // SQL LIKE with value%
+              // SQL LIKE with value%.
               fieldConditions.push(ilike(column as SQL, `${value}%`));
               break;
             case '$endsWith':
-              // SQL LIKE with %value
+              // SQL LIKE with %value.
               fieldConditions.push(ilike(column as SQL, `%${value}`));
               break;
             case '$like':
-              // Direct SQL LIKE pattern
+              // Direct SQL LIKE pattern.
               fieldConditions.push(like(column as SQL, value));
               break;
             case '$in':
@@ -129,18 +129,18 @@ const DrizzleTransformer = <T>(
               }
               break;
             default:
-              // Unknown operator, skip
+              // Unknown operator, skip.
               n.logger.warn(`Unknown operator: ${operator}`);
               break;
           }
         }
       } else {
-        // Direct value comparison (defaults to equality)
+        // Direct value comparison (defaults to equality).
         fieldConditions.push(eq(column as SQL, condition));
       }
     }
 
-    // Combine all field conditions with AND
+    // Combine all field conditions with AND.
     if (fieldConditions.length === 0) {
       return undefined;
     } else if (fieldConditions.length === 1) {

@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "license": "MIT",
   "exports": {
-    ".": "./src/mod.ts",
-    "./transformers": "./src/transformers/mod.ts"
+    "./drizzle": "./src/drizzle/mod.ts",
+    "./in-memory": "./src/in-memory/mod.ts"
   },
   "publish": {
     "include": [
@@ -15,6 +15,7 @@
     ]
   },
   "imports": {
-    "drizzle-orm": "npm:drizzle-orm@^0.44.7"
+    "drizzle-orm": "npm:drizzle-orm@^0.44.7",
+    "pg": "npm:pg@^8.16.3"
   }
 }

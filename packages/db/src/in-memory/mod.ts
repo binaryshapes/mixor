@@ -6,5 +6,4 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export * from './drizzle-transformer.ts';
 export * from './in-memory-transformer.ts';
