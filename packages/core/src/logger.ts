@@ -9,6 +9,8 @@
 import { blue, cyan, gray, green, magenta, red, white, yellow } from '@std/fmt/colors';
 import { getCallSites } from 'node:util';
 
+import { config } from './config.ts';
+
 /**
  * The mode of the logger.
  *
@@ -171,7 +173,8 @@ const success = (message: string): void => print(message, 'success');
  *
  * @public
  */
-const debug = (message: string): void => print(message, 'debug');
+const debug = (message: string): void =>
+  config.get('NUXO_DEBUG') ? print(message, 'debug') : void 0;
 
 /**
  * Print a hint message to the console.
