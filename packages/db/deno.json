@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "license": "MIT",
   "exports": {
+    ".": "./src/mod.ts",
     "./drizzle": "./src/drizzle/mod.ts",
     "./in-memory": "./src/in-memory/mod.ts"
   },

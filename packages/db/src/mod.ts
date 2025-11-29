@@ -6,5 +6,5 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export * from './data-sources/drizzle-data-source.ts';
-export * from './transformers/mod.ts';
+export * from './drizzle/mod.ts';
+export * from './in-memory/mod.ts';
