@@ -33,6 +33,7 @@ type ErrorHandler = (error: DatabaseError) => ErrorHandlerResult;
 
 /**
  * Object containing the error codes for Drizzle ORM errors.
+ *
  * @internal
  */
 const DrizzlePostgresErrorCodes = {
@@ -51,13 +52,21 @@ const DrizzlePostgresErrorCodes = {
 } as const;
 
 /**
+ * Type for the error codes of Drizzle PostgreSQL errors.
+ *
+ * @internal
+ */
+type DrizzlePostgresErrorCodes =
+  typeof DrizzlePostgresErrorCodes[keyof typeof DrizzlePostgresErrorCodes];
+
+/**
  * Maps PostgreSQL error codes to specific handler functions.
  *
  * Ref: https://github.com/drizzle-team/drizzle-orm/discussions/916#discussioncomment-14498892
  *
  * @internal
  */
-const PostgresErrorHandlers: Record<string, ErrorHandler> = {
+const PostgresErrorHandlers: Record<DrizzlePostgresErrorCodes, ErrorHandler> = {
   [DrizzlePostgresErrorCodes.UNIQUE_CONSTRAINT_ERROR_CODE]: (error) => ({
     message: 'A duplicate entry was found for a unique field.',
     constraint: error.constraint || null,
@@ -133,7 +142,10 @@ function getDrizzlePostgresErrorMessage(
 ): ErrorHandlerResult {
   if (error instanceof DrizzleQueryError && error.cause instanceof DatabaseError) {
     const originalError = error.cause;
-    const handler = PostgresErrorHandlers[originalError.code ?? 'default'];
+    const handler = PostgresErrorHandlers[
+      originalError.code as DrizzlePostgresErrorCodes ??
+        DrizzlePostgresErrorCodes.DEFAULT_ERROR_CODE
+    ];
 
     if (handler) {
       return handler(originalError);
