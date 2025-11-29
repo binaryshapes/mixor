@@ -48,6 +48,32 @@
           "jsonpath": "$.version"
         }
       ]
+    },
+    "packages/db": {
+      "component-no-space": true,
+      "component": "db",
+      "changelog-path": "CHANGELOG.md",
+      "extra-label": "db",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "deno.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "packages/security": {
+      "component-no-space": true,
+      "component": "security",
+      "changelog-path": "CHANGELOG.md",
+      "extra-label": "security",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "deno.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   },
   "changelog-sections": [
