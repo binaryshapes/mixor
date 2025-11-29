@@ -155,6 +155,16 @@ const createDataSource = <S extends SchemaValues>(entity: Schema<S>) => {
 };
 
 /**
+ * Type for the data source of the repository.
+ *
+ * @typeParam S - The schema of the entity.
+ * @returns The data source of the repository.
+ *
+ * @internal
+ */
+type RepositoryDataSource<S extends SchemaValues> = ReturnType<typeof createDataSource<S>>['Type'];
+
+/**
  * Repository component type.
  *
  * @typeParam E - The entity of the repository.
@@ -167,7 +177,7 @@ type Repository<
   C extends RepositoryCriteria<S>,
 > = n.Component<
   typeof REPOSITORY_TAG,
-  RepositoryBuilder<S, C>
+  RepositoryBuilder<S, C> & { DataSource: n.Port<RepositoryDataSource<S>>; Criteria: C }
 >;
 
 /**
