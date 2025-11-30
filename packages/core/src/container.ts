@@ -126,7 +126,7 @@ type ContractParams<
   C extends Contract<Any, Any, Any, boolean>,
   I = C extends Contract<infer I, Any, Any, boolean> ? I : never,
 > = I extends Component<string, unknown>
-  ? I['Type'] extends { InstanceType: infer I } ? I : I['Type']
+  ? I['Type'] extends { InstanceType: infer II } ? II : I['Type']
   : never;
 
 /**
