@@ -97,6 +97,10 @@ type JwtSignOptions = {
    * The audience of the JWT.
    */
   audience?: string;
+  /**
+   * The subject of the JWT.
+   */
+  subject?: string;
 };
 
 /**
@@ -107,6 +111,7 @@ type JwtSignOptions = {
 const DEFAULT_JWT_SIGN_OPTIONS: JwtSignOptions = {
   issuer: 'unknown',
   audience: 'unknown',
+  subject: 'unknown',
 };
 
 /**
@@ -169,9 +174,16 @@ class JwtProvider {
         jwt.setAudience(options.audience);
       }
 
+      if (options.subject && options.subject !== DEFAULT_JWT_SIGN_OPTIONS.subject) {
+        jwt.setSubject(options.subject);
+      }
+
       return n.ok(await jwt.sign(this.secret));
     } catch (error: unknown) {
-      n.logger.debug(`JWT creation error: ${error}`);
+      if (error instanceof JOSEError) {
+        n.logger.debug(`JWT creation error: ${error.code} ${error.message}`);
+      }
+
       return n.err({ $error: JWT_CANNOT_CREATE_ERROR });
     }
   }

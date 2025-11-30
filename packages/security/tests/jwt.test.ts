@@ -137,14 +137,15 @@ Deno.test('JWT - should create and verify JWT all supported algorithms successfu
 
 Deno.test('JWT - should create and verify JWT with custom options successfully', async () => {
   const payload: JWTPayload = {
-    sub: 'user123',
     name: 'Test User',
   };
 
   const createResult = await jwtProvider.create(payload, {
     issuer: 'test-issuer',
     audience: 'test-audience',
+    subject: 'test-subject',
   });
+
   assertEquals(n.isOk(createResult), true);
 
   if (n.isOk(createResult)) {
@@ -156,10 +157,10 @@ Deno.test('JWT - should create and verify JWT with custom options successfully',
     if (n.isOk(verifyResult)) {
       const verifiedPayload = verifyResult.value;
 
-      assertEquals(verifiedPayload.sub, 'user123');
       assertEquals(verifiedPayload.name, 'Test User');
       assertEquals(verifiedPayload.iss, 'test-issuer');
       assertEquals(verifiedPayload.aud, 'test-audience');
+      assertEquals(verifiedPayload.sub, 'test-subject');
     }
   }
 });
