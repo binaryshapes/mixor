@@ -401,11 +401,14 @@ const schema = <V extends SchemaValues>(values: V) => {
     Object.entries(values).map(([key, fn]) => [key, n.info(fn).props.type as string]),
   );
 
-  // Add the schema type to the schema component.
-  n.info(schemaComponent).type(schemaType);
+  // Only set the type and parameters if they are not already set.
+  if (!n.info(schemaComponent).props.type) {
+    // Add the schema type to the schema component.
+    n.info(schemaComponent).type(schemaType);
 
-  // Add the schema parameters to the schema (category: function).
-  n.info(schemaComponent).params(['input', schemaType]);
+    // Add the schema parameters to the schema (category: function).
+    n.info(schemaComponent).params(['input', schemaType]);
+  }
 
   // Adding the values as children of the schema component.
   n.meta(schemaComponent).children(...Object.values(values));
