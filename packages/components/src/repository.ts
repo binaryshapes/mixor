@@ -230,7 +230,8 @@ class RepositoryBuilder<
    * If the item already exists, it will be updated (upsert).
    */
   public async save(item: Schema<S>['Type']) {
-    return await this.ds.save(item);
+    // XXX: This is a workaround to avoid type inference issues with the schema.
+    return await this.ds.save(item as n.Any);
   }
 
   /**
