@@ -125,7 +125,8 @@ type ContractOutput = Component<string, Any>;
 type ContractParams<
   C extends Contract<Any, Any, Any, boolean>,
   I = C extends Contract<infer I, Any, Any, boolean> ? I : never,
-> = I extends Component<string, unknown> ? I['Type']
+> = I extends Component<string, unknown>
+  ? I['Type'] extends { InstanceType: infer I } ? I : I['Type']
   : never;
 
 /**
@@ -146,8 +147,7 @@ type ContractReturn<
   O = C extends Contract<Any, infer O, Any, boolean> ? O : never,
 > = O extends undefined ? void
   : O extends Component<string, unknown>
-    ? O['Type'] extends new (...args: Any[]) => Any ? InstanceType<O['Type']>
-    : O['Type']
+    ? O['Type'] extends { InstanceType: infer I } ? I : O['Type']
   : never;
 
 /**
@@ -668,7 +668,7 @@ type Port<S extends PortShape> = Component<
  *
  * @public
  */
-const port = <S extends PortShape>(port: S) => component(PORT_TAG, {}, port) as Port<S>;
+const port = <S extends PortShape>(port: S): Port<S> => component(PORT_TAG, port) as Port<S>;
 
 /**
  * Type guard function that determines whether an object is a port.
@@ -1154,7 +1154,7 @@ class ContainerBuilder<I extends ContainerImports> {
       );
     }
 
-    if (port !== adapter.port) {
+    if (port.id !== adapter.port.id) {
       throw new ContainerPanic(
         'InvalidBinding',
         'Cannot bind an adapter to a different port',
