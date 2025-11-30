@@ -64,6 +64,7 @@ type Aggregate<
 > = n.Component<
   typeof AGGREGATE_TAG,
   Self & {
+    InstanceType: Self extends new (...args: n.Any[]) => n.Any ? InstanceType<Self> : never;
     Errors: SchemaErrors<T, typeof DEFAULT_ERROR_MODE>;
     schema: Schema<T>;
     events: EventManager<E>;
