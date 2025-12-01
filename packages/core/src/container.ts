@@ -912,8 +912,9 @@ class ProviderBuilder<T, D extends ProviderAllowedDependencies = never> {
         'Cannot define dependencies that are not valid',
         doc`
         All dependencies must be valid providers or ports.
-        The invalid dependencies are:
-        ${invalidDependencies.map((d) => `- ${d}`).join('\n')}
+        The invalid dependencies are: ${
+          invalidDependencies.map((d, i) => `${i + 1}. ${JSON.stringify(d)}`).join(', ')
+        }
         `,
       );
     }

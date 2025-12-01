@@ -96,6 +96,13 @@ type Task<
   typeof TASK_TAG,
   & n.Implementation<C>['Signature']
   & TaskBuilder<C, D>
+  & {
+    Errors: n.Implementation<C>['Errors'];
+    Input: n.Implementation<C>['Signature'] extends (args: infer I) => n.Any ? I : never;
+    Output: n.Implementation<C>['Signature'] extends
+      (...input: n.Any[]) => Promise<n.Result<infer O, n.Any>> ? O
+      : never;
+  }
 >;
 
 /**
@@ -365,7 +372,7 @@ const taskFn = <
       throw new TaskPanic('CallerNotSet', 'Caller function not set');
     }
 
-    let lastError: n.PanicError<string, string>;
+    let lastError: n.PanicError<string, string> | undefined = undefined;
     let attempt = 0;
 
     while (attempt < taskBuilder.maxRetries + 1) {
@@ -374,7 +381,17 @@ const taskFn = <
       try {
         // This call automatically applies the contract input and output validation.
         // Remember the task caller function is wrapped in a contract implementation.
-        return await taskBuilder.callerFn(input);
+        const result = await taskBuilder.callerFn(input);
+
+        if (n.isErr(result)) {
+          const error = result.error as n.Any;
+
+          if (error.$error === 'PANIC_ERROR') {
+            throw new Error(error.$error);
+          }
+        }
+
+        return result;
       } catch (error) {
         // Use fallbackHandler if configured for cleanup.
         lastError = error instanceof Error
@@ -410,17 +427,19 @@ const taskFn = <
               throw fallbackError;
             }
 
-            return n.err({ panic: fallbackError.code });
+            return n.err({ $error: fallbackError.code });
           }
 
           if (taskBuilder.throwOnError) {
             throw lastError;
           }
 
-          return n.err({ panic: lastError.code });
+          return n.err({ $error: lastError.code });
         }
       }
     }
+
+    return n.err({ $error: lastError?.message ?? 'PANIC_ERROR' });
   };
 
   return fn;
@@ -449,12 +468,12 @@ const taskFn = <
  *
  * @public
  */
-const task = <
-  C extends TaskContract,
-  D extends TaskDependencies = never,
->(
+const task = <C extends TaskContract, D extends TaskDependencies = never>(
   contract: C,
-): TaskBuilder<C, D> => new TaskBuilder(contract);
+): Task<C, D> => new TaskBuilder(contract) as Task<C, D>;
 
-export { task, TaskPanic };
-export type { Task, TaskContract };
+const isTask = (maybeTask: n.Any): maybeTask is Task<n.Any, n.Any> =>
+  n.isComponent(maybeTask, TASK_TAG);
+
+export { isTask, task, TaskPanic };
+export type { Task, TaskContract, TaskDependencies };
