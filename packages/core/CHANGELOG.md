@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.3.0](https://github.com/binaryshapes/mixor/compare/core@v1.2.0...core@v1.3.0) (2025-11-29)
+
+
+### ✨ Features
+
+* **core/config:** add NUXO_DEBUG variable to enable debug mode ([761346e](https://github.com/binaryshapes/mixor/commit/761346e1fc7c9153a3b3484c386d0f10923d5636))
+* **core/container:** enhance contract and implementation types with error handling ([a12bc20](https://github.com/binaryshapes/mixor/commit/a12bc2016879c37d0d84f7c248c566d466e1bf1a))
+* **core/container:** refine type definitions and improve provider handling ([4f11742](https://github.com/binaryshapes/mixor/commit/4f11742d26a7d9fc5a5b35fbb1e2c46da3d5c028))
+* **core/generics:** add FilterEmptyObjects type for improved type filtering ([88ec35b](https://github.com/binaryshapes/mixor/commit/88ec35bfb6a3bec5117d686e5d467ec06c834972))
+* **core/generics:** add new generic utilities ([204c7b5](https://github.com/binaryshapes/mixor/commit/204c7b5d58e13e635fde0644ac92b4b03b5a0d76))
+* **core/generics:** add new generics utils for merge objects ([b179b8d](https://github.com/binaryshapes/mixor/commit/b179b8d1662433040815c965bf0b1a4186ba9661))
+* **core/generics:** introduce Opaque and InstanceClass types for enhanced type safety in classes ([b364261](https://github.com/binaryshapes/mixor/commit/b3642611d1deb37a4f90eb17f7908d7ff5559983))
+* **core/logger:** enhance debug logging with configuration support ([bf71d84](https://github.com/binaryshapes/mixor/commit/bf71d8439698c3e6776691d79536a9bc3aa1d8fe))
+* **core/panic:** export missed PanicError class ([5e1cff2](https://github.com/binaryshapes/mixor/commit/5e1cff2dd38fe25562e6f5c1f2443caed4c0c6b8))
+
+
+### 🐛 Bug fixes
+
+* **core/container:** allow to contract have no input params and resolve container registration issue ([4f5089c](https://github.com/binaryshapes/mixor/commit/4f5089c4d9d7ac0bedb9e51fd9f1238c1c0c8021))
+* **core/container:** change visibility of imports and bindings to private in container builder ([ae3c6b4](https://github.com/binaryshapes/mixor/commit/ae3c6b473417c34e6d5d538980e24a0f18eb27e4))
+* **core/container:** enhance contract input/output validation and types ([dac9675](https://github.com/binaryshapes/mixor/commit/dac96759eeab5a0f65de50e127b3b3034797fa50))
+* **core/container:** enhance contract types and refine error strings ([e9e3dbb](https://github.com/binaryshapes/mixor/commit/e9e3dbb068d5e33353c57ba02e3651d4e1933cee))
+* **core/data:** return redacted value in Data class get method ([2497c3b](https://github.com/binaryshapes/mixor/commit/2497c3b8dbf85f333bf6fafcc2a502350bd261fb))
+* **core/flow:** update bind and action method type definitions to improve error handling ([e52f111](https://github.com/binaryshapes/mixor/commit/e52f11199599457c78c7674551cd8ae91da7d74a))
+* **core/panic:** enhance error logging based on NUXO_DEBUG configuration ([3dcbc3a](https://github.com/binaryshapes/mixor/commit/3dcbc3a77cb5fb72fc5d7744957c82083989bed1))
+* **core/registry:** solve target handling with proxy for metaId ([dbe53dd](https://github.com/binaryshapes/mixor/commit/dbe53dd2950def72a81bc3d313fdbe3cfc8901b1))
+* **core/registry:** update target property exposure to prevent private data leakage ([5c301d1](https://github.com/binaryshapes/mixor/commit/5c301d1a7c509e30c97f3d49dbf74599c40b154e))
+* **core/result:** enhance assert function type definitions using ResultError ([d246aa6](https://github.com/binaryshapes/mixor/commit/d246aa61a5fe0836a19ae42c031db6ea9528bdd5))
+* **core/result:** enhance error typing for better inference ([ebedad2](https://github.com/binaryshapes/mixor/commit/ebedad2957426293101373b933891048582cca29))
+
+
+### 🔄 Code refactoring
+
+* **core/container:** enhance ContainerPorts type definitions adding support for empty deps ([ded3563](https://github.com/binaryshapes/mixor/commit/ded35633777cd4f5deb7c7558641e899d09d1e0e))
+* **core/container:** enhance contract and implementation types with detailed error handling ([d65e03f](https://github.com/binaryshapes/mixor/commit/d65e03f4626078836b1ec2431a4d282bafb60e64))
+* **core/container:** enhance type definitions and error handling in Implementations and Ports ([ba99c3d](https://github.com/binaryshapes/mixor/commit/ba99c3d678fb8b9236037251371664811f45cc85))
+* **core/container:** improve error handling in contract implementation ([6860e06](https://github.com/binaryshapes/mixor/commit/6860e06efe7078bd2052a5114584c32e35a613d2))
+* **core/container:** update error key visibility from internal to public ([c46ff7b](https://github.com/binaryshapes/mixor/commit/c46ff7bd6399df22e82d06a04dd5d5ebc0dcaed9))
+* **core/flow:** enhance FlowReturnType to utilize MergeUnion for error handling ([6f658af](https://github.com/binaryshapes/mixor/commit/6f658afcfe7ca6bc8381a88be5c6bf4451a92345))
+* **core/flow:** workaround to avoid expand classes in a flow ([b4769c0](https://github.com/binaryshapes/mixor/commit/b4769c04d1f8b547b6579b6be360162d953d9e81))
+* **core/generics:** update Promisify type for improved async handling ([aeb1659](https://github.com/binaryshapes/mixor/commit/aeb16596e62d262f418099d9eefd9d5fece76819))
+
 ## [1.2.0](https://github.com/binaryshapes/mixor/compare/core@v1.1.0...core@v1.2.0) (2025-11-07)
 
 
