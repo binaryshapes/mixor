@@ -14,4 +14,6 @@ export * from './repository.ts';
 export * from './rule.ts';
 export * from './schema.ts';
 export * from './specification.ts';
+export * from './task.ts';
 export * from './value.ts';
+export * from './workflow.ts';
