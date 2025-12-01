@@ -457,17 +457,83 @@ type InstanceClass<T extends new (...args: Any[]) => Any> = Opaque<InstanceType<
 type FilterEmptyObjects<T> = T extends Any ? T extends Record<PropertyKey, never> ? never : T
   : never;
 
+/**
+ * Gets the last element of a union type.
+ *
+ * @typeParam U - The union type to get the last element from.
+ * @returns The last element of the union type.
+ *
+ * @internal
+ */
+type LastOf<U> = UnionToIntersection<U extends Any ? (x: U) => void : never> extends
+  (x: infer L) => void ? L : never;
+
+/**
+ * Converts a union type to a tuple.
+ *
+ * @typeParam U - The union type to convert.
+ * @returns The tuple type.
+ *
+ * @public
+ */
+type UnionToTuple<U, R extends Any[] = []> = [U] extends [never] ? R
+  : UnionToTuple<Exclude<U, LastOf<U>>, [LastOf<U>, ...R]>;
+
+/**
+ * Gets the first key of a type.
+ *
+ * @typeParam T - The type to get the first key from.
+ * @returns The first key of the type.
+ *
+ * @public
+ */
+type FirstKey<T> = UnionToTuple<keyof T> extends [infer F, ...Any] ? F : never;
+
+/**
+ * Gets the last key of a type.
+ *
+ * @typeParam T - The type to get the last key from.
+ * @returns The last key of the type.
+ *
+ * @public
+ */
+type LastKey<T> = UnionToTuple<keyof T> extends [...Any, infer L] ? L : never;
+
+/**
+ * Gets the first element of a type.
+ *
+ * @typeParam T - The type to get the first element from.
+ * @returns The first element of the type.
+ *
+ * @public
+ */
+type FirstElement<T> = FirstKey<T> extends keyof T ? T[FirstKey<T>] : never;
+
+/**
+ * Gets the last element of a type.
+ *
+ * @typeParam T - The type to get the last element from.
+ * @returns The last element of the type.
+ *
+ * @public
+ */
+type LastElement<T> = LastKey<T> extends keyof T ? T[LastKey<T>] : never;
+
 export type {
   Any,
   DeepAwaited,
   Equal,
   FilterEmptyObjects,
+  FirstElement,
+  FirstKey,
   FlatArray,
   HasPromise,
   IfReadonly,
   InstanceClass,
   IsPrimitive,
   IsPromise,
+  LastElement,
+  LastKey,
   Literal,
   MergeUnion,
   Opaque,
@@ -483,4 +549,5 @@ export type {
   UndefToOptional,
   UnionKeys,
   UnionToIntersection,
+  UnionToTuple,
 };
