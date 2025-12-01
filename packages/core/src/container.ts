@@ -1401,5 +1401,15 @@ const container = <I extends ContainerImports>(): Container<I> =>
 const isContainer = (maybeContainer: Any): maybeContainer is Container<Any> =>
   isComponent(maybeContainer, CONTAINER_TAG);
 
-export { adapter, container, contract, di, implementation, isImplementation, port, provider };
+export {
+  adapter,
+  container,
+  contract,
+  di,
+  implementation,
+  isImplementation,
+  isProvider,
+  port,
+  provider,
+};
 export type { Adapter, Container, Contract, Implementation, Port, Provider };
