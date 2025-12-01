@@ -125,10 +125,11 @@ type ContractOutput = Component<string, Any>;
 type ContractParams<
   C extends Contract<Any, Any, Any, boolean>,
   I = C extends Contract<infer I, Any, Any, boolean> ? I : never,
-> = I extends Component<string, unknown>
-  ? I['Type'] extends { InstanceType: infer II } ? II : I['Type']
+> = I extends Component<string, unknown> ? I['Type'] extends new (...args: Any[]) => infer II ? II
+  : I extends { InstanceType: infer II } ? II
+  : I['Type'] extends { InstanceType: infer II } ? II
+  : I['Type']
   : never;
-
 /**
  * The type of the return value of the contract.
  *
@@ -146,8 +147,10 @@ type ContractReturn<
   C extends Contract<Any, Any, Any, boolean>,
   O = C extends Contract<Any, infer O, Any, boolean> ? O : never,
 > = O extends undefined ? void
-  : O extends Component<string, unknown>
-    ? O['Type'] extends { InstanceType: infer I } ? I : O['Type']
+  : O extends Component<string, unknown> ? O['Type'] extends new (...args: Any[]) => infer OO ? OO
+    : O extends { InstanceType: infer OO } ? OO
+    : O['Type'] extends { InstanceType: infer OO } ? OO
+    : O['Type']
   : never;
 
 /**
