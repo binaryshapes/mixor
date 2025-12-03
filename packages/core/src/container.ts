@@ -477,6 +477,10 @@ type Implementation<
     Signature: ImplementationSignature<C>;
     /** Errors of the implementation (derived from the contract). */
     Errors: ContractErrors<C>;
+    /** Input of the implementation. */
+    Input: ContractParams<C>;
+    /** Output of the implementation. */
+    Output: ContractReturn<C>;
   }
 >;
 
@@ -929,8 +933,10 @@ class ProviderBuilder<T, D extends ProviderAllowedDependencies = never> {
         'InvalidImport',
         'Cannot define a provider without exports',
         doc`
-        Did you forget to define the exports? The providers are without exports:
-        ${invalidProvidersDependencies.map((p) => `- ${p.id}`).join('\n')}
+        Did you forget to define the exports?
+        The providers without exports are: ${
+          invalidProvidersDependencies.map((p, i) => `${i + 1}. ${p.id}`).join(', ')
+        }
         `,
       );
     }
@@ -942,7 +948,7 @@ class ProviderBuilder<T, D extends ProviderAllowedDependencies = never> {
     // available as properties of the provider component.
     Object.assign(this, { ...this.deps });
 
-    return this as unknown as Provider<T, DD>;
+    return this as Provider<T, DD>;
   }
 
   /**
@@ -959,7 +965,7 @@ class ProviderBuilder<T, D extends ProviderAllowedDependencies = never> {
     const build = (deps: ProviderSignatureArgs<D>) => this.build(deps);
 
     // Here we create a new component with the build function signature and dependencies.
-    return component(PROVIDER_TAG, build, { ...this, build }) as unknown as Provider<TT, D>;
+    return component(PROVIDER_TAG, build, { ...this }) as Provider<TT, D>;
   }
 
   /**
