@@ -7,6 +7,7 @@
  */
 
 import { n } from '@nuxo/core';
+import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 import { DEFAULT_ERROR_MODE } from './constants.ts';
 import type { Value } from './value.ts';
@@ -78,6 +79,7 @@ type SchemaErrors<V extends SchemaValues, Mode extends n.ErrorMode> = n.Pretty<
  * @internal
  */
 type SchemaMeta<V extends SchemaValues> = {
+  // TODO: Make this as full compatible with JSON Schema.
   /**
    * The example valid data structures that match the schema.
    */
@@ -183,7 +185,10 @@ type RequiredSchema<V extends SchemaValues> = n.Pretty<
  */
 type Schema<V extends SchemaValues> = n.Component<
   typeof SCHEMA_TAG,
-  SchemaFunction<V> & SchemaBuilder<V> & { Errors: SchemaErrors<V, typeof DEFAULT_ERROR_MODE> },
+  & SchemaFunction<V>
+  & SchemaBuilder<V>
+  & StandardSchemaV1<SchemaType<V>>
+  & { Errors: SchemaErrors<V, typeof DEFAULT_ERROR_MODE> },
   SchemaType<V>,
   SchemaMeta<V>
 >;
@@ -392,9 +397,76 @@ const schema = <V extends SchemaValues>(values: V) => {
     return hasErrors ? n.err(errors) as n.Result<T, SchemaErrors<V, M>> : n.ok(result as T);
   };
 
+  /**
+   * Converts schema errors to Standard Schema issues format.
+   *
+   * @param errors - The error object from schema validation.
+   * @returns Array of issues in Standard Schema format.
+   *
+   * @internal
+   */
+  const convertErrorsToIssues = (errors: Record<string, n.Any>): StandardSchemaV1.Issue[] => {
+    const issues: StandardSchemaV1.Issue[] = [];
+
+    for (const [fieldName, error] of Object.entries(errors)) {
+      // Convert error to string message.
+      let message: string;
+      if (typeof error === 'string') {
+        message = error;
+      } else if (error && typeof error === 'object') {
+        // Try to extract message from error object.
+        if ('message' in error && typeof error.message === 'string') {
+          message = error.message;
+        } else {
+          message = JSON.stringify(error);
+        }
+      } else {
+        message = String(error);
+      }
+
+      // TODO: Add origin to the issue and description (similar to Zod).
+      // {
+      //   origin: "number",
+      //   code: "too_small",
+      //   minimum: 1,
+      //   inclusive: true,
+      //   path: [ "id" ],
+      //   message: "Too small: expected number to be >=1"
+      // }
+      issues.push({
+        message,
+        path: [fieldName],
+      });
+    }
+
+    return issues;
+  };
+
+  /**
+   * Standard Schema validate function.
+   *
+   * @param value - The value to validate.
+   * @returns Validation result in Standard Schema format.
+   *
+   * @internal
+   */
+  const standardValidate = (value: SchemaType<V>): StandardSchemaV1.Result<SchemaType<V>> => {
+    const result = schemaFn(value as SchemaType<V>, DEFAULT_ERROR_MODE);
+
+    if (n.isOk(result)) {
+      return { value: result.value };
+    }
+
+    return { issues: convertErrorsToIssues(result.error) };
+  };
+
   // Initialize the schema builder and create the schema component.
   const schemaBuilder = new SchemaBuilder(values);
-  const schemaComponent = n.component(SCHEMA_TAG, schemaFn, schemaBuilder, { ...values });
+  const schemaComponent = n.component(SCHEMA_TAG, schemaFn, schemaBuilder, {
+    ...values,
+    // Add Standard Schema support.
+    '~standard': { version: 1, vendor: 'nuxo', validate: standardValidate },
+  });
 
   // Auto infer the schema type from the values.
   const schemaType = Object.fromEntries(
