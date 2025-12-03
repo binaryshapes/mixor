@@ -7,6 +7,7 @@
  */
 
 import { n } from '@nuxo/core';
+
 import type { Value } from './value.ts';
 
 /**
@@ -167,7 +168,7 @@ class EventStore<R> {
    * @param value - The event value (must match the type for the given key).
    */
   public add<K extends keyof R>(key: K, value: R[K]): void {
-    const eventConstructor = this.eventMap[key as n.Any];
+    const eventConstructor = this.eventMap[key as string];
 
     if (!eventConstructor) {
       throw new EventPanic(
@@ -176,7 +177,12 @@ class EventStore<R> {
       );
     }
 
-    this.store.push(eventConstructor(value));
+    // Filter values from the value object to avoid expose sensitive data.
+    const filteredValue = Object.fromEntries(
+      Object.entries(value as n.Any).filter(([key]) => eventConstructor.values.includes(key)),
+    );
+
+    this.store.push(eventConstructor(filteredValue));
   }
 
   /**
