@@ -97,11 +97,12 @@ type Task<
   & n.Implementation<C>['Signature']
   & TaskBuilder<C, D>
   & {
+    /** Task errors type. */
     Errors: n.Implementation<C>['Errors'];
-    Input: n.Implementation<C>['Signature'] extends (args: infer I) => n.Any ? I : never;
-    Output: n.Implementation<C>['Signature'] extends
-      (...input: n.Any[]) => Promise<n.Result<infer O, n.Any>> ? O
-      : never;
+    /** Task input type. */
+    Input: n.Implementation<C>['Input'];
+    /** Task output type. */
+    Output: n.Implementation<C>['Output'];
   }
 >;
 
@@ -472,8 +473,5 @@ const task = <C extends TaskContract, D extends TaskDependencies = never>(
   contract: C,
 ): Task<C, D> => new TaskBuilder(contract) as Task<C, D>;
 
-const isTask = (maybeTask: n.Any): maybeTask is Task<n.Any, n.Any> =>
-  n.isComponent(maybeTask, TASK_TAG);
-
-export { isTask, task, TaskPanic };
+export { task, TaskPanic };
 export type { Task, TaskContract, TaskDependencies };
