@@ -167,6 +167,9 @@ const createAggregate = <
      */
     public constructor(values: TypeOf<Schema<T>>) {
       this.state = values;
+
+      // Only inspect the state.
+      n.setInspect(this, () => this.state);
     }
 
     /**
