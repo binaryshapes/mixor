@@ -958,33 +958,27 @@ class ProviderBuilder<T, D extends ProviderAllowedDependencies = never> {
    * Under the hood, this method creates a new component, so it will be added to the registry.
    *
    * @param fn - The function that will be used to export the object.
+   * @param uniqueness - Optional uniqueness parameters to ensure the provider is unique.
+   *
    * @returns The provider.
    */
-  public provide<TT>(fn: ProviderFunction<TT, D>) {
+  public provide<TT>(fn: ProviderFunction<TT, D>, uniqueness?: Any) {
     this.fn = fn as unknown as ProviderFunction<T, D>;
-    const build = (deps: ProviderSignatureArgs<D>) => this.build(deps);
+    const buildFn = (deps: ProviderSignatureArgs<D>) => {
+      let depsValues: ProviderDependencies<D> = {} as ProviderDependencies<D>;
+
+      // Only build the dependencies if they are provided.
+      if (deps) {
+        depsValues = Object.fromEntries(
+          Object.entries(deps).map(([key, dep]) => [key, isAdapter(dep) ? dep() : dep]),
+        ) as ProviderDependencies<D>;
+      }
+
+      return fn(depsValues);
+    };
 
     // Here we create a new component with the build function signature and dependencies.
-    return component(PROVIDER_TAG, build, { ...this }) as Provider<TT, D>;
-  }
-
-  /**
-   * Builds the provider function using the given dependencies.
-   *
-   * @param deps - The dependencies of the provider.
-   * @returns The provider object.
-   */
-  private build(deps: ProviderSignatureArgs<D>) {
-    let depsValues: ProviderDependencies<D> = {} as ProviderDependencies<D>;
-
-    // Only build the dependencies if they are provided.
-    if (deps) {
-      depsValues = Object.fromEntries(
-        Object.entries(deps).map(([key, value]) => [key, isAdapter(value) ? value() : value]),
-      ) as ProviderDependencies<D>;
-    }
-
-    return this.fn?.(depsValues);
+    return component(PROVIDER_TAG, buildFn, { ...this, ...uniqueness }) as Provider<TT, D>;
   }
 }
 
@@ -1299,6 +1293,7 @@ class ContainerBuilder<I extends ContainerImports> {
 
         // If the provider has already been resolved, we use that resolution.
         if (di.providers.has(item)) {
+          logger.debug(`Using cached provider: ${key}`);
           resolved[key] = di.providers.get(item);
         } else {
           resolving.add(item);
