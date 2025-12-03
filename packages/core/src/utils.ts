@@ -22,6 +22,9 @@ import type { Any } from './generics.ts';
 function setInspect(target: Any, fn: () => Any) {
   // XXX: I don't know if this is safe and it has support for all JavaScript runtimes.
   (target as Any)[util.inspect.custom] = () => util.inspect(fn(), { colors: true });
+
+  // To JSON just in case.
+  (target as Any).toJSON = () => fn();
 }
 
 /**
