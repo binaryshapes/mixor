@@ -338,7 +338,7 @@ class TaskBuilder<
       n.info(this.contract).refs(taskComponent);
 
       return taskComponent;
-    }) as n.Provider<Task<C, D>, D>;
+    }, { fn: this.handlerFn.toString() }) as n.Provider<Task<C, D>, D>;
   }
 }
 
