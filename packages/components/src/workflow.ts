@@ -7,6 +7,7 @@
  */
 
 import { n } from '@nuxo/core';
+
 import type { Task, TaskContract, TaskDependencies } from './task.ts';
 
 /**
@@ -155,9 +156,7 @@ type WorkflowErrors<T extends WorkflowTasks> = n.MergeUnion<
  */
 type WorkflowSignature<T extends WorkflowTasks> = (
   input: WorkflowInput<T>,
-) => Promise<
-  n.Result<[result: WorkflowOutput<T>, trace: WorkflowTrace<T>], WorkflowErrors<T>>
->;
+) => Promise<n.Result<WorkflowOutput<T>, WorkflowErrors<T>>>;
 
 /**
  * The workflow component type.
@@ -178,7 +177,14 @@ type WorkflowSignature<T extends WorkflowTasks> = (
  */
 type Workflow<T extends WorkflowTasks = never> = n.Component<
   typeof WORKFLOW_TAG,
-  WorkflowSignature<T> & WorkflowBuilder<T>
+  WorkflowSignature<T> & WorkflowBuilder<T> & {
+    /** Workflow input type. */
+    Input: WorkflowInput<T>;
+    /** Workflow output type. */
+    Output: WorkflowOutput<T>;
+    /** Workflow errors type. */
+    Errors: WorkflowErrors<T>;
+  }
 >;
 
 /**
@@ -240,78 +246,17 @@ class WorkflowBuilder<T extends WorkflowTasks = never> {
     C extends TaskContract,
     D extends TaskDependencies,
     K extends string,
-    TT = n.Provider<Task<C, D>, D>,
   >(
     def: {
       name: K;
       description: string;
-      task: TT;
+      task: n.Provider<Task<C, D>, D>;
     },
   ) {
-    type TTT = n.Pretty<[T] extends [never] ? Record<K, TT> : T & Record<K, TT>>;
+    type Task = typeof def.task;
+    type TTT = n.Pretty<[T] extends [never] ? Record<K, Task> : T & Record<K, Task>>;
     this.tasks[`${def.name}.${def.description}` as keyof T] = def.task as unknown as T[keyof T];
     return this as unknown as Workflow<TTT>;
-  }
-
-  /**
-   * Creates the workflow execution function.
-   *
-   * @remarks
-   * This method creates the execution function that will run all tasks sequentially.
-   * The execution function:
-   * - Takes the workflow input (for the first task)
-   * - Executes each task in sequence
-   * - Passes the output of each task as input to the next
-   * - Tracks execution metadata (duration, attempts, success status)
-   * - Stops and returns an error if any task fails
-   * - Returns the final output and execution trace if all tasks succeed
-   *
-   * @typeParam T - The record of tasks in the workflow.
-   * @param tasksProviders - The resolved task providers to execute.
-   * @returns A function that executes the workflow with the given input.
-   */
-  public run(tasksProviders: T): WorkflowSignature<T> {
-    return async (input: WorkflowInput<T>) => {
-      const taskEntries = Object.entries(tasksProviders) as [string, n.Any][];
-      const results = {} as WorkflowOutput<T>;
-      let currentInput: n.Any = input;
-
-      // Execute tasks sequentially.
-      for (const [key, task] of taskEntries) {
-        const [name, description] = key.split('.');
-        const startTime = performance.now();
-        const result = await task(currentInput);
-        const endTime = performance.now();
-        const duration = Number((endTime - startTime).toFixed(2));
-
-        // Get attempts from task if available.
-        const attempts = 'attempts' in task && typeof task.attempts === 'number'
-          ? task.attempts
-          : 0;
-        const isSuccess = n.isOk(result);
-
-        // Store the result
-        (results as n.Any)[name] = {
-          name,
-          description,
-          input: currentInput,
-          output: isSuccess ? result.value : result.error,
-          duration,
-          attempts,
-          success: isSuccess,
-        };
-
-        // If the task failed, return the error
-        if (n.isErr(result)) {
-          return result as n.Result<WorkflowOutput<T>, WorkflowErrors<T>>;
-        }
-
-        // Use the output as input for the next task
-        currentInput = result.value;
-      }
-
-      return n.ok([currentInput, results as WorkflowTrace<T>]);
-    };
   }
 
   /**
@@ -349,13 +294,72 @@ class WorkflowBuilder<T extends WorkflowTasks = never> {
       );
     }
 
-    const workflowComponent = n.component(WORKFLOW_TAG, (deps: T) => this.run(deps), this);
-
     return n.provider()
       .use(this.tasks)
-      .provide((deps) => workflowComponent(deps as T)) as n.Provider<Workflow<T>, T>;
+      .provide((deps) => n.component(WORKFLOW_TAG, workflowFn(deps), this)) as n.Provider<
+        Workflow<T>,
+        T
+      >;
   }
 }
+/**
+ * Creates the workflow execution function.
+ *
+ * @remarks
+ * This method creates the execution function that will run all tasks sequentially.
+ * The execution function:
+ * - Takes the workflow input (for the first task)
+ * - Executes each task in sequence
+ * - Passes the output of each task as input to the next
+ * - Tracks execution metadata (duration, attempts, success status)
+ * - Stops and returns an error if any task fails
+ * - Returns the final output and execution trace if all tasks succeed
+ *
+ * @typeParam T - The record of tasks in the workflow.
+ * @param tasksProviders - The resolved task providers to execute.
+ * @returns A function that executes the workflow with the given input.
+ */
+const workflowFn = <T extends WorkflowTasks>(tasksProviders: T): WorkflowSignature<T> => {
+  return async (input: WorkflowInput<T>) => {
+    const taskEntries = Object.entries(tasksProviders) as [string, n.Any][];
+    const results = {} as WorkflowOutput<T>;
+    let currentInput: n.Any = input;
+
+    // Execute tasks sequentially.
+    for (const [key, task] of taskEntries) {
+      const [name, description] = key.split('.');
+      const startTime = performance.now();
+      const result = await task(currentInput);
+      const endTime = performance.now();
+      const duration = Number((endTime - startTime).toFixed(2));
+
+      // Get attempts from task if available.
+      const attempts = 'attempts' in task && typeof task.attempts === 'number' ? task.attempts : 0;
+      const isSuccess = n.isOk(result);
+
+      // Store the result
+      (results as n.Any)[name] = {
+        name,
+        description,
+        input: currentInput,
+        output: isSuccess ? result.value : result.error,
+        duration,
+        attempts,
+        success: isSuccess,
+      };
+
+      // If the task failed, return the error
+      if (n.isErr(result)) {
+        return result as n.Result<WorkflowOutput<T>, WorkflowErrors<T>>;
+      }
+
+      // Use the output as input for the next task
+      currentInput = result.value;
+    }
+
+    return n.ok(currentInput);
+  };
+};
 
 /**
  * Creates a new workflow builder.
