@@ -510,7 +510,7 @@ type Implementation<
 const implementation = <C extends Contract<Any, Any, Any, boolean>>(
   contract: C,
   implementationFn: ImplementationSignature<C>,
-) => {
+): Implementation<C> => {
   if (isImplementation(implementationFn)) {
     throw new ContainerPanic(
       'AlreadyAnImplementation',
