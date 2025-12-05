@@ -463,7 +463,9 @@ const schema = <V extends SchemaValues>(values: V) => {
   // Initialize the schema builder and create the schema component.
   const schemaBuilder = new SchemaBuilder(values);
   const schemaComponent = n.component(SCHEMA_TAG, schemaFn, schemaBuilder, {
-    ...values,
+    // This ensures the value names as part of the uniqueness of the schema component.
+    fields: Object.keys(values),
+
     // Add Standard Schema support.
     '~standard': { version: 1, vendor: 'nuxo', validate: standardValidate },
   });
