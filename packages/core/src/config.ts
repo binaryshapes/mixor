@@ -7,35 +7,32 @@
  */
 
 /**
- * Core configuration variables.
- *
- * @internal
- */
-const vars = {
-  /**
-   * The filename for the exported registry.
-   */
-  REGISTRY_FILENAME: 'nuxo-registry.json',
-
-  /**
-   * Whether to enable debug mode.
-   */
-  NUXO_DEBUG: true,
-};
-
-/**
  * Core configuration manager.
  *
  * @public
  */
-const config = {
+abstract class ConfigManager {
+  /**
+   * Core configuration variables.
+   *
+   * @internal
+   */
+  private static vars = {
+    /**
+     * Whether to enable debug mode.
+     */
+    NUXO_DEBUG: Deno.env.get('NUXO_DEBUG') ?? 'true' === 'true',
+  };
+
   /**
    * Gets a configuration value by key.
    *
    * @param key - The key of the configuration value to get.
    * @returns The configuration value.
    */
-  get: <T extends keyof typeof vars>(key: T) => vars[key],
+  public static get<T extends keyof typeof this.vars>(key: T): typeof this.vars[T] {
+    return this.vars[key];
+  }
 
   /**
    * Sets a configuration value by key.
@@ -43,9 +40,9 @@ const config = {
    * @param key - The key of the configuration value to set.
    * @param value - The value to set.
    */
-  set: <T extends keyof typeof vars>(key: T, value: typeof vars[T]): void => {
-    vars[key] = value;
-  },
-};
+  public static set<T extends keyof typeof this.vars>(key: T, value: typeof this.vars[T]): void {
+    this.vars[key] = value;
+  }
+}
 
-export { config };
+export { ConfigManager as config };
