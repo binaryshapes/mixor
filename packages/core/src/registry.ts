@@ -6,7 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { config } from './config.ts';
 import type { Any } from './generics.ts';
 import { logger } from './logger.ts';
 import { panic } from './panic.ts';
@@ -616,26 +615,6 @@ class Registry {
    */
   public static list() {
     return Array.from(this.store.values());
-  }
-
-  /**
-   * Exports the registry records to a JSON file.
-   *
-   * @remarks
-   * The file is written to the current working directory and the content is replaced each time
-   * the method is called if the file already exists.
-   *
-   * @param filename - The filename to export the registry to. Defaults to
-   * {@link config.REGISTRY_FILENAME} configuration variable.
-   * @throws RegistryPanic with code `ExportFailed` if the file cannot be written.
-   */
-  public static export(filename: string = config.get('REGISTRY_FILENAME')) {
-    try {
-      const content = this.list().map((reg) => this.show(reg.target));
-      Deno.writeTextFile(filename, JSON.stringify(content, null, 2), { create: true });
-    } catch (error) {
-      throw new RegistryPanic('ExportFailed', 'Failed to export the registry: ' + error);
-    }
   }
 }
 
