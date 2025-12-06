@@ -12,6 +12,7 @@
     ]
   },
   "imports": {
+    "@standard-schema/spec": "jsr:@standard-schema/spec@^1.0.0",
     "@std/async": "jsr:@std/async@^1.0.15"
   }
 }
