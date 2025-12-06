@@ -21,7 +21,7 @@ abstract class ConfigManager {
     /**
      * Whether to enable debug mode.
      */
-    NUXO_DEBUG: Deno.env.get('NUXO_DEBUG') ?? 'true' === 'true',
+    NUXO_DEBUG: (Deno.env.get('NUXO_DEBUG') ?? 'true') === 'true',
   };
 
   /**
