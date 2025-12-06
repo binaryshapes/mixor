@@ -836,8 +836,8 @@ type ProviderSignatureArgs<D extends ProviderAllowedDependencies> = {
  *
  * @internal
  */
-type ProviderSignature<T, D extends ProviderAllowedDependencies = never> =
-  ProviderSignatureArgs<D> extends never ? () => T : ((deps: ProviderSignatureArgs<D>) => T);
+type ProviderSignature<T, D extends ProviderAllowedDependencies> = ProviderSignatureArgs<D> extends
+  never ? () => T : ((deps: ProviderSignatureArgs<D>) => T);
 
 /**
  * The type of the provider.
@@ -995,7 +995,7 @@ class ProviderBuilder<T, D extends ProviderAllowedDependencies = never> {
  *
  * @public
  */
-const provider = <T, D extends ProviderAllowedDependencies = never>() =>
+const provider = <T, D extends ProviderAllowedDependencies = Record<PropertyKey, never>>() =>
   new ProviderBuilder<T, D>() as Provider<T, D>;
 
 /**
