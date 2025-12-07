@@ -206,7 +206,7 @@ const createAggregate = <
 
       // If the validation succeeds, update the state.
       this.state[key] = validationResult.value;
-      return n.ok(undefined);
+      return n.ok();
     }
 
     /**
