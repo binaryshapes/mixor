@@ -82,7 +82,8 @@ type Event<K, T> = n.Component<
     key: K;
     values: string[];
     (value: T): EventData<K, T>;
-  }
+  },
+  EventData<K, T>
 >;
 
 /**
