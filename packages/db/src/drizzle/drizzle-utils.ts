@@ -140,18 +140,19 @@ const PostgresErrorHandlers: Record<DrizzlePostgresErrorCodes, ErrorHandler> = {
 function getDrizzlePostgresErrorMessage(
   error: unknown,
 ): ErrorHandlerResult {
-  if (
-    error instanceof DrizzleQueryError &&
-    error.cause &&
-    error.cause instanceof DatabaseError &&
-    typeof error.cause.code === 'string'
-  ) {
-    const handler = PostgresErrorHandlers[
-      (error.cause.code as DrizzlePostgresErrorCodes) ??
-        DrizzlePostgresErrorCodes.DEFAULT_ERROR_CODE
-    ];
+  if (error instanceof DrizzleQueryError && error.cause) {
+    const cause = error.cause;
+    if (
+      cause instanceof DatabaseError &&
+      typeof cause.code === 'string'
+    ) {
+      const handler = PostgresErrorHandlers[
+        (cause.code as DrizzlePostgresErrorCodes) ??
+          DrizzlePostgresErrorCodes.DEFAULT_ERROR_CODE
+      ];
 
-    return handler(error.cause);
+      return handler(cause);
+    }
   }
 
   // Fallback for generic Drizzle errors or other Error instances.
