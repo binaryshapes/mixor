@@ -995,7 +995,7 @@ class ProviderBuilder<T, D extends ProviderAllowedDependencies = never> {
  *
  * @public
  */
-const provider = <T, D extends ProviderAllowedDependencies = Record<PropertyKey, never>>() =>
+const provider = <T, D extends ProviderAllowedDependencies = never>() =>
   new ProviderBuilder<T, D>() as Provider<T, D>;
 
 /**
