@@ -64,7 +64,7 @@ type Result<T, E> = Ok<T> | Err<E>;
  *
  * @public
  */
-function ok<T>(value?: T): Result<T, never> {
+function ok<T = void>(value?: T): Result<T, never> {
   return {
     _id: 'Result',
     _tag: 'Ok',
