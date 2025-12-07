@@ -168,8 +168,7 @@ type WorkflowSignature<T extends WorkflowTasks> = (
  * The workflow executes tasks in the order they were added, where the output of one task
  * becomes the input of the next. If any task fails, the workflow stops and returns the error.
  *
- * Use {@link workflow} to create a new workflow builder, then use {@link WorkflowBuilder.addTask}
- * to add tasks, and {@link WorkflowBuilder.build} to finalize the workflow.
+ * Use {@link workflow} to create a new workflow builder.
  *
  * @typeParam T - The record of tasks in the workflow.
  *
