@@ -385,5 +385,5 @@ const workflowFn = <T extends WorkflowTasks>(tasksProviders: T): WorkflowSignatu
  */
 const workflow = (): Workflow => new WorkflowBuilder() as Workflow;
 
-export { workflow };
+export { workflow, WorkflowPanic };
 export type { Workflow };
