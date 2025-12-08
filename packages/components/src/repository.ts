@@ -8,9 +8,10 @@
 
 import { n } from '@nuxo/core';
 
-import type { Schema, SchemaValues, Value } from '@nuxo/components';
-import { criteria, rule, value } from '@nuxo/components';
-import type { Criteria } from './criteria.ts';
+import { type Criteria, criteria } from './criteria.ts';
+import { rule } from './rule.ts';
+import type { Schema, SchemaValues } from './schema.ts';
+import { type Value, value } from './value.ts';
 
 /**
  * The tag for the repository component.
