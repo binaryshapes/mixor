@@ -48,7 +48,9 @@ type FallbackHandler = (error: n.PanicError<n.Any, n.Any>) => Promise<void>;
  *
  * @internal
  */
-type TaskDependencies = Record<string, n.Provider<n.Any, n.Any>>;
+type TaskDependencies =
+  | Record<string, n.Provider<n.Any, n.Any>>
+  | Record<string, n.Provider<n.Any, never>>;
 
 /**
  * The type of the task caller.
@@ -364,7 +366,7 @@ class TaskBuilder<
  */
 const taskFn = <
   C extends TaskContract,
-  D extends TaskDependencies = never,
+  D extends TaskDependencies,
 >(
   taskBuilder: TaskBuilder<C, D>,
 ) => {
@@ -469,9 +471,9 @@ const taskFn = <
  *
  * @public
  */
-const task = <C extends TaskContract, D extends TaskDependencies = never>(
+const task = <C extends TaskContract>(
   contract: C,
-): Task<C, D> => new TaskBuilder(contract) as Task<C, D>;
+): Task<C> => new TaskBuilder(contract) as Task<C>;
 
 export { task, TaskPanic };
 export type { Task, TaskContract, TaskDependencies };
