@@ -16,6 +16,7 @@
     ]
   },
   "imports": {
+    "@types/pg": "npm:@types/pg@^8.15.6",
     "drizzle-orm": "npm:drizzle-orm@^0.44.7",
     "pg": "npm:pg@^8.16.3"
   }

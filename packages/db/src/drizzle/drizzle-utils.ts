@@ -142,10 +142,13 @@ function getDrizzlePostgresErrorMessage(
 ): ErrorHandlerResult {
   if (error instanceof DrizzleQueryError && error.cause) {
     const cause = error.cause;
+    // Type guard to check if the cause is a DatabaseError with a code property.
     if (
       cause instanceof DatabaseError &&
+      'code' in cause &&
       typeof cause.code === 'string'
     ) {
+      // Get the error handler for the error code.
       const handler = PostgresErrorHandlers[
         (cause.code as DrizzlePostgresErrorCodes) ??
           DrizzlePostgresErrorCodes.DEFAULT_ERROR_CODE
