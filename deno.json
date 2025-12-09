@@ -3,6 +3,10 @@
   "workspace": [
     "packages/*"
   ],
+  "exclude": [
+    "examples/*",
+    ".old"
+  ],
   "fmt": {
     "singleQuote": true,
     "semiColons": true,
@@ -32,7 +36,7 @@
   "tasks": {
     "fmt": "deno fmt",
     "test:coverage": "deno test --coverage",
-    "test": "deno test",
+    "test": "deno test --allow-env",
     "lint": "deno lint",
     "check": "deno check",
     "commitlint": "deno run --allow-run ./scripts/commitlint.ts"
