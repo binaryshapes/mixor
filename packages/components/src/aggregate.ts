@@ -12,7 +12,6 @@ import { DEFAULT_ERROR_MODE } from './constants.ts';
 import type { EventManager } from './event.ts';
 import type { Schema, SchemaErrors, SchemaValues } from './schema.ts';
 import type { Specification } from './specification.ts';
-import type { TypeOf } from './types.ts';
 
 /**
  * The tag for the aggregate component.
@@ -132,7 +131,7 @@ const createAggregate = <
     /**
      * The state of the aggregate.
      */
-    public state: TypeOf<Schema<T>> = {} as TypeOf<Schema<T>>;
+    public state: Schema<T>['Type'] = {} as Schema<T>['Type'];
 
     /**
      * The schema of the aggregate.
@@ -165,7 +164,7 @@ const createAggregate = <
      *
      * @param values - The values to set.
      */
-    public constructor(values: TypeOf<Schema<T>>) {
+    public constructor(values: Schema<T>['Type']) {
       this.state = values;
 
       // Only inspect the state.
@@ -230,7 +229,7 @@ const createAggregate = <
       Mode extends n.ErrorMode = typeof DEFAULT_ERROR_MODE,
     >(
       this: Self,
-      values: TypeOf<Schema<T>>,
+      values: Schema<T>['Type'],
       mode: Mode = DEFAULT_ERROR_MODE as Mode,
     ): n.Result<InstanceType<Self>, { $output: SchemaErrors<T, Mode> }> {
       // Validate the values using the schema.
