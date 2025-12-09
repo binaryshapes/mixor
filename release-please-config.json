@@ -74,6 +74,19 @@
           "jsonpath": "$.version"
         }
       ]
+    },
+    "packages/server": {
+      "component-no-space": true,
+      "component": "server",
+      "changelog-path": "CHANGELOG.md",
+      "extra-label": "server",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "deno.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   },
   "changelog-sections": [
