@@ -7,6 +7,7 @@
  */
 
 export * from './aggregate.ts';
+export * from './controller.ts';
 export * from './criteria.ts';
 export * from './env.ts';
 export * from './event.ts';
