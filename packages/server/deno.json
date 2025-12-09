@@ -1,0 +1,23 @@
+{
+  "name": "@nuxo/server",
+  "version": "1.0.0",
+  "exports": {
+    ".": "./src/mod.ts",
+    "./adapters": "./src/adapters/mod.ts"
+  },
+  "license": "MIT",
+  "publish": {
+    "include": [
+      "src/**/*.ts",
+      "deno.json",
+      "README.md",
+      "LICENSE"
+    ]
+  },
+  "imports": {
+    "@fresh/core": "jsr:@fresh/core@^2.1.4",
+    "@orpc/client": "npm:@orpc/client@^1.12.1",
+    "@orpc/openapi": "npm:@orpc/openapi@^1.12.1",
+    "@orpc/server": "npm:@orpc/server@^1.12.1"
+  }
+}
