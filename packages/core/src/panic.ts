@@ -39,7 +39,7 @@ class PanicError<S extends string, T extends string> extends Error {
 
   constructor(scope: S, tag: T, message: string, hint?: string) {
     // The error message will include both the message and the hint.
-    super(`${message} ${hint ? `${hint}` : ''}`);
+    super(hint ? `${message} ${hint}` : message);
     this.code = `${scope}.${tag}`;
     this.hint = hint;
 
