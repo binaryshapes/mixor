@@ -10,6 +10,7 @@ import { n } from '@nuxo/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 import { DEFAULT_ERROR_MODE } from './constants.ts';
+import type { JsonSchema } from './types.ts';
 import type { Value } from './value.ts';
 
 /**
@@ -152,7 +153,8 @@ type ExtendSchema<V extends SchemaValues, A extends SchemaValues> = n.Pretty<V &
  */
 type PartialSchema<V extends SchemaValues> = n.Pretty<
   {
-    [K in keyof V]: V[K] extends Value<infer T, infer E> ? Value<T | undefined, E, false>
+    [K in keyof V]: V[K] extends Value<infer T extends n.DataValue, infer E>
+      ? Value<T | undefined, E, false>
       : never;
   }
 >;
@@ -166,7 +168,7 @@ type PartialSchema<V extends SchemaValues> = n.Pretty<
  */
 type RequiredSchema<V extends SchemaValues> = n.Pretty<
   {
-    [K in keyof V]: V[K] extends Value<infer T, infer E> ? Value<T, E, true>
+    [K in keyof V]: V[K] extends Value<infer T extends n.DataValue, infer E> ? Value<T, E, true>
       : never;
   }
 >;
@@ -323,6 +325,41 @@ class SchemaBuilder<V extends SchemaValues> {
     return schema(Object.fromEntries(
       Object.entries(this.values).map(([key, value]) => [key, value.required()]),
     )) as unknown as Schema<RequiredSchema<V>>;
+  }
+
+  /**
+   * Converts the schema to JSON Schema format.
+   *
+   * @remarks
+   * This method converts the Nuxo schema to a JSON Schema object that can be used
+   * with OpenAPI and other tools that support JSON Schema.
+   * Under the hood, use the toJsonSchema method for each value in the schema and add some specific
+   * properties related to the Schema component.
+   *
+   * @returns A JSON Schema object representing the schema structure.
+   */
+  public toJsonSchema(): JsonSchema {
+    const properties: Record<string, JsonSchema> = {};
+    const required: string[] = [];
+
+    for (const [fieldName, value] of Object.entries(this.values)) {
+      properties[fieldName] = value.toJsonSchema();
+      if (!value.isOptional) {
+        required.push(fieldName);
+      }
+    }
+
+    const jsonSchema: JsonSchema = {
+      type: 'object',
+      properties,
+    };
+
+    // Only include required array if there are required fields
+    if (required.length > 0) {
+      jsonSchema.required = required;
+    }
+
+    return jsonSchema;
   }
 }
 

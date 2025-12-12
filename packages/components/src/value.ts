@@ -10,6 +10,7 @@ import { n } from '@nuxo/core';
 
 import { DEFAULT_ERROR_MODE, DEFAULT_VALUE_COERCE } from './constants.ts';
 import { isValidator, type Validator } from './rule.ts';
+import type { JsonSchema } from './types.ts';
 
 /**
  * The tag for the value component.
@@ -25,12 +26,26 @@ const VALUE_TAG = 'Value' as const;
  *
  * @internal
  */
-type ValueMeta<T> = {
-  /**
-   * The example inputs for the value.
-   */
-  examples: T[];
-};
+type ValueMeta<T extends n.DataValue> = n.Pretty<
+  & {
+    /**
+     * The example inputs for the value.
+     */
+    examples: T[];
+  }
+  // This is a approach to add the JSON Schema properties to the value component metadata.
+  & (T extends n.DataValue
+    ? T extends string ? Partial<Pick<JsonSchema, 'minLength' | 'maxLength' | 'pattern' | 'format'>>
+    : T extends number ? Partial<
+        Pick<
+          JsonSchema,
+          'minimum' | 'maximum' | 'exclusiveMinimum' | 'exclusiveMaximum' | 'multipleOf'
+        >
+      >
+      // TODO: Decide if we want to add the JSON Schema properties for the other types.
+    : Record<never, never>
+    : Record<never, never>)
+>;
 
 /**
  * Value component.
@@ -59,7 +74,11 @@ type Value<T extends n.DataValue, E, R extends boolean = true> = n.Component<
       ): n.Result<T, n.ApplyErrorMode<E, M>>;
     })
   & ValueBuilder<T, E>
-  & { Errors: n.ApplyErrorMode<E, (typeof DEFAULT_ERROR_MODE)> },
+  & {
+    // Additional methods for the value component.
+    toJsonSchema(): Partial<JsonSchema>;
+    Errors: n.ApplyErrorMode<E, (typeof DEFAULT_ERROR_MODE)>;
+  },
   T,
   ValueMeta<T>
 >;
@@ -223,22 +242,28 @@ const valueFn = <T extends n.DataValue, E>(
     // We instantiate a new data container with the original value.
     const val = n.data(value as T);
 
+    // Sometimes the type is an object with a type property, so we need to get the type property.
+    // For example, the type is { type: 'string', enum: ['foo', 'bar'] }.
+    const valueType = typeof state.type === 'string'
+      ? state.type
+      : (state.type as { type: string }).type;
+
     // If coerced, coerce the value to the type of the value.
     if (state.isCoerced) {
       // Defensive asserting in order to fix the root cause of the problem.
       n.logger.assert(
-        (typeof value) === state.type,
-        `Expected type "${state.type}" but got "${typeof value}" with value: ${String(value)}.`,
+        (typeof value) === valueType,
+        `Expected type "${valueType}" but got "${typeof value}" with value: ${String(value)}.`,
       );
-      val.coerce(state.type);
-    } else if ((typeof value) !== state.type) {
+      val.coerce(valueType);
+    } else if ((typeof value) !== valueType) {
       // This should never happen if the value is coerced.
       throw new ValuePanic(
         'InvalidInputType',
-        `Expected type "${state.type}" but got "${typeof value}" with value: ${String(value)}.`,
+        `Expected type "${valueType}" but got "${typeof value}" with value: ${String(value)}.`,
         n.doc`
         Did you forget to coerce the value?
-        Please use the coerce() method to force the value to the expected type "${state.type}".
+        Please use the coerce() method to force the value to the expected type "${valueType}".
         `,
       );
     }
@@ -256,6 +281,38 @@ const valueFn = <T extends n.DataValue, E>(
   };
 
   return fn;
+};
+
+/**
+ * Converts the value to JSON Schema format.
+ *
+ * @remarks
+ * Under the hood, this method uses the core "meta" class to get the metadata of the value component.
+ * For more information, see {@link ValueMeta}.
+ *
+ * @param value - The value component to convert to JSON Schema.
+ * @returns A JSON Schema object representing the value.
+ *
+ * @internal
+ */
+const toJsonSchema = (
+  value: Value<n.Any, n.Any, boolean>,
+): Partial<JsonSchema> => {
+  const meta = n.meta(value).props;
+  // Omit internal properties from the meta like childrenIds and context.
+  const properties = Object.fromEntries(
+    Object.entries(meta).filter(([key]) => !['childrenIds', 'context'].includes(key)),
+  );
+
+  const jsonSchema = {
+    ...(typeof value.type === 'string' ? { type: value.type } : value.type) as n.Any,
+    description: meta.description,
+    nullable: value.isNullable,
+    optional: value.isOptional,
+    ...properties,
+  };
+
+  return jsonSchema;
 };
 
 /**
@@ -278,7 +335,7 @@ const valueComponent = <T extends n.DataValue, E>(
   builder: ValueBuilder<T, E> = new ValueBuilder(validations, type),
 ): Value<T, E> => {
   const vf = valueFn(validations, builder);
-  const vc = n.component(VALUE_TAG, vf, builder);
+  const vc = n.component(VALUE_TAG, vf, builder) as Value<T, E>;
 
   // Setting the type of the value component based on validators types (if not already set).
   if (!n.info(vc).props.type) {
@@ -292,6 +349,9 @@ const valueComponent = <T extends n.DataValue, E>(
   for (const v of validations) {
     n.info(v).refs(vc);
   }
+
+  // XXX: Here we add the toJsonSchema method to the value component.
+  Reflect.defineProperty(vc, 'toJsonSchema', { value: () => toJsonSchema(vc) });
 
   return vc as Value<T, E>;
 };
