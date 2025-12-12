@@ -33,11 +33,26 @@ type TaskContract = n.Contract<n.Any, n.Any, n.Any, true>;
  * @remarks
  * This handler is called when all retry attempts have been exhausted and the task
  * has failed. It's typically used to clean up resources, undo operations, or perform
- * rollback logic. The handler receives the last error that occurred.
+ * rollback logic. The handler receives the input that was used, the last error that occurred,
+ * and the resolved task dependencies.
+ *
+ * @typeParam C - The type of the contract.
+ * @typeParam D - The type of the task dependencies.
  *
  * @internal
  */
-type FallbackHandler = (error: n.PanicError<n.Any, n.Any>) => Promise<void>;
+type FallbackHandler<
+  C extends TaskContract,
+  D extends TaskDependencies,
+> = (
+  params: {
+    input: n.Implementation<C>['Input'];
+    error: n.PanicError<n.Any, n.Any>;
+    dependencies: [D] extends [never] ? never : {
+      [K in keyof D]: D[K]['Type'];
+    };
+  },
+) => Promise<void>;
 
 /**
  * The type of the task dependencies.
@@ -53,28 +68,27 @@ type TaskDependencies =
   | Record<string, n.Provider<n.Any, never>>;
 
 /**
- * The type of the task caller.
+ * The type of the task handler.
  *
  * @remarks
- * This is a conditional type that represents the handler function signature.
- * - If the task has no dependencies (`D` is `never`), it's a function with no parameters.
+ * This is a conditional type that represents the handler function type.
+ * - If the task has no dependencies (`D` is `never`), it's a function that returns an
+ *   implementation function for a contract.
  * - If the task has dependencies, it's a function that receives the resolved dependencies.
- *
- * The function must return either an implementation function or an implementation component.
  *
  * @typeParam C - The type of the contract.
  * @typeParam D - The type of the dependencies.
  *
  * @internal
  */
-type TaskCaller<
+type TaskHandler<
   C extends TaskContract,
   D extends TaskDependencies,
-> = [D] extends [never] ? () => n.Implementation<C>['Signature'] : (
+> = [D] extends [never] ? () => n.Implementation<C> : (
   deps: {
     [K in keyof D]: D[K]['Type'];
   },
-) => n.Implementation<C>['Signature'];
+) => n.Implementation<C>;
 
 /**
  * Task component type that represents a configurable task.
@@ -105,6 +119,10 @@ type Task<
     Input: n.Implementation<C>['Input'];
     /** Task output type. */
     Output: n.Implementation<C>['Output'];
+    /** Task contract. */
+    input: n.Implementation<C>['Input'];
+    /** Task output. */
+    output: n.Implementation<C>['Output'];
   }
 >;
 
@@ -155,17 +173,17 @@ class TaskBuilder<
   /**
    * The handler function that processes the input and produces the output.
    */
-  public handlerFn: TaskCaller<C, D> = undefined as unknown as TaskCaller<C, D>;
+  public handlerFn?: TaskHandler<C, D>;
 
   /**
    * The caller function that is used to call the task.
    */
-  public callerFn: n.Implementation<C>['Signature'] | n.Implementation<C> | undefined = undefined;
+  public callerFn?: n.Implementation<C>;
 
   /**
    * The fallback handler function that processes the unexpected errors.
    */
-  public fallbackHandler?: FallbackHandler;
+  public fallbackHandler?: FallbackHandler<C, D>;
 
   /**
    * The dependencies of the task.
@@ -216,8 +234,8 @@ class TaskBuilder<
    *   or component.
    * @returns The task instance for method chaining.
    */
-  public handler(fn: TaskCaller<C, D>) {
-    this.handlerFn = fn as unknown as TaskCaller<C, D>;
+  public handler(fn: TaskHandler<C, D>) {
+    this.handlerFn = fn as unknown as TaskHandler<C, D>;
     return this as unknown as Task<C, D>;
   }
 
@@ -226,14 +244,17 @@ class TaskBuilder<
    *
    * @remarks
    * The fallback handler is called when all retry attempts have been exhausted.
-   * It's used for cleanup operations, rollback logic, or logging. If the fallback
-   * handler itself throws an error, it will be handled according to the
-   * {@link throwable} configuration.
+   * It's used for cleanup operations, rollback logic, or logging. The handler
+   * receives an object with the input that was used, the error that occurred, and
+   * the resolved task dependencies. If the fallback handler itself throws an error,
+   * it will be handled according to the {@link throwable} configuration.
    *
    * @param fn - The function that handles unexpected errors (called after all retries fail).
+   *   Receives an object with `{ input, error, dependencies }` where `input` is typed
+   *   according to the contract and `dependencies` contains the resolved task dependencies.
    * @returns The task instance for method chaining.
    */
-  public fallback(fn: FallbackHandler) {
+  public fallback(fn: FallbackHandler<C, D>) {
     this.fallbackHandler = fn;
     return this as unknown as Task<C, D>;
   }
@@ -333,14 +354,35 @@ class TaskBuilder<
         : n.implementation(this.contract, callerFn);
 
       // Create the task component and add the contract as a child.
-      const taskComponent = n.component(TASK_TAG, taskFn(this), this);
+      const taskComponent = n.component(
+        TASK_TAG,
+        Object.assign(
+          taskFn(
+            this,
+            deps as [D] extends [never] ? never : {
+              [K in keyof D]: D[K]['Type'];
+            },
+          ),
+          {
+            input: this.contract.in,
+            output: this.contract.out,
+          },
+        ),
+        // This preserve the uniqueness of the task component.
+        this,
+      );
+
+      // Add the contract as a child of the task component.
       n.meta(taskComponent).children(this.contract);
 
       // Add the task component as a referenced object of the contract.
       n.info(this.contract).refs(taskComponent);
 
       return taskComponent;
-    }, { fn: this.handlerFn }) as n.Provider<Task<C, D>, D>;
+    }, {
+      input: this.contract.in,
+      output: this.contract.out,
+    }) as n.Provider<Task<C, D>, D>;
   }
 }
 
@@ -369,6 +411,9 @@ const taskFn = <
   D extends TaskDependencies,
 >(
   taskBuilder: TaskBuilder<C, D>,
+  dependencies: [D] extends [never] ? never : {
+    [K in keyof D]: D[K]['Type'];
+  },
 ) => {
   const fn = async (input: n.Any) => {
     if (!taskBuilder.callerFn) {
@@ -418,7 +463,13 @@ const taskFn = <
 
           // TODO: It would be great to have a retry mechanism for the fallback handler.
           try {
-            await taskBuilder.fallbackHandler(lastError);
+            await taskBuilder.fallbackHandler({
+              input,
+              error: lastError,
+              dependencies: dependencies as [D] extends [never] ? never : {
+                [K in keyof D]: D[K]['Type'];
+              },
+            });
           } catch (error) {
             const fallbackError = error instanceof Error
               ? new TaskPanic('FallbackError', error.message)
