@@ -225,6 +225,22 @@ class WorkflowBuilder<T extends WorkflowTasks = never> {
   public readonly tasks: T = {} as T;
 
   /**
+   * The input of the workflow.
+   *
+   * @remarks
+   * The input of the workflow is the input of the first task.
+   */
+  public input: n.Any = undefined;
+
+  /**
+   * The output of the workflow.
+   *
+   * @remarks
+   * The output of the workflow is the output of the last task.
+   */
+  public output: n.Any = undefined;
+
+  /**
    * Adds a task to the workflow.
    *
    * @remarks
@@ -237,7 +253,6 @@ class WorkflowBuilder<T extends WorkflowTasks = never> {
    * @typeParam C - The contract type of the task.
    * @typeParam D - The dependencies type of the task.
    * @typeParam K - The name of the task (string literal type).
-   * @typeParam TT - The task provider type.
    * @param def - The task definition containing the name, description, and task provider.
    * @returns A new workflow builder with the task added, allowing method chaining.
    */
@@ -252,6 +267,14 @@ class WorkflowBuilder<T extends WorkflowTasks = never> {
       task: n.Provider<Task<C, D>, D>;
     },
   ) {
+    // If the input is not set, we use the first task input as a workflow input.
+    if (!this.input) {
+      this.input = def.task.input;
+    } else {
+      // If the input is set, we use the last task output as a workflow output.
+      this.output = def.task.output;
+    }
+
     type Task = typeof def.task;
     type TTT = n.Pretty<[T] extends [never] ? Record<K, Task> : T & Record<K, Task>>;
     this.tasks[`${def.name}.${def.description}` as keyof T] = def.task as unknown as T[keyof T];
@@ -295,10 +318,16 @@ class WorkflowBuilder<T extends WorkflowTasks = never> {
 
     return n.provider()
       .use(this.tasks)
-      .provide((deps) => n.component(WORKFLOW_TAG, workflowFn(deps), this)) as n.Provider<
-        Workflow<T>,
-        T
-      >;
+      .provide((deps) =>
+        n.component(
+          WORKFLOW_TAG,
+          Object.assign(workflowFn(deps), {
+            input: this.input,
+            output: this.output,
+          }),
+          this,
+        )
+      ) as n.Provider<Workflow<T>, T>;
   }
 }
 /**
