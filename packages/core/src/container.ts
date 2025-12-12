@@ -521,8 +521,7 @@ const implementation = <C extends Contract<Any, Any, Any, boolean>>(
 
   // We don't want to raise runtime errors, so we just log the error and return a failed result.
   const handlePanic = (error: Any) => {
-    logger.error(`Unexpected error in implementation for contract ${contract.id}`);
-    logger.hint(`Original error: ${error instanceof Error ? error.message : String(error)}`);
+    logger.debug(`Original error: ${error instanceof Error ? error.message : String(error)}`);
     return err({ $error: PANIC_ERROR_CODE });
   };
 
@@ -978,7 +977,10 @@ class ProviderBuilder<T, D extends ProviderAllowedDependencies = never> {
     };
 
     // Here we create a new component with the build function signature and dependencies.
-    return component(PROVIDER_TAG, buildFn, { ...this, ...uniqueness }) as Provider<TT, D>;
+    return component(PROVIDER_TAG, Object.assign(buildFn, { ...uniqueness }), {
+      ...this,
+      ...uniqueness,
+    }) as Provider<TT, D>;
   }
 }
 
