@@ -8,6 +8,9 @@
 
 import type { n } from '@nuxo/core';
 
+// TODO: This should be treated as a configuration module instead of a constants module and be able
+// to be overridden by the user in runtime or via environment variables.
+
 /**
  * The default error mode for all components that handle {@link n.Result} errors.
  *
@@ -22,4 +25,15 @@ const DEFAULT_ERROR_MODE = ('strict' as const) satisfies n.ErrorMode;
  */
 const DEFAULT_VALUE_COERCE = true;
 
-export { DEFAULT_ERROR_MODE, DEFAULT_VALUE_COERCE };
+/**
+ * The standard schema error mode.
+ *
+ * @remarks
+ * This is the default error mode for the standard schema validation.
+ *
+ * @public
+ */
+const STANDARD_SCHEMA_ERROR_MODE =
+  (Deno.env.get('STANDARD_SCHEMA_ERROR_MODE') ?? 'all' as const) as n.ErrorMode;
+
+export { DEFAULT_ERROR_MODE, DEFAULT_VALUE_COERCE, STANDARD_SCHEMA_ERROR_MODE };
