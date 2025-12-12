@@ -63,7 +63,7 @@ type EventListToRecord<T extends Event<n.Any, Value<n.Any, n.Any>>[]> = n.Pretty
  */
 type EventValue<T extends Record<n.Any, Value<n.Any, n.Any>>> = n.Pretty<
   {
-    [K in keyof T]: T[K] extends Value<infer N, n.Any> ? N : T[K];
+    [K in keyof T]: T[K] extends Value<infer N extends n.DataValue, n.Any> ? N : T[K];
   }
 >;
 
