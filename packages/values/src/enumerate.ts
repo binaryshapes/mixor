@@ -131,8 +131,11 @@ const EnumRule = <T extends string>(allowedValues: T[]) => {
   // Only set the type and doc if the type is not already set.
   if (!n.info(IsEnum).props.type) {
     n.info(IsEnum)
-      .type('string')
-      .params(['allowedValues', 'string[]'])
+      .type({
+        type: 'string',
+        enum: allowedValues,
+      })
+      .params(['allowedValues', allowedValues.join(', ')])
       .doc({
         title: 'IsEnum',
         body: n.doc`
@@ -166,8 +169,11 @@ const enumerate: EnumerateFactory = <T extends string[] | Record<string, string 
   allowedValues: T,
 ) => {
   const enumValue = Array.isArray(allowedValues)
-    ? (value(EnumRule(validateEnumArray(allowedValues))) as Value<T, 'INVALID_ENUM'>)
-    : (value(EnumRule(extractEnumValues(allowedValues))) as Value<keyof T, 'INVALID_ENUM'>);
+    ? (value(EnumRule(validateEnumArray(allowedValues))) as unknown as Value<T, 'INVALID_ENUM'>)
+    : (value(EnumRule(extractEnumValues(allowedValues))) as unknown as Value<
+      keyof T,
+      'INVALID_ENUM'
+    >);
 
   n.info(enumValue)
     .doc({
