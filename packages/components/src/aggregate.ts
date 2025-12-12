@@ -302,8 +302,21 @@ const aggregate = <
     // This is important to ensure that the ports are defined in the container.
     .use(config.ports ?? {} as unknown as Ports)
     .provide((adapters) =>
-      extend(createAggregate({ ...config, adapters: adapters as AggregateAdapters<Ports> }))
-    );
+      extend(createAggregate({ ...config, adapters: adapters as AggregateAdapters<Ports> })), {
+      schema: config.schema,
+    });
 
-export { aggregate };
-export type { Aggregate };
+/**
+ * Type guard function to check if an object is an aggregate.
+ *
+ * @param maybeAggregate - The object to check.
+ * @returns True if the object is an aggregate, false otherwise.
+ *
+ * @public
+ */
+const isAggregate = (
+  maybeAggregate: n.Any,
+): maybeAggregate is Aggregate<n.Any, n.Any, n.Any, n.Any, n.Any> =>
+  n.isComponent(maybeAggregate, AGGREGATE_TAG);
+
+export { type Aggregate, aggregate, isAggregate };
