@@ -9,7 +9,7 @@
 import { n } from '@nuxo/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
-import { DEFAULT_ERROR_MODE } from './constants.ts';
+import { DEFAULT_ERROR_MODE, STANDARD_SCHEMA_ERROR_MODE } from './constants.ts';
 import type { JsonSchema } from './types.ts';
 import type { Value } from './value.ts';
 
@@ -172,6 +172,18 @@ type RequiredSchema<V extends SchemaValues> = n.Pretty<
       : never;
   }
 >;
+
+/**
+ * Standard Schema issue extended with a custom properties.
+ *
+ * @internal
+ */
+type StandardSchemaIssueExtended = StandardSchemaV1.Issue & {
+  /**
+   * The code of the issue (equivalent to the error code in Nuxo).
+   */
+  code: string;
+};
 
 /**
  * The schema component type.
@@ -442,8 +454,8 @@ const schema = <V extends SchemaValues>(values: V) => {
    *
    * @internal
    */
-  const convertErrorsToIssues = (errors: Record<string, n.Any>): StandardSchemaV1.Issue[] => {
-    const issues: StandardSchemaV1.Issue[] = [];
+  const convertErrorsToIssues = (errors: Record<string, n.Any>): StandardSchemaIssueExtended[] => {
+    const issues: StandardSchemaIssueExtended[] = [];
 
     for (const [fieldName, error] of Object.entries(errors)) {
       // Convert error to string message.
@@ -461,18 +473,10 @@ const schema = <V extends SchemaValues>(values: V) => {
         message = String(error);
       }
 
-      // TODO: Add origin to the issue and description (similar to Zod).
-      // {
-      //   origin: "number",
-      //   code: "too_small",
-      //   minimum: 1,
-      //   inclusive: true,
-      //   path: [ "id" ],
-      //   message: "Too small: expected number to be >=1"
-      // }
       issues.push({
-        message,
         path: [fieldName],
+        code: error,
+        message,
       });
     }
 
@@ -488,7 +492,7 @@ const schema = <V extends SchemaValues>(values: V) => {
    * @internal
    */
   const standardValidate = (value: SchemaType<V>): StandardSchemaV1.Result<SchemaType<V>> => {
-    const result = schemaFn(value as SchemaType<V>, DEFAULT_ERROR_MODE);
+    const result = schemaFn(value as SchemaType<V>, STANDARD_SCHEMA_ERROR_MODE);
 
     if (n.isOk(result)) {
       return { value: result.value };
