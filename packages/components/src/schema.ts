@@ -212,12 +212,13 @@ type Schema<V extends SchemaValues> = n.Component<
  *
  * - `AtLeastOneKeyRequired`: At least one key must be provided to pick values from the schema.
  * - `InvalidKey`: The key is not a valid value in the schema.
+ * - `InvalidInputSchemaValue`: The value does not have all the keys of the schema.
  *
  * @public
  */
 class SchemaPanic extends n.panic<
   typeof SCHEMA_TAG,
-  'AtLeastOneKeyRequired' | 'InvalidKey'
+  'AtLeastOneKeyRequired' | 'InvalidKey' | 'InvalidInputSchemaValue'
 >(SCHEMA_TAG) {}
 
 /**
@@ -396,6 +397,23 @@ const schema = <V extends SchemaValues>(values: V) => {
     T extends SchemaType<V>,
     M extends n.ErrorMode = typeof DEFAULT_ERROR_MODE,
   >(value: T, mode: M = DEFAULT_ERROR_MODE as M) => {
+    // Check if the given value has all keys of the schema (all required keys must be present).
+    const missedKeys = Object.keys(values).filter((key) =>
+      !(key in value) && !values[key as keyof typeof values].isOptional
+    );
+
+    if (missedKeys.length > 0) {
+      throw new SchemaPanic(
+        'InvalidInputSchemaValue',
+        'The value does not have all the keys of the schema.',
+        n.doc`
+        Valid keys are: ${Object.keys(values).join(', ')}
+        The missed keys are: ${missedKeys.join(', ')}
+        The received value is: ${JSON.stringify(value, null, 2)}
+        `,
+      );
+    }
+
     // Strict mode: Useful when you want to fail fast and don't need all validation errors.
     if (mode === 'strict') {
       const result = {} as Record<string, n.Any>;
@@ -457,26 +475,16 @@ const schema = <V extends SchemaValues>(values: V) => {
   const convertErrorsToIssues = (errors: Record<string, n.Any>): StandardSchemaIssueExtended[] => {
     const issues: StandardSchemaIssueExtended[] = [];
 
-    for (const [fieldName, error] of Object.entries(errors)) {
-      // Convert error to string message.
-      let message: string;
-      if (typeof error === 'string') {
-        message = error;
-      } else if (error && typeof error === 'object') {
-        // Try to extract message from error object.
-        if ('message' in error && typeof error.message === 'string') {
-          message = error.message;
-        } else {
-          message = JSON.stringify(error);
-        }
-      } else {
-        message = String(error);
-      }
+    const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
 
+    for (const [fieldName, error] of Object.entries(errors)) {
       issues.push({
+        // Standard schema issue field.
         path: [fieldName],
+        message: `${capitalize(fieldName)} validation failed`,
+
+        // Custom fields.
         code: error,
-        message,
       });
     }
 
