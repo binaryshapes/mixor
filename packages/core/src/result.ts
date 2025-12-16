@@ -6,6 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { Failure } from './failure.ts';
+import type { Any } from './generics.ts';
+
 /**
  * A function that returns a result.
  *
@@ -78,7 +81,12 @@ function ok<T = void>(value?: T): Result<T, never> {
  *
  * @internal
  */
-type ResultError<L extends string> = L | L[] | Record<string, L | L[]>;
+// TODO: remove the support for the other error types and use only the failure class.
+type ResultError<L extends string> =
+  | L
+  | L[]
+  | Record<string, L | L[]>
+  | InstanceType<Failure<L, Any, Any>>;
 
 /**
  * Creates a failed result with the given error.
