@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { I18nLanguage } from './i18n.ts';
+
 /**
  * Core configuration manager.
  *
@@ -22,6 +24,19 @@ abstract class ConfigManager {
      * Whether to enable debug mode.
      */
     NUXO_DEBUG: (Deno.env.get('NUXO_DEBUG') ?? 'true') === 'true',
+
+    /**
+     * The default language for the i18n system.
+     */
+    NUXO_I18N_DEFAULT_LANGUAGE:
+      (Deno.env.get('NUXO_I18N_DEFAULT_LANGUAGE') ?? 'en-US') as I18nLanguage,
+
+    /**
+     * The list of languages that are mandatory for the i18n system.
+     */
+    NUXO_I18N_MANDATORY_LANGUAGES:
+      (Deno.env.get('NUXO_I18N_MANDATORY_LANGUAGES')?.split(',') ??
+        ['en-US', 'es-ES']) as I18nLanguage[],
   };
 
   /**
