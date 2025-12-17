@@ -146,7 +146,7 @@ const createAggregate = <
     /**
      * The specs of the aggregate.
      */
-    protected specs: Specs = config.specs ?? undefined as unknown as Specs;
+    public specs: Specs = config.specs ?? undefined as unknown as Specs;
 
     /**
      * The ports of the aggregate.
