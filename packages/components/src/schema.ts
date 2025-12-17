@@ -63,9 +63,13 @@ type SchemaType<V extends SchemaValues> = n.UndefToOptional<
  * @public
  */
 type SchemaErrors<V extends SchemaValues, Mode extends n.ErrorMode> = n.Pretty<
-  {
-    [K in keyof V]: V[K] extends Value<n.Any, infer E> ? n.ApplyErrorMode<E, Mode> : never;
-  }
+  Partial<
+    n.RemoveNevers<
+      {
+        [K in keyof V]: V[K] extends Value<n.Any, infer E> ? n.ApplyErrorMode<E, Mode> : never;
+      }
+    >
+  >
 >;
 
 /**
