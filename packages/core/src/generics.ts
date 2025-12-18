@@ -519,6 +519,17 @@ type FirstElement<T> = FirstKey<T> extends keyof T ? T[FirstKey<T>] : never;
  */
 type LastElement<T> = LastKey<T> extends keyof T ? T[LastKey<T>] : never;
 
+/**
+ * Removes a prefix from a string type.
+ *
+ * @typeParam T - The type to remove the prefix from.
+ * @typeParam P - The prefix to remove.
+ * @returns The type with the prefix removed.
+ *
+ * @public
+ */
+type RemovePrefix<T, P extends string> = T extends `${P}${infer R}` ? R : T;
+
 export type {
   Any,
   DeepAwaited,
@@ -544,6 +555,7 @@ export type {
   PrimitiveTypeExtended,
   Promisify,
   RemoveNevers,
+  RemovePrefix,
   RemoveUndefined,
   RequireAtLeastOne,
   UndefToOptional,
