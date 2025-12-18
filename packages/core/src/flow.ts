@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { Any, MergeUnion as MergeUnionOriginal, PrimitiveTypeExtended } from './generics.ts';
+import type { Any, PrimitiveTypeExtended } from './generics.ts';
 import { logger } from './logger.ts';
 import { isErr, isOk, ok, type Result } from './result.ts';
 
@@ -90,12 +90,12 @@ type FlowReturnType<I, O, E, A extends 'sync' | 'async' = 'sync'> = A extends 'a
   ? ((input: I) => Promise<
     Result<
       MergeUnion<O>,
-      MergeUnionOriginal<E>
+      MergeUnion<E>
     >
   >)
   : ((input: I) => Result<
     MergeUnion<O>,
-    MergeUnionOriginal<E>
+    MergeUnion<E>
   >);
 
 /**
@@ -313,11 +313,11 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
   public bind<K extends string, V, F>(
     key: K,
     fn: (v: FlowValue<O>) => Result<V, F>,
-  ): Flow<I, Bind<FlowValue<O>, K, V>, MergeUnionOriginal<E | F>, A>;
+  ): Flow<I, Bind<FlowValue<O>, K, V>, E | F, A>;
   public bind<K extends string, V, F>(
     key: K,
     fn: (v: FlowValue<O>) => Promise<Result<V, F>>,
-  ): Flow<I, Bind<FlowValue<O>, K, V>, MergeUnionOriginal<E | F>, 'async'>;
+  ): Flow<I, Bind<FlowValue<O>, K, V>, E | F, 'async'>;
   public bind(key: string, fn: Any) {
     const isBindable = (v: Any) => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -363,10 +363,10 @@ class Flow<I, O, E, A extends 'sync' | 'async' = 'sync'> {
    */
   public action<B, F>(
     fn: (v: FlowValue<O>) => Result<B, F>,
-  ): Flow<I, O, MergeUnionOriginal<E | F>, A>;
+  ): Flow<I, O, E | F, A>;
   public action<B, F>(
     fn: (v: FlowValue<O>) => Promise<Result<B, F>>,
-  ): Flow<I, O, MergeUnionOriginal<E | F>, 'async'>;
+  ): Flow<I, O, E | F, 'async'>;
   public action(fn: Any) {
     const actionLogic = (v: Any) => {
       const result = fn(v.value);

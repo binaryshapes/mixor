@@ -7,11 +7,11 @@
  */
 
 import { type Component, component, isComponent } from './component.ts';
+import { type Failure, failureAs, type GroupFailures, type InferFailure } from './failure.ts';
 import { flow } from './flow.ts';
 import type {
   Any,
   FilterEmptyObjects,
-  MergeUnion,
   Pretty,
   Promisify,
   UnionToIntersection,
@@ -19,7 +19,7 @@ import type {
 import { logger } from './logger.ts';
 import { panic } from './panic.ts';
 import { meta } from './registry.ts';
-import { err, isResult, ok, type Result, type ResultFunction } from './result.ts';
+import { err, isResult, ok, type Result } from './result.ts';
 import type { EnsureComponent } from './types.ts';
 import { doc } from './utils.ts';
 
@@ -86,13 +86,6 @@ class ContainerPanic extends panic<
  * @internal
  */
 const CONTRACT_TAG = 'Contract' as const;
-
-/**
- * The code for the related panic error for implementation contract.
- *
- * @internal
- */
-const PANIC_ERROR_CODE = 'PANIC_ERROR' as const;
 
 /**
  * The type of the input of the contract.
@@ -170,10 +163,7 @@ type ContractReturn<
 type ContractInputErrors<
   C extends Contract<Any, Any, Any, boolean>,
   I = C extends Contract<infer I, Any, Any, boolean> ? I : never,
-> = I extends { Errors: infer E } ? E
-  : I extends ResultFunction<Any, infer E> ? E
-  : I extends Provider<infer T, Any> ? T extends { Errors: infer E } ? E : never
-  : never;
+> = InferFailure<I>;
 
 /**
  * The type of the errors of the contract output.
@@ -192,10 +182,7 @@ type ContractInputErrors<
 type ContractOutputErrors<
   C extends Contract<Any, Any, Any, boolean>,
   O = C extends Contract<Any, infer O, Any, boolean> ? O : never,
-> = O extends { Errors: infer E } ? E
-  : O extends ResultFunction<Any, infer E> ? E
-  : O extends Provider<infer T, Any> ? T extends { Errors: infer E } ? E : never
-  : never;
+> = InferFailure<O>;
 
 /**
  * The type of the errors of the contract.
@@ -214,11 +201,11 @@ type ContractOutputErrors<
  */
 type ContractErrors<
   C extends Contract<Any, Any, Any, boolean>,
-  E extends string = C extends Contract<Any, Any, infer E, boolean> ? E : never,
-> = MergeUnion<
-  | { $input: ContractInputErrors<C> }
-  | { $output: ContractOutputErrors<C> }
-  | { $error: E | typeof PANIC_ERROR_CODE }
+  E = C extends Contract<Any, Any, infer E, boolean> ? E : never,
+> = GroupFailures<
+  ContractInputErrors<C>,
+  ContractOutputErrors<C>,
+  E extends new (...args: Any[]) => Any ? InstanceType<E> : E
 >;
 
 /**
@@ -245,7 +232,7 @@ type ContractErrors<
 type Contract<
   I extends ContractInput | undefined = undefined,
   O extends ContractOutput | undefined = undefined,
-  E extends string = never,
+  E = never,
   A extends boolean = false,
 > = Component<
   typeof CONTRACT_TAG,
@@ -265,7 +252,7 @@ type Contract<
 class ContractBuilder<
   I extends ContractInput | undefined = undefined,
   O extends ContractOutput | undefined = undefined,
-  E extends string = never,
+  E = never,
   A extends boolean = false,
 > {
   /**
@@ -295,11 +282,14 @@ class ContractBuilder<
    * This method allows you to specify which error codes are valid for implementations
    * of this contract. These errors will be included in the contract's error type.
    *
-   * @typeParam EE - The error type (string union).
+   * @typeParam L - The error code type.
+   * @typeParam EE - The error type.
    * @param errors - The allowed implementation error codes (as rest parameters).
    * @returns The contract builder with the allowed implementation errors set.
    */
-  public errors<EE extends string>(...errors: EE[]) {
+  public errors<EE extends string | Failure<Any, Any, string, Any> = never>(
+    ...errors: EE[]
+  ): Contract<I, O, EE, A> {
     this.implementationErrors = errors as unknown as E;
     return this as unknown as Contract<I, O, EE, A>;
   }
@@ -430,22 +420,19 @@ const IMPLEMENTATION_TAG = 'Implementation' as const;
 type ImplementationSignature<
   C extends Contract<Any, Any, Any, boolean>,
   Params extends ContractParams<C> = ContractParams<C>,
-> = [Params] extends [never] ? () => Promisify<
-    Result<
-      ContractReturn<C>,
-      ContractErrors<C>
-    >,
-    C extends Contract<Any, Any, Any, infer A> ? A : never
-  >
-  : (
-    input: Params,
-  ) => Promisify<
-    Result<
-      ContractReturn<C>,
-      ContractErrors<C>
-    >,
-    C extends Contract<Any, Any, Any, infer A> ? A : never
-  >;
+  Return extends ContractReturn<C> = ContractReturn<C>,
+  Errors extends ContractErrors<C> = ContractErrors<C> & {},
+  Async extends boolean = C extends Contract<Any, Any, Any, infer A> ? A : never,
+> = [Params] extends [never] ? () => Promisify<Result<Return, Errors>, Async>
+  : (input: Params) => Promisify<Result<Return, Errors>, Async>;
+
+/**
+ * The panic error for the implementation component.
+ *
+ * @public
+ */
+class ImplementationPanic
+  extends panic<typeof IMPLEMENTATION_TAG, 'ImplementationPanic'>(IMPLEMENTATION_TAG) {}
 
 /**
  * The type of the implementation.
@@ -522,49 +509,32 @@ const implementation = <C extends Contract<Any, Any, Any, boolean>>(
   // We don't want to raise runtime errors, so we just log the error and return a failed result.
   const handlePanic = (error: Any) => {
     logger.debug(`Original error: ${error instanceof Error ? error.message : String(error)}`);
-    return err({ $error: PANIC_ERROR_CODE });
+    return err(
+      {
+        $panic: new ImplementationPanic(
+          'ImplementationPanic',
+          'An internal error occurred while executing the implementation.',
+          `The original error is: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      } as Any,
+    );
   };
 
   // Process the input and output of the contract.
   const processInputOutput = (input: unknown, fn: (input: unknown) => Result<unknown, unknown>) =>
     typeof fn === 'function' ? isResult(fn(input)) ? fn(input) : ok(input) : ok(input);
 
-  // Format the errors for the contract depending on the target (see sync and async functions).
-  const formatErrors = (errors: Any, target: '$input' | '$output' | '$error') => {
-    if (typeof errors === 'string') {
-      return err({ [target]: errors });
-    }
-
-    if (target === '$input') {
-      return err(('$input' in errors) ? errors : { $input: errors });
-    }
-
-    if (target === '$error') {
-      return err(('$input' in errors) || ('$error' in errors) ? errors : { $error: errors });
-    }
-
-    if (target === '$output') {
-      return err(
-        ('$input' in errors) || ('$output' in errors) || ('$error' in errors)
-          ? errors
-          : { $output: errors },
-      );
-    }
-
-    return err(errors);
-  };
-
   const asyncFn = async (input: ContractParams<C>) => {
     const implementationFlow = flow<typeof input>()
       // 1. If the contract input is a function, call it.
       .map((input) => processInputOutput(input, contract.in))
-      .mapErr((error) => formatErrors(error, '$input'))
+      .mapErr((error) => err(failureAs(error, '$input') as Any))
       // 2. Call the implementation.
       .map(async (input) => await implementationFn(input as ContractParams<C>) as Any)
-      .mapErr((error) => formatErrors(error, '$error'))
+      .mapErr((error) => err(failureAs(error, '$logic') as Any))
       // 3. If the implementation returns a value, call the contract output (if exists).
       .map((input) => processInputOutput(input, contract.out))
-      .mapErr((error) => formatErrors(error, '$output'))
+      .mapErr((error) => err(failureAs(error, '$output') as Any))
       .build();
 
     try {
@@ -578,13 +548,13 @@ const implementation = <C extends Contract<Any, Any, Any, boolean>>(
     const implementationFlow = flow<typeof input>()
       // 1. If the contract input is a function, call it.
       .map((input) => processInputOutput(input, contract.in))
-      .mapErr((error) => formatErrors(error, '$input'))
+      .mapErr((error) => err(failureAs(error, '$input') as Any))
       // 2. Call the implementation.
       .map((input) => implementationFn(input as ContractParams<C>) as Any)
-      .mapErr((error) => formatErrors(error, '$error'))
+      .mapErr((error) => err(failureAs(error, '$logic') as Any))
       // 3. If the implementation returns a value, call the contract output (if exists).
       .map((input) => processInputOutput(input, contract.out))
-      .mapErr((error) => formatErrors(error, '$output'))
+      .mapErr((error) => err(failureAs(error, '$output') as Any))
       .build();
 
     try {
