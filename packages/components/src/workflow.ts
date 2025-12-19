@@ -176,7 +176,7 @@ type WorkflowSignature<T extends WorkflowTasks> = (
  */
 type Workflow<T extends WorkflowTasks = never> = n.Component<
   typeof WORKFLOW_TAG,
-  WorkflowSignature<T> & WorkflowBuilder<T> & {
+  WorkflowSignature<T> & {
     /** Workflow input type. */
     Input: WorkflowInput<T>;
     /** Workflow output type. */
@@ -278,7 +278,7 @@ class WorkflowBuilder<T extends WorkflowTasks = never> {
     type Task = typeof def.task;
     type TTT = n.Pretty<[T] extends [never] ? Record<K, Task> : T & Record<K, Task>>;
     this.tasks[`${def.name}.${def.description}` as keyof T] = def.task as unknown as T[keyof T];
-    return this as unknown as Workflow<TTT>;
+    return this as unknown as WorkflowBuilder<TTT>;
   }
 
   /**
@@ -327,7 +327,7 @@ class WorkflowBuilder<T extends WorkflowTasks = never> {
           }),
           this,
         )
-      ) as n.Provider<Workflow<T>, T>;
+      ) as unknown as n.Provider<Workflow<T>, T>;
   }
 }
 /**
@@ -412,7 +412,7 @@ const workflowFn = <T extends WorkflowTasks>(tasksProviders: T): WorkflowSignatu
  *
  * @public
  */
-const workflow = (): Workflow => new WorkflowBuilder() as Workflow;
+const workflow = (): WorkflowBuilder => new WorkflowBuilder();
 
 export { workflow, WorkflowPanic };
 export type { Workflow };
