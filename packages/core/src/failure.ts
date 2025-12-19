@@ -393,4 +393,4 @@ export {
   PANIC_FAILURES_KEY,
   unwrapFailure,
 };
-export type { Failure, FlatFailures, GroupFailures, InferFailure };
+export type { Failure, FailureKeys, FlatFailures, GroupFailures, InferFailure };
