@@ -233,10 +233,10 @@ const createAggregate = <
       mode: Mode = DEFAULT_ERROR_MODE as Mode,
     ): n.Result<InstanceType<Self>, { $output: SchemaErrors<T, Mode> }> {
       // Validate the values using the schema.
-      const validationResult = config.schema(values, mode);
+      const validationResult = config.schema(values, { mode, errorType: n.OUTPUT_FAILURES_KEY });
 
       if (n.isErr(validationResult)) {
-        return n.err({ $output: validationResult.error } as n.Any);
+        return n.err(validationResult.error as n.Any);
       }
 
       // Fancy inspect for the aggregate instance.
