@@ -88,7 +88,8 @@ type FlatFailures<
     ? O extends Record<string, infer OO> ? OO : never
     : never,
   LogicFailures = F extends { [LOGIC_FAILURES_KEY]: infer E } ? E : never,
-> = InputFailures | OutputFailures | LogicFailures;
+> = [InputFailures | OutputFailures | LogicFailures] extends [never] ? F
+  : InputFailures | OutputFailures | LogicFailures;
 
 /**
  * Extracts the error code from a failure type.
@@ -108,7 +109,10 @@ type GetFailureCodes<F> = F extends { code: infer C } ? C : never;
  *
  * @internal
  */
-type GetFailureLanguages<F> = F extends { t: (l: infer L) => string } ? L : I18nLanguage;
+type GetFailureLanguages<F> = F extends { t: (l: infer L) => string } ? L
+  : FlatFailures<F extends Record<string, Any> ? F : never> extends { t: (l: infer L) => string }
+    ? L
+  : never;
 
 /**
  * Groups failures into a structured error object with the appropriate keys.
@@ -217,13 +221,17 @@ class FailureClass<
  * @internal
  */
 type FailureInfo<
-  Failures extends Record<string, Any>,
-  Types extends string = keyof MergeUnion<{ [K in keyof Failures]: K }> & string,
+  F extends Record<string, Any>,
+  Types extends string =
+    & keyof MergeUnion<{ [K in keyof F]: K extends FailureKeys ? K : never }>
+    & string,
 > = Pretty<{
-  type: Capitalize<RemovePrefix<Types, typeof FAILURE_PREFIX>>;
-  code: GetFailureCodes<FlatFailures<Failures>>;
+  type: Capitalize<
+    RemovePrefix<Types extends FailureKeys ? Types : 'Input', typeof FAILURE_PREFIX>
+  >;
+  code: GetFailureCodes<FlatFailures<F>>;
   message: string;
-  params: Record<string, Any>;
+  params: Record<string, unknown>;
 }>;
 
 /**
@@ -314,31 +322,50 @@ const failureAs = <
  * @public
  */
 const unwrapFailure = <F extends Record<string, Any>>(
-  failures: F,
+  failure: F,
   language: GetFailureLanguages<FlatFailures<F>>,
 ): FailureInfo<F> => {
-  const failureKey = Object.keys(failures)[0] as FailureKeys;
-  const failureValue = failures[failureKey];
+  const unwrap = (failureValue: Any, failureKey: FailureKeys): FailureInfo<F> => {
+    // Remove the prefix from the failure key and capitalize the first letter.
+    let failureType = failureKey.replace(FAILURE_PREFIX, '');
+    failureType = failureType.charAt(0).toUpperCase() + failureType.slice(1);
 
-  // Remove the prefix from the failure key and capitalize the first letter.
-  let failureType = failureKey.replace(FAILURE_PREFIX, '');
-  failureType = failureType.charAt(0).toUpperCase() + failureType.slice(1);
+    // Try to get the message from the failure value.
+    const message = (typeof failureValue?.t === 'function')
+      ? failureValue.t(language)
+      : failureValue?.message ??
+        failureValue?.code ??
+        failureValue ??
+        // FIXME: This is a temporary fix to handle unexpected errors (hate hardcoded messages).
+        'Something went wrong. Please contact support if the problem persists.';
 
-  // Try to get the message from the failure value.
-  const message = (typeof failureValue?.t === 'function')
-    ? failureValue.t(language)
-    : failureValue?.message ??
-      failureValue?.code ??
-      failureValue ??
-      // FIXME: This is a temporary fix to handle unexpected errors (hate hardcoded messages).
-      'Something went wrong. Please contact support if the problem persists.';
-
-  return {
-    type: failureType as FailureInfo<F>['type'],
-    code: failureValue.code ?? failureValue,
-    message,
-    params: failureValue.params ?? {},
+    return {
+      type: failureType as FailureInfo<F>['type'],
+      code: failureValue.code ?? failureValue,
+      message,
+      params: failureValue.params ?? {},
+    };
   };
+
+  const failureKey = Object.keys(failure)[0] as FailureKeys;
+
+  // Indicate if the failure is grouped.
+  const isGroupedFailure = [
+    INPUT_FAILURES_KEY,
+    OUTPUT_FAILURES_KEY,
+    LOGIC_FAILURES_KEY,
+    PANIC_FAILURES_KEY,
+  ].includes(
+    failureKey,
+  );
+
+  // Process grouped failures.
+  if (isGroupedFailure) {
+    return unwrap(failure[failureKey as keyof F], failureKey);
+  }
+
+  // Process individual failures.
+  return unwrap(failure, INPUT_FAILURES_KEY);
 };
 
 /**
