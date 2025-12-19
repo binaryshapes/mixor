@@ -8,6 +8,7 @@
 
 import { n } from '@nuxo/core';
 
+import { isSchema } from './schema.ts';
 import type { Task, TaskContract, TaskDependencies } from './task.ts';
 import type { Workflow } from './workflow.ts';
 
@@ -116,14 +117,21 @@ type Controller<I, O, E> = n.Component<
 >;
 
 /**
- * The type of the controller route.
+ * The properties for the OpenAPI controller route.
  *
  * @remarks
- * A controller route is a combination of an HTTP method and a HTTP path.
+ * Defines the configuration for a controller route that will be exposed as an OpenAPI endpoint.
+ * OpenAPI routes require both a path and an HTTP method to be specified, allowing the controller
+ * to be properly documented and integrated with OpenAPI-compatible tools and frameworks.
  *
  * @internal
  */
-type ControllerRoute = {
+type ControllerOpenAPIRouteOptions = {
+  /**
+   * The type of the controller route.
+   */
+  type: 'OpenAPI';
+
   /**
    * The HTTP method for the controller route.
    *
@@ -133,27 +141,78 @@ type ControllerRoute = {
    * @see {@link HTTPMethods}
    */
   method: HTTPMethods;
+};
+
+/**
+ * The properties for the RPC controller route.
+ *
+ * @remarks
+ * Defines the configuration for a controller route that will be exposed as an RPC (Remote Procedure
+ * Call) endpoint. RPC routes use the path as the method name and do not require an HTTP method,
+ * making them suitable for RPC-style APIs.
+ *
+ * @internal
+ */
+type ControllerRPCRouteOptions = {
   /**
-   * The HTTP path for the controller route.
+   * The type of the controller route.
+   */
+  type: 'RPC';
+};
+
+/**
+ * The common properties for the controller route.
+ *
+ * @remarks
+ * This type represents the common properties that are shared by both OpenAPI and RPC
+ * controller routes.
+ *
+ * @internal
+ */
+type ControllerRouteCommon = {
+  /**
+   * The path of the controller route.
+   *
+   * @remarks
+   * If the type is "OpenAPI", it would be used as endpoint path in the OpenAPI specification.
+   * If the type is "RPC", it would be used as RPC method name.
    */
   path: HTTPPath;
 };
 
 /**
- * Controller builder type.
+ * The type of the controller route configuration.
  *
  * @remarks
- * Provides a fluent API for configuring a controller component. Use the builder methods to set:
- * - Handler function (via {@link ControllerBuilder.handler}).
+ * Represents a union type that can be either an OpenAPI route or an RPC route, combined with
+ * common route properties. This type is used to configure how a controller endpoint is exposed,
+ * whether as a standard HTTP endpoint (OpenAPI) or as an RPC method.
  *
- * The builder automatically extracts path parameters from the path string and stores them
- * for later use in request processing.
+ * @internal
+ */
+type ControllerRoute =
+  & (ControllerOpenAPIRouteOptions | ControllerRPCRouteOptions)
+  & ControllerRouteCommon;
+
+/**
+ * Controller builder class that provides a fluent API for configuring controller components.
+ *
+ * @remarks
+ * Provides methods to configure a controller component, including route setup and handler
+ * assignment. The builder automatically extracts path parameters from the path string and
+ * stores them for later use in request processing. Use the builder methods to:
+ * - Configure the route (via {@link ControllerBuilder.route}).
+ * - Set the handler function (via {@link ControllerBuilder.handler}).
  *
  * @internal
  */
 class ControllerBuilder {
   /**
    * The HTTP path for this controller.
+   *
+   * @remarks
+   * The path where the controller endpoint will be accessible. Must start with a forward slash.
+   * Path parameters can be specified using curly braces (e.g., "/users/{id}").
    */
   public path: HTTPPath = '/';
 
@@ -169,8 +228,30 @@ class ControllerBuilder {
 
   /**
    * The HTTP method for this controller.
+   *
+   * @remarks
+   * The HTTP method that will be used for this controller endpoint. Only applicable for OpenAPI
+   * routes. Defaults to 'POST' if not specified.
    */
-  public method: HTTPMethods = 'GET';
+  public method: HTTPMethods = 'POST';
+
+  /**
+   * The input schema of the controller.
+   *
+   * @remarks
+   * The schema component that validates the input data for this controller. Automatically
+   * extracted from the handler component if it provides an input schema.
+   */
+  public input?: n.Any;
+
+  /**
+   * The output schema of the controller.
+   *
+   * @remarks
+   * The schema component that validates the output data for this controller. Automatically
+   * extracted from the handler component if it provides an output schema.
+   */
+  public output?: n.Any;
 
   /**
    * Configures the controller route.
@@ -185,7 +266,7 @@ class ControllerBuilder {
    * @returns The controller builder with the route configured.
    */
   public route(route: ControllerRoute) {
-    const { path, method } = route;
+    const { path } = route;
 
     // Extract the path params from the path, for instance "/auth/hello/{name}" -> "name".
     const pathParams = path
@@ -199,7 +280,11 @@ class ControllerBuilder {
 
     this.pathParams = pathParams.trim().length > 0 ? pathParams.trim() : null;
     this.path = path;
-    this.method = method;
+
+    // If the route type is "OpenAPI", set the method.
+    if (route.type === 'OpenAPI') {
+      this.method = route.method;
+    }
 
     return this;
   }
@@ -212,13 +297,13 @@ class ControllerBuilder {
    * request processing to the workflow, which can orchestrate multiple tasks and
    * handle complex business logic. See more in {@link Workflow}.
    *
-   * @typeParam T - The type of the workflow component.
+   * @typeParam W - The type of the workflow component.
    * @param fn - The workflow component to handle the request.
    * @returns The controller component with the workflow handler configured.
    */
-  public handler<T extends Workflow<n.Any>>(
-    fn: T,
-  ): Controller<T['Input'], T['Output'], T['Errors']>;
+  public handler<W extends Workflow<n.Any>>(
+    fn: W,
+  ): Controller<W['Input'], W['Output'], W['Errors']>;
 
   /**
    * Sets the handler function that processes the input and produces the output using a task.
@@ -242,6 +327,21 @@ class ControllerBuilder {
    * Sets the handler function that processes the input and produces the output.
    *
    * @remarks
+   * The handler function is a function that receives the controller parameters
+   * and returns a result that can either succeed with output data or fail with an error.
+   *
+   * @typeParam I - The type of the input data.
+   * @typeParam O - The type of the output data.
+   * @typeParam E - The type of the error data.
+   * @param fn - The handler function to process the request.
+   * @returns The controller component with the handler configured.
+   */
+  public handler<I, O, E>(fn: ControllerHandler<I, O, E>): Controller<I, O, E>;
+
+  /**
+   * Sets the handler function that processes the input and produces the output.
+   *
+   * @remarks
    * This method creates the controller component itself. The handler function receives
    * the controller parameters (input and optional context) and processes the request.
    * The handler can be a workflow, a task, or any other callable component.
@@ -250,18 +350,45 @@ class ControllerBuilder {
    * @returns The controller component with the handler configured.
    */
   public handler(fn: n.Any) {
+    // This is bad! but compatible with the current API.
+    n.logger.assert(
+      n.isComponent(fn),
+      `The controller handler is not a component. (path: ${this.path}, method: ${this.method})`,
+    );
+
+    if (n.isProvider(fn.output) && fn.output.schema !== undefined) {
+      this.output = fn.output.schema;
+    } else if (isSchema(fn.output)) {
+      this.output = fn.output;
+    }
+
+    if (n.isProvider(fn.input) && fn.input.schema !== undefined) {
+      this.input = fn.input.schema;
+    } else if (isSchema(fn.input)) {
+      this.input = fn.input;
+    }
+
     // Here we create the controller component itself.
-    // The handler function receives the input and context, and processes the request.
     return n.component(
       CONTROLLER_TAG,
-      ({ input, ...rest }: ControllerParams<n.Any>) => fn({ rest, ...input }),
+      Object.assign(
+        // The handler function receives the input and context, and processes the request.
+        async ({ input, ...rest }: ControllerParams<n.Any>) => await fn({ rest, ...input }),
+        // Expose the input and output of the handler function.
+        {
+          input: this.input,
+          output: this.output,
+        },
+      ) as n.Any,
       this,
+      // This ensure the uniqueness of the controller component.
+      fn,
     );
   }
 }
 
 /**
- * Creates a controller builder in order to configure a new controller component.
+ * Creates a controller builder to configure a new controller component.
  *
  * @remarks
  * A controller component is a representation of an HTTP endpoint handler. It handles:
@@ -273,38 +400,15 @@ class ControllerBuilder {
  * Use the builder methods to configure the controller, then call
  * {@link ControllerBuilder.handler} to set the handler and create the final controller component.
  *
- * @typeParam I - The type of the input data.
- * @typeParam O - The type of the output data.
- * @typeParam E - The type of the error data.
+ * @typeParam I - The type of the input data (inferred from the handler).
+ * @typeParam O - The type of the output data (inferred from the handler).
+ * @typeParam E - The type of the error data (inferred from the handler).
  *
- * @param path - The HTTP path for the controller (must start with "/").
- * @param method - The HTTP method for the controller.
  * @returns A controller builder ready to be configured into a controller component.
  *
  * @public
  */
 const controller = <I, O, E>() => new ControllerBuilder() as Controller<I, O, E>;
 
-/**
- * Type guard that checks if a component is a controller component.
- *
- * @remarks
- * This function performs a runtime check to determine if the given component
- * is a controller component by checking its tag. It can be used for type narrowing
- * in TypeScript to safely access controller-specific properties and methods.
- *
- * @typeParam I - The type of the input data.
- * @typeParam O - The type of the output data.
- * @typeParam E - The type of the error data.
- *
- * @param component - The component to check.
- * @returns `true` if the component is a controller, `false` otherwise.
- *
- * @public
- */
-const isController = <I, O, E>(
-  component: n.Any,
-): component is Controller<I, O, E> => n.isComponent(component, CONTROLLER_TAG);
-
-export { controller, HTTPMethods, isController };
+export { controller, HTTPMethods };
 export type { Controller, HTTPPath };
