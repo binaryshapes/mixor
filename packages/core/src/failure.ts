@@ -104,11 +104,11 @@ type GetFailureCodes<F> = F extends { code: infer C } ? C : never;
  * Extracts the language type from a failure's translation function.
  *
  * @typeParam F - The failure type to extract the language from.
- * @returns The language type if the failure has a `t` function, otherwise `never`.
+ * @returns The language type if the failure has a `t` function, otherwise `I18nLanguage`.
  *
  * @internal
  */
-type GetFailureLanguages<F> = F extends { t: (l: infer L) => string } ? L : never;
+type GetFailureLanguages<F> = F extends { t: (l: infer L) => string } ? L : I18nLanguage;
 
 /**
  * Groups failures into a structured error object with the appropriate keys.
@@ -324,11 +324,19 @@ const unwrapFailure = <F extends Record<string, Any>>(
   let failureType = failureKey.replace(FAILURE_PREFIX, '');
   failureType = failureType.charAt(0).toUpperCase() + failureType.slice(1);
 
+  // Try to get the message from the failure value.
+  const message = (typeof failureValue?.t === 'function')
+    ? failureValue.t(language)
+    : failureValue?.message ??
+      failureValue?.code ??
+      failureValue ??
+      // FIXME: This is a temporary fix to handle unexpected errors (hate hardcoded messages).
+      'Something went wrong. Please contact support if the problem persists.';
+
   return {
     type: failureType as FailureInfo<F>['type'],
-    code: failureValue.code,
-    message: failureValue.t ? failureValue.t(language) : failureValue.message ??
-      'An unexpected error occurred. Please contact support if the problem persists.',
+    code: failureValue.code ?? failureValue,
+    message,
     params: failureValue.params ?? {},
   };
 };
