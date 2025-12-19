@@ -103,7 +103,7 @@ const env = <V extends SchemaValues>(schema: Schema<V>): Env<V> => {
     }
 
     // Using the schema in strict mode to ensure all fields are present.
-    return schema(input, DEFAULT_ERROR_MODE);
+    return schema(input, { mode: DEFAULT_ERROR_MODE });
   };
 
   // Creates the env component with the schema as a child.
