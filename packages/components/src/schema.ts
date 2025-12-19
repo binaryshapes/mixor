@@ -92,6 +92,34 @@ type SchemaMeta<V extends SchemaValues> = {
 };
 
 /**
+ * The possible failures for the schema.
+ *
+ * @internal
+ */
+type SchemaFailures = typeof n.INPUT_FAILURES_KEY | typeof n.OUTPUT_FAILURES_KEY;
+
+/**
+ * Options for schema validation.
+ *
+ * @remarks
+ * Configures the validation behavior of the schema, including the error mode and the type of
+ * failures to return. The error mode determines how validation errors are collected, while the
+ * error type specifies whether to use input or output failures.
+ *
+ * @typeParam M - The error mode ({@link n.ErrorMode}).
+ * @typeParam E - The error type, either input or output failures key.
+ *
+ * @internal
+ */
+type SchemaOptions<
+  M extends n.ErrorMode,
+  E extends SchemaFailures,
+> = {
+  mode?: M;
+  errorType?: E;
+};
+
+/**
  * Function signature for schema validation.
  *
  * @remarks
@@ -100,18 +128,35 @@ type SchemaMeta<V extends SchemaValues> = {
  * Result with either the validated data or errors.
  *
  * @typeParam V - The schema values type.
+ * @typeParam T - The inferred type from the schema values.
  *
  * @internal
  */
-type SchemaFunction<V extends SchemaValues, T = SchemaType<V>> = <
-  M extends n.ErrorMode = (typeof DEFAULT_ERROR_MODE),
+type SchemaFunction<
+  V extends SchemaValues,
+  T = SchemaType<V>,
+> = <
+  M extends n.ErrorMode | never = never,
+  E extends SchemaFailures | never = never,
 >(
   value: T,
-  mode?: M,
-) => n.Result<T, SchemaErrors<V, M>>;
+  options?: SchemaOptions<M, E>,
+) => n.Result<
+  T,
+  [E] extends [never]
+    ? [M] extends [never] ? { [n.INPUT_FAILURES_KEY]: SchemaErrors<V, typeof DEFAULT_ERROR_MODE> }
+    : { [n.INPUT_FAILURES_KEY]: SchemaErrors<V, M> }
+    : E extends typeof n.OUTPUT_FAILURES_KEY ? { [n.OUTPUT_FAILURES_KEY]: SchemaErrors<V, M> }
+    : { [n.OUTPUT_FAILURES_KEY]: SchemaErrors<V, M> }
+>;
 
 /**
- * Pick schema type.
+ * Creates a new schema type with only the specified keys picked from the original schema.
+ *
+ * @remarks
+ * This utility type extracts a subset of fields from a schema, creating a new schema type that
+ * contains only the selected keys. Useful for creating partial schemas or focusing on specific
+ * fields for validation.
  *
  * @typeParam V - The schema values type.
  * @typeParam Picked - The keys to pick from the schema.
@@ -125,7 +170,12 @@ type PickSchema<V extends SchemaValues, Picked extends keyof V> = n.Pretty<
 >;
 
 /**
- * Omit schema type.
+ * Creates a new schema type with the specified keys omitted from the original schema.
+ *
+ * @remarks
+ * This utility type removes specific fields from a schema, creating a new schema type that
+ * excludes the specified keys. Useful for creating schemas that exclude certain fields while
+ * keeping the rest.
  *
  * @typeParam V - The schema values type.
  * @typeParam Omitted - The keys to omit from the schema.
@@ -139,7 +189,12 @@ type OmitSchema<V extends SchemaValues, Omitted extends keyof V> = n.Pretty<
 >;
 
 /**
- * Extends the schema with additional values.
+ * Creates a new schema type by extending the original schema with additional values.
+ *
+ * @remarks
+ * This utility type merges the original schema with additional value components, creating a new
+ * schema type that includes all fields from both schemas. If there are overlapping keys, the
+ * additional values take precedence.
  *
  * @typeParam V - The original schema values.
  * @typeParam A - The additional values to extend with.
@@ -149,7 +204,12 @@ type OmitSchema<V extends SchemaValues, Omitted extends keyof V> = n.Pretty<
 type ExtendSchema<V extends SchemaValues, A extends SchemaValues> = n.Pretty<V & A>;
 
 /**
- * Partial schema type, all values are optional.
+ * Creates a new schema type where all values are optional.
+ *
+ * @remarks
+ * This utility type transforms all fields in the schema to be optional, allowing them to be
+ * undefined. The resulting schema type will have all properties marked as optional, making them
+ * non-required during validation.
  *
  * @typeParam V - The schema values type.
  *
@@ -164,7 +224,12 @@ type PartialSchema<V extends SchemaValues> = n.Pretty<
 >;
 
 /**
- * Required schema type, all values are required.
+ * Creates a new schema type where all values are required.
+ *
+ * @remarks
+ * This utility type transforms all fields in the schema to be required, ensuring they must be
+ * present during validation. The resulting schema type will have all properties marked as
+ * required, making them mandatory.
  *
  * @typeParam V - The schema values type.
  *
@@ -178,7 +243,12 @@ type RequiredSchema<V extends SchemaValues> = n.Pretty<
 >;
 
 /**
- * Standard Schema issue extended with a custom properties.
+ * Standard Schema issue extended with custom properties.
+ *
+ * @remarks
+ * Extends the Standard Schema issue type with additional properties specific to Nuxo's error
+ * handling system. The code property provides a standardized way to identify error types across
+ * the validation system.
  *
  * @internal
  */
@@ -201,12 +271,14 @@ type StandardSchemaIssueExtended = StandardSchemaV1.Issue & {
  *
  * @public
  */
-type Schema<V extends SchemaValues> = n.Component<
+type Schema<
+  V extends SchemaValues,
+> = n.Component<
   typeof SCHEMA_TAG,
   & SchemaFunction<V>
   & SchemaBuilder<V>
   & StandardSchemaV1<SchemaType<V>>
-  & { Errors: SchemaErrors<V, typeof DEFAULT_ERROR_MODE> },
+  & { Errors: { [n.INPUT_FAILURES_KEY]: SchemaErrors<V, typeof DEFAULT_ERROR_MODE> } },
   SchemaType<V>,
   SchemaMeta<V>
 >;
@@ -226,7 +298,12 @@ class SchemaPanic extends n.panic<
 >(SCHEMA_TAG) {}
 
 /**
- * Schema component builder class which provides a method to pick values from the schema.
+ * Schema component builder class which provides methods to manipulate and transform schemas.
+ *
+ * @remarks
+ * Provides utility methods for schema manipulation, including picking and omitting fields,
+ * extending schemas, making fields optional or required, and converting schemas to JSON Schema
+ * format.
  *
  * @typeParam V - The schema values type.
  *
@@ -243,10 +320,11 @@ class SchemaBuilder<V extends SchemaValues> {
    * Validates the keys of the schema.
    *
    * @remarks
-   * This method validates that at least one key is provided to pick values from the schema, and
-   * that all keys are valid.
+   * This method validates that at least one key is provided and that all specified keys exist
+   * in the schema. Throws a panic error if validation fails.
    *
-   * @param values - The keys to pick from the schema, and at least one key must be provided.
+   * @param values - An object containing the keys to validate, where each key should exist in
+   * the schema. At least one key must be provided.
    *
    * @internal
    */
@@ -396,11 +474,20 @@ class SchemaBuilder<V extends SchemaValues> {
  * @param values - A record where each key is a field name and each value is a Value component.
  * @returns A schema component that can be used to validate objects matching the schema structure.
  */
-const schema = <V extends SchemaValues>(values: V) => {
-  const schemaFn: SchemaFunction<V> = <
-    T extends SchemaType<V>,
-    M extends n.ErrorMode = typeof DEFAULT_ERROR_MODE,
-  >(value: T, mode: M = DEFAULT_ERROR_MODE as M) => {
+const schema = <
+  V extends SchemaValues,
+>(values: V): Schema<V> => {
+  const schemaFn = <
+    M extends n.ErrorMode,
+    E extends typeof n.INPUT_FAILURES_KEY | typeof n.OUTPUT_FAILURES_KEY,
+  >(
+    value: SchemaType<V>,
+    options?: SchemaOptions<M, E>,
+  ) => {
+    // Default options.
+    const mode = options?.mode ?? DEFAULT_ERROR_MODE as M;
+    const errorType = options?.errorType ?? n.INPUT_FAILURES_KEY as E;
+
     // Check if the given value has all keys of the schema (all required keys must be present).
     const missedKeys = Object.keys(values).filter((key) =>
       !(key in value) && !values[key as keyof typeof values].isOptional
@@ -432,12 +519,12 @@ const schema = <V extends SchemaValues>(values: V) => {
           result[fieldName] = fieldResult.value;
         } else {
           // Field validation failed, return error immediately (strict mode).
-          return n.err({ [fieldName]: fieldResult.error }) as n.Result<T, SchemaErrors<V, M>>;
+          return n.err({ [`$${errorType}`]: { [fieldName]: fieldResult.error } } as n.Any);
         }
       }
 
       // All fields validated successfully.
-      return n.ok(result as T);
+      return n.ok(result as SchemaType<V>);
     }
 
     // All mode: Collect all errors, more complete error reporting.
@@ -465,7 +552,9 @@ const schema = <V extends SchemaValues>(values: V) => {
     );
 
     // Return errors if any validation failed, otherwise return the validated result.
-    return hasErrors ? n.err(errors) as n.Result<T, SchemaErrors<V, M>> : n.ok(result as T);
+    return hasErrors
+      ? n.err({ [`$${errorType}`]: errors } as n.Any)
+      : n.ok(result as SchemaType<V>);
   };
 
   /**
@@ -504,7 +593,7 @@ const schema = <V extends SchemaValues>(values: V) => {
    * @internal
    */
   const standardValidate = (value: SchemaType<V>): StandardSchemaV1.Result<SchemaType<V>> => {
-    const result = schemaFn(value as SchemaType<V>, STANDARD_SCHEMA_ERROR_MODE);
+    const result = schemaFn(value as SchemaType<V>, { mode: STANDARD_SCHEMA_ERROR_MODE });
 
     if (n.isOk(result)) {
       return { value: result.value };
@@ -549,10 +638,14 @@ const schema = <V extends SchemaValues>(values: V) => {
 };
 
 /**
- * Type guard function to check if a object is a schema component.
+ * Type guard function to check if an object is a schema component.
+ *
+ * @remarks
+ * Performs a runtime check to determine if the provided object is a valid schema component
+ * by verifying its component tag.
  *
  * @param maybeSchema - The object to check.
- * @returns True if the object is a schema, false otherwise.
+ * @returns True if the object is a schema component, false otherwise.
  *
  * @public
  */
