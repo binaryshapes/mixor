@@ -519,7 +519,7 @@ const schema = <
           result[fieldName] = fieldResult.value;
         } else {
           // Field validation failed, return error immediately (strict mode).
-          return n.err({ [`$${errorType}`]: { [fieldName]: fieldResult.error } } as n.Any);
+          return n.err({ [`${errorType}`]: { [fieldName]: fieldResult.error } } as n.Any);
         }
       }
 
@@ -552,9 +552,7 @@ const schema = <
     );
 
     // Return errors if any validation failed, otherwise return the validated result.
-    return hasErrors
-      ? n.err({ [`$${errorType}`]: errors } as n.Any)
-      : n.ok(result as SchemaType<V>);
+    return hasErrors ? n.err({ [`${errorType}`]: errors } as n.Any) : n.ok(result as SchemaType<V>);
   };
 
   /**
@@ -567,6 +565,12 @@ const schema = <
    */
   const convertErrorsToIssues = (errors: Record<string, n.Any>): StandardSchemaIssueExtended[] => {
     const issues: StandardSchemaIssueExtended[] = [];
+
+    // Errors are mapped to the error type key.
+    const errorType = Object.keys(errors)[0];
+    if (errorType && [n.INPUT_FAILURES_KEY, n.OUTPUT_FAILURES_KEY].includes(errorType as n.Any)) {
+      errors = errors[errorType];
+    }
 
     const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
 
