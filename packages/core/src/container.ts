@@ -287,11 +287,12 @@ class ContractBuilder<
    * @param errors - The allowed implementation error codes (as rest parameters).
    * @returns The contract builder with the allowed implementation errors set.
    */
-  public errors<EE extends string | Failure<Any, Any, string, Any> = never>(
-    ...errors: EE[]
-  ): Contract<I, O, EE, A> {
+  public errors<Code extends string, EE extends string[] | Failure<Code, Any, Any, Any>[] = never>(
+    ...errors: EE
+  ): Contract<I, O, EE[number] & {}, A> {
+    // TODO: Evaluate use Record instead of array of failures.
     this.implementationErrors = errors as unknown as E;
-    return this as unknown as Contract<I, O, EE, A>;
+    return this as unknown as Contract<I, O, EE[number] & {}, A>;
   }
 
   /**
