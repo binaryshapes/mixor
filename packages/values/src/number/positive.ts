@@ -10,17 +10,39 @@ import { rule } from '@nuxo/components';
 import { n } from '@nuxo/core';
 
 /**
+ * Not positive failure.
+ *
+ * @internal
+ */
+class NotPositive extends n.failure(
+  'Number.NotPositive',
+  {
+    'en-US': 'The number must be positive.',
+    'es-ES': 'El número debe ser positivo.',
+  },
+) {}
+
+// Apply metadata to the NotPositive failure.
+n.info(NotPositive)
+  .doc({
+    title: 'NotPositive Failure',
+    body: n.doc`
+    A failure that is returned when the number is not positive (greater than 0).
+    `,
+  });
+
+/**
  * A rule that checks if the number is positive (greater than 0).
  *
  * @remarks
  * A positive number is any number that is greater than zero.
  * This rule accepts only positive numbers, rejecting 0 and negative numbers.
  * If the number is not positive, the rule will return an error Result with
- * code 'NOT_POSITIVE'.
+ * code 'Number.NotPositive'.
  *
  * @public
  */
-const Positive = rule(() => n.assert((value: number) => value > 0, 'NOT_POSITIVE'));
+const Positive = rule(() => n.assert((value: number) => value > 0, new NotPositive()));
 
 n.info(Positive)
   .type('number')
@@ -30,9 +52,9 @@ n.info(Positive)
     A rule that checks if the number is positive (greater than 0). A positive number is any
     number that is greater than zero. This rule accepts only positive numbers, rejecting 0 and
     negative numbers. If the number is not positive, the rule will return a failure Result
-    with code 'NOT_POSITIVE'.
+    with code 'Number.NotPositive'.
     `,
   });
 
-export { Positive };
+export { Positive, NotPositive };
 

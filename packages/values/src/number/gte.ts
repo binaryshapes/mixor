@@ -10,13 +10,35 @@ import { rule } from '@nuxo/components';
 import { n } from '@nuxo/core';
 
 /**
+ * Not greater than or equal failure.
+ *
+ * @internal
+ */
+class NotGreaterThanOrEqual extends n.failure(
+  'Number.NotGreaterThanOrEqual',
+  {
+    'en-US': 'The number must be greater than or equal to {{threshold | number}}.',
+    'es-ES': 'El número debe ser mayor o igual que {{threshold | number}}.',
+  },
+) {}
+
+// Apply metadata to the NotGreaterThanOrEqual failure.
+n.info(NotGreaterThanOrEqual)
+  .doc({
+    title: 'NotGreaterThanOrEqual Failure',
+    body: n.doc`
+    A failure that is returned when the number is not greater than or equal to the specified threshold.
+    `,
+  });
+
+/**
  * Creates a rule that checks if the number is greater than or equal to a specified value.
  *
  * @remarks
  * A number is considered valid if it is greater than or equal to the specified value.
  * For example, `Gte(5)` will accept numbers like 5, 6, 7, 8, etc.
  * If the number is not greater than or equal to the threshold, the rule will return
- * an error Result with code 'NOT_GREATER_THAN_OR_EQUAL'.
+ * an error Result with code 'Number.NotGreaterThanOrEqual'.
  *
  * @param threshold - The value that the number must be greater than or equal to.
  * @returns A rule function that validates if the number is greater than or equal to the threshold.
@@ -24,7 +46,7 @@ import { n } from '@nuxo/core';
  * @public
  */
 const Gte = rule((threshold: number) =>
-  n.assert((value: number) => value >= threshold, 'NOT_GREATER_THAN_OR_EQUAL')
+  n.assert((value: number) => value >= threshold, new NotGreaterThanOrEqual({ threshold }))
 );
 
 n.info(Gte)
@@ -36,9 +58,9 @@ n.info(Gte)
     A rule that checks if the number is greater than or equal to a specified value. A number
     is considered valid if it is greater than or equal to the specified value. If the number
     is not greater than or equal to the threshold, the rule will return a failure Result with
-    code 'NOT_GREATER_THAN_OR_EQUAL'.
+    code 'Number.NotGreaterThanOrEqual'.
     `,
   });
 
-export { Gte };
+export { Gte, NotGreaterThanOrEqual };
 
