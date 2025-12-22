@@ -81,13 +81,10 @@ function ok<T = void>(value?: T): Result<T, never> {
  *
  * @internal
  */
-// TODO: remove the support for the other error types and use only the failure class.
 type ResultError<L extends string> =
-  | L
-  | L[]
-  | Record<string, L | L[]>
   | InstanceType<Failure<L, Any, Any>>
-  | Record<string, InstanceType<Failure<L, Any, Any>>>;
+  | InstanceType<Failure<L, Any, Any>>[]
+  | Record<string, InstanceType<Failure<L, Any, Any>> | InstanceType<Failure<L, Any, Any>>[]>;
 
 /**
  * Creates a failed result with the given error.
