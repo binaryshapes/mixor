@@ -334,7 +334,7 @@ type RemoveNevers<T extends Record<string, Any>> = {
  * @typeParam T - The type to check.
  * @returns True if the type is an empty object.
  *
- * @internal
+ * @public
  */
 type IsEmptyObject<T> = T extends object ? keyof T extends never ? true
   : false
@@ -541,6 +541,7 @@ export type {
   HasPromise,
   IfReadonly,
   InstanceClass,
+  IsEmptyObject,
   IsPrimitive,
   IsPromise,
   LastElement,

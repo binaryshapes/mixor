@@ -8,7 +8,7 @@
 
 import { type Component, component } from './component.ts';
 import type { Provider } from './container.ts';
-import type { Any, MergeUnion, Pretty, RemovePrefix } from './generics.ts';
+import type { Any, IsEmptyObject, MergeUnion, Pretty, RemovePrefix } from './generics.ts';
 import { type I18n, i18n, type I18nLanguage, type I18nTranslations } from './i18n.ts';
 import type { ResultFunction } from './result.ts';
 
@@ -242,6 +242,9 @@ type FailureInfo<
  * `t` method. The failure can be instantiated with parameters that are used in
  * the translation templates.
  *
+ * When the failure has no parameters (empty object), the constructor does not require
+ * any arguments. Otherwise, it requires the params object.
+ *
  * @typeParam Code - The unique code identifier for the failure.
  * @typeParam Languages - The supported languages for translations.
  * @typeParam Templates - The template strings used in translations.
@@ -253,7 +256,11 @@ type Failure<
   Languages extends I18nLanguage,
   Templates extends string,
   Params extends Record<string, Any> = I18n<Code, Languages, Templates>['Params'],
-> = Component<typeof FAILURE_TAG, new (params: Params) => FailureClass<Code, Languages, Templates>>;
+> = Component<
+  typeof FAILURE_TAG,
+  IsEmptyObject<Params> extends true ? new () => FailureClass<Code, Languages, Templates>
+    : new (params: Params) => FailureClass<Code, Languages, Templates>
+>;
 
 /**
  * Formats the failures for the contract depending on the target failure type.
@@ -409,10 +416,17 @@ const failure = <
    * component. It is used to create new failure instances with the provided parameters.
    * The error message is automatically set using the translation system with the default
    * language, and the `t` method can be used to get translations in other languages.
+   *
+   * When the failure has no parameters, the constructor can be called without arguments.
    */
+  type ParamsType = I18n<Code, Languages, Templates>['Params'];
   class FailureError extends FailureClass<Code, Languages, Templates> {
-    public constructor(params: I18n<Code, Languages, Templates>['Params']) {
-      super(code, (code, params, language) => tr.t(code, params, language), params);
+    public constructor(params?: ParamsType) {
+      super(
+        code,
+        (code, params, language) => tr.t(code, params ?? ({} as ParamsType), language),
+        params ?? ({} as ParamsType),
+      );
     }
   }
 
