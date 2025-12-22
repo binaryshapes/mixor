@@ -13,6 +13,28 @@ import { n } from '@nuxo/core';
 const xidRegex = /^[0-9a-vA-V]{20}$/;
 
 /**
+ * Invalid XID failure.
+ *
+ * @internal
+ */
+class InvalidXid extends n.failure(
+  'String.InvalidXid',
+  {
+    'en-US': 'The string must be a valid XID.',
+    'es-ES': 'El texto debe ser un XID válido.',
+  },
+) {}
+
+// Apply metadata to the InvalidXid failure.
+n.info(InvalidXid)
+  .doc({
+    title: 'InvalidXid Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid XID.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid XID.
  *
  * @remarks
@@ -20,11 +42,11 @@ const xidRegex = /^[0-9a-vA-V]{20}$/;
  * from the set: numbers (0-9) and letters (a-v, A-V). This format is designed to be
  * URL-safe and provides a good balance between uniqueness and readability.
  * If the string is not a valid XID, the rule will return an error Result with
- * code 'INVALID_XID'.
+ * code 'String.InvalidXid'.
  *
  * @public
  */
-const Xid = rule(() => n.assert((value: string) => xidRegex.test(value), 'INVALID_XID'));
+const Xid = rule(() => n.assert((value: string) => xidRegex.test(value), new InvalidXid()));
 
 n.info(Xid)
   .type('string')
@@ -35,8 +57,8 @@ n.info(Xid)
     string that contains exactly 20 characters from the set: numbers (0-9) and letters (a-v, A-V).
     This format is designed to be URL-safe and provides a good balance between uniqueness and
     readability. If the string is not a valid XID, the rule will return a failure Result with
-    code 'INVALID_XID'.
+    code 'String.InvalidXid'.
     `,
   });
 
-export { Xid };
+export { InvalidXid, Xid };

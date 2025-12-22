@@ -13,6 +13,28 @@ import { n } from '@nuxo/core';
 const cuid2Regex = /^[0-9a-z]+$/;
 
 /**
+ * Invalid CUID2 failure.
+ *
+ * @internal
+ */
+class InvalidCuid2 extends n.failure(
+  'String.InvalidCuid2',
+  {
+    'en-US': 'The string must be a valid CUID2.',
+    'es-ES': 'El texto debe ser un CUID2 válido.',
+  },
+) {}
+
+// Apply metadata to the InvalidCuid2 failure.
+n.info(InvalidCuid2)
+  .doc({
+    title: 'InvalidCuid2 Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid CUID2.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid CUID2.
  *
  * @remarks
@@ -20,11 +42,11 @@ const cuid2Regex = /^[0-9a-z]+$/;
  * contains only lowercase letters (a-z) and numbers (0-9). This format is designed
  * to be collision-resistant, URL-safe, and more compact than the original CUID.
  * If the string is not a valid CUID2, the rule will return an error Result with code
- * 'INVALID_CUID2'.
+ * 'String.InvalidCuid2'.
  *
  * @public
  */
-const Cuid2 = rule(() => n.assert((value: string) => cuid2Regex.test(value), 'INVALID_CUID2'));
+const Cuid2 = rule(() => n.assert((value: string) => cuid2Regex.test(value), new InvalidCuid2()));
 
 n.info(Cuid2)
   .type('string')
@@ -35,8 +57,8 @@ n.info(Cuid2)
     version 2). A valid CUID2 is a string that contains only lowercase letters (a-z) and
     numbers (0-9). This format is designed to be collision-resistant, URL-safe, and more
     compact than the original CUID. If the string is not a valid CUID2, the rule will
-    return a failure Result with code 'INVALID_CUID2'.
+    return a failure Result with code 'String.InvalidCuid2'.
     `,
   });
 
-export { Cuid2 };
+export { Cuid2, InvalidCuid2 };

@@ -34,6 +34,28 @@ const emailPattern = {
 };
 
 /**
+ * Invalid email failure.
+ *
+ * @internal
+ */
+class InvalidEmail extends n.failure(
+  'String.InvalidEmail',
+  {
+    'en-US': 'The string must be a valid email address.',
+    'es-ES': 'El texto debe ser una dirección de correo electrónico válida.',
+  },
+) {}
+
+// Apply metadata to the InvalidEmail failure.
+n.info(InvalidEmail)
+  .doc({
+    title: 'InvalidEmail Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid email address.
+    `,
+  });
+
+/**
  * Creates a rule that validates that the value is a valid email address.
  *
  * @remarks
@@ -45,7 +67,7 @@ const emailPattern = {
  * - `browserEmail`: Browser-compatible email validation
  *
  * If the string is not a valid email address, the rule will return an error Result with
- * code 'INVALID_EMAIL'.
+ * code 'String.InvalidEmail'.
  *
  * @param type - The type of email pattern to use. Defaults to 'common'.
  * @returns A rule that validates email addresses.
@@ -53,7 +75,7 @@ const emailPattern = {
  * @public
  */
 const Email = rule((type: keyof typeof emailPattern = 'common') =>
-  n.assert((value: string) => emailPattern[type].test(value), 'INVALID_EMAIL')
+  n.assert((value: string) => emailPattern[type].test(value), new InvalidEmail())
 );
 
 n.info(Email)
@@ -65,8 +87,8 @@ n.info(Email)
     A rule that validates that the value is a valid email address. This rule supports multiple
     email validation patterns: 'common' (default), 'html5Email', 'rfc5322Email', 'unicodeEmail',
     and 'browserEmail'. If the string is not a valid email address, the rule will return a
-    failure Result with code 'INVALID_EMAIL'.
+    failure Result with code 'String.InvalidEmail'.
     `,
   });
 
-export { Email };
+export { Email, InvalidEmail };

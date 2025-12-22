@@ -13,6 +13,28 @@ import { n } from '@nuxo/core';
 const jwtRegex = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/;
 
 /**
+ * Invalid JWT failure.
+ *
+ * @internal
+ */
+class InvalidJwt extends n.failure(
+  'String.InvalidJwt',
+  {
+    'en-US': 'The string must be a valid JWT token.',
+    'es-ES': 'El texto debe ser un token JWT válido.',
+  },
+) {}
+
+// Apply metadata to the InvalidJwt failure.
+n.info(InvalidJwt)
+  .doc({
+    title: 'InvalidJwt Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid JWT token.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid JWT token.
  *
  * @remarks
@@ -20,11 +42,11 @@ const jwtRegex = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/;
  * where each part contains only alphanumeric characters, hyphens, and underscores.
  * The header and payload are required, while the signature is optional.
  * If the string is not a valid JWT token, the rule will return an error Result with
- * code 'INVALID_JWT'.
+ * code 'String.InvalidJwt'.
  *
  * @public
  */
-const Jwt = rule(() => n.assert((value: string) => jwtRegex.test(value), 'INVALID_JWT'));
+const Jwt = rule(() => n.assert((value: string) => jwtRegex.test(value), new InvalidJwt()));
 
 n.info(Jwt)
   .type('string')
@@ -35,8 +57,8 @@ n.info(Jwt)
     string that follows the format: header.payload.signature where each part contains only
     alphanumeric characters, hyphens, and underscores. The header and payload are required,
     while the signature is optional. If the string is not a valid JWT token, the rule will
-    return a failure Result with code 'INVALID_JWT'.
+    return a failure Result with code 'String.InvalidJwt'.
     `,
   });
 
-export { Jwt };
+export { Jwt, InvalidJwt };

@@ -17,17 +17,39 @@ const dateRegex = new RegExp(
 );
 
 /**
+ * Invalid ISO date failure.
+ *
+ * @internal
+ */
+class InvalidIsoDate extends n.failure(
+  'String.InvalidIsoDate',
+  {
+    'en-US': 'The string must be a valid ISO date.',
+    'es-ES': 'El texto debe ser una fecha ISO válida.',
+  },
+) {}
+
+// Apply metadata to the InvalidIsoDate failure.
+n.info(InvalidIsoDate)
+  .doc({
+    title: 'InvalidIsoDate Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid ISO date.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid ISO date.
  *
  * @remarks
  * A valid ISO date string follows the format YYYY-MM-DD (e.g., "2021-01-01").
  * Strings that don't match this format or represent invalid dates are rejected.
  * If the string is not a valid ISO date, the rule will return an error Result with
- * code 'INVALID_ISO_DATE'.
+ * code 'String.InvalidIsoDate'.
  *
  * @public
  */
-const IsoDate = rule(() => n.assert((value: string) => dateRegex.test(value), 'INVALID_ISO_DATE'));
+const IsoDate = rule(() => n.assert((value: string) => dateRegex.test(value), new InvalidIsoDate()));
 
 n.info(IsoDate)
   .type('string')
@@ -37,8 +59,8 @@ n.info(IsoDate)
     A rule that checks if the string is a valid ISO date. A valid ISO date string follows
     the format YYYY-MM-DD (e.g., "2021-01-01"). Strings that don't match this format or
     represent invalid dates are rejected. If the string is not a valid ISO date, the rule
-    will return a failure Result with code 'INVALID_ISO_DATE'.
+    will return a failure Result with code 'String.InvalidIsoDate'.
     `,
   });
 
-export { dateRegex, IsoDate };
+export { dateRegex, InvalidIsoDate, IsoDate };

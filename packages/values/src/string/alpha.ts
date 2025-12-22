@@ -13,16 +13,38 @@ import { n } from '@nuxo/core';
 const alphaRegex = /^[a-zA-Z]+$/;
 
 /**
+ * Not alpha failure.
+ *
+ * @internal
+ */
+class NotAlpha extends n.failure(
+  'String.NotAlpha',
+  {
+    'en-US': 'The string must contain only alphabetic characters.',
+    'es-ES': 'El texto debe contener solo caracteres alfabéticos.',
+  },
+) {}
+
+// Apply metadata to the NotAlpha failure.
+n.info(NotAlpha)
+  .doc({
+    title: 'NotAlpha Failure',
+    body: n.doc`
+    A failure that is returned when the string contains non-alphabetic characters.
+    `,
+  });
+
+/**
  * A rule that checks if the string contains only alphabetic characters.
  *
  * @remarks
  * An alphabetic string contains only letters (a-z, A-Z). Strings with numbers, spaces,
  * symbols, or special characters are rejected. If the string contains non-alphabetic
- * characters, the rule will return an error Result with code 'NOT_ALPHA'.
+ * characters, the rule will return an error Result with code 'String.NotAlpha'.
  *
  * @public
  */
-const Alpha = rule(() => n.assert((value: string) => alphaRegex.test(value), 'NOT_ALPHA'));
+const Alpha = rule(() => n.assert((value: string) => alphaRegex.test(value), new NotAlpha()));
 
 n.info(Alpha)
   .type('string')
@@ -32,8 +54,8 @@ n.info(Alpha)
     A rule that checks if the string contains only alphabetic characters (a-z, A-Z).
     Strings with numbers, spaces, symbols, or special characters are rejected.
     If the string contains non-alphabetic characters, the rule will return a failure
-    Result with code 'NOT_ALPHA'.
+    Result with code 'String.NotAlpha'.
     `,
   });
 
-export { Alpha };
+export { Alpha, NotAlpha };

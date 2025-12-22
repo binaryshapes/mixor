@@ -91,13 +91,35 @@ const hashRegexes: Record<HashAlgorithm & HashEncoding, RegExp> = {
 const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
 
 /**
+ * Invalid hash failure.
+ *
+ * @internal
+ */
+class InvalidHash extends n.failure(
+  'String.InvalidHash',
+  {
+    'en-US': 'The string must be a valid hash.',
+    'es-ES': 'El texto debe ser un hash válido.',
+  },
+) {}
+
+// Apply metadata to the InvalidHash failure.
+n.info(InvalidHash)
+  .doc({
+    title: 'InvalidHash Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid hash.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid hash.
  *
  * @remarks
  * A valid hash string follows the format: `<algorithm><encoding>` where `<algorithm>` is one of
  * 'md5', 'sha1', 'sha256', 'sha384', or 'sha512' and `<encoding>` is one of 'hex', 'base64',
  * or 'base64url'. If the string is not a valid hash, the rule will return a failure Result with
- * code 'INVALID_HASH'.
+ * code 'String.InvalidHash'.
  *
  * @param algorithm - The algorithm to use for the hash.
  * @param encoding - The encoding to use for the hash.
@@ -107,7 +129,7 @@ const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
  */
 const Hash = rule((algorithm: HashAlgorithm, encoding: HashEncoding) => {
   const format = `${algorithm}${capitalize(encoding)}` as HashAlgorithm & HashEncoding;
-  return n.assert((value: string) => (hashRegexes[format] as RegExp).test(value), 'INVALID_HASH');
+  return n.assert((value: string) => (hashRegexes[format] as RegExp).test(value), new InvalidHash());
 });
 
 n.info(Hash)
@@ -119,8 +141,8 @@ n.info(Hash)
     A rule that checks if the string is a valid hash. A valid hash string follows the format:
     <algorithm><encoding> where <algorithm> is one of 'md5', 'sha1', 'sha256', 'sha384', or 'sha512'
     and <encoding> is one of 'hex', 'base64', or 'base64url'. If the string is not a valid hash,
-    the rule will return a failure Result with code 'INVALID_HASH'.
+    the rule will return a failure Result with code 'String.InvalidHash'.
     `,
   });
 
-export { Hash };
+export { Hash, InvalidHash };

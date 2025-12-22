@@ -13,17 +13,39 @@ import { n } from '@nuxo/core';
 const lowercaseRegex = /^[a-z]+$/;
 
 /**
+ * Not lowercase failure.
+ *
+ * @internal
+ */
+class NotLowercase extends n.failure(
+  'String.NotLowercase',
+  {
+    'en-US': 'The string must contain only lowercase letters.',
+    'es-ES': 'El texto debe contener solo letras minúsculas.',
+  },
+) {}
+
+// Apply metadata to the NotLowercase failure.
+n.info(NotLowercase)
+  .doc({
+    title: 'NotLowercase Failure',
+    body: n.doc`
+    A failure that is returned when the string contains non-lowercase characters.
+    `,
+  });
+
+/**
  * A rule that checks if the string contains only lowercase letters.
  *
  * @remarks
  * A valid lowercase string contains only lowercase letters (a-z). It rejects uppercase
  * letters, numbers, spaces, symbols, and special characters. If the string contains
- * non-lowercase characters, the rule will return an error Result with code 'NOT_LOWERCASE'.
+ * non-lowercase characters, the rule will return an error Result with code 'String.NotLowercase'.
  *
  * @public
  */
 const Lowercase = rule(() =>
-  n.assert((value: string) => lowercaseRegex.test(value), 'NOT_LOWERCASE')
+  n.assert((value: string) => lowercaseRegex.test(value), new NotLowercase())
 );
 
 n.info(Lowercase)
@@ -34,8 +56,8 @@ n.info(Lowercase)
     A rule that checks if the string contains only lowercase letters. A valid lowercase string
     contains only lowercase letters (a-z). It rejects uppercase letters, numbers, spaces,
     symbols, and special characters. If the string contains non-lowercase characters, the rule
-    will return a failure Result with code 'NOT_LOWERCASE'.
+    will return a failure Result with code 'String.NotLowercase'.
     `,
   });
 
-export { Lowercase };
+export { Lowercase, NotLowercase };

@@ -13,6 +13,28 @@ import { n } from '@nuxo/core';
 const ksuidRegex = /^[A-Za-z0-9]{27}$/;
 
 /**
+ * Invalid KSUID failure.
+ *
+ * @internal
+ */
+class InvalidKsuid extends n.failure(
+  'String.InvalidKsuid',
+  {
+    'en-US': 'The string must be a valid KSUID.',
+    'es-ES': 'El texto debe ser un KSUID válido.',
+  },
+) {}
+
+// Apply metadata to the InvalidKsuid failure.
+n.info(InvalidKsuid)
+  .doc({
+    title: 'InvalidKsuid Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid KSUID.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid KSUID.
  *
  * @remarks
@@ -20,11 +42,11 @@ const ksuidRegex = /^[A-Za-z0-9]{27}$/;
  * 27 characters from the set: numbers (0-9), uppercase letters (A-Z), and lowercase
  * letters (a-z). This format is designed to be URL-safe and sortable by timestamp.
  * If the string is not a valid KSUID, the rule will return an error Result with
- * code 'INVALID_KSUID'.
+ * code 'String.InvalidKsuid'.
  *
  * @public
  */
-const Ksuid = rule(() => n.assert((value: string) => ksuidRegex.test(value), 'INVALID_KSUID'));
+const Ksuid = rule(() => n.assert((value: string) => ksuidRegex.test(value), new InvalidKsuid()));
 
 n.info(Ksuid)
   .type('string')
@@ -35,8 +57,8 @@ n.info(Ksuid)
     KSUID is a string that contains exactly 27 characters from the set: numbers (0-9), uppercase
     letters (A-Z), and lowercase letters (a-z). This format is designed to be URL-safe and
     sortable by timestamp. If the string is not a valid KSUID, the rule will return a failure
-    Result with code 'INVALID_KSUID'.
+    Result with code 'String.InvalidKsuid'.
     `,
   });
 
-export { Ksuid };
+export { InvalidKsuid, Ksuid };

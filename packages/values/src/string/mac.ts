@@ -13,17 +13,39 @@ import { n } from '@nuxo/core';
 const macRegex = /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/;
 
 /**
+ * Invalid MAC failure.
+ *
+ * @internal
+ */
+class InvalidMac extends n.failure(
+  'String.InvalidMac',
+  {
+    'en-US': 'The string must be a valid MAC address.',
+    'es-ES': 'El texto debe ser una dirección MAC válida.',
+  },
+) {}
+
+// Apply metadata to the InvalidMac failure.
+n.info(InvalidMac)
+  .doc({
+    title: 'InvalidMac Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid MAC address.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid MAC address.
  *
  * @remarks
  * A valid MAC address follows the format xx:xx:xx:xx:xx:xx or xx-xx-xx-xx-xx-xx
  * where each x is a hexadecimal digit. This rule supports both colon and hyphen
  * separators. If the string is not a valid MAC address, the rule will return an
- * error Result with code 'INVALID_MAC'.
+ * error Result with code 'String.InvalidMac'.
  *
  * @public
  */
-const Mac = rule(() => n.assert((value: string) => macRegex.test(value), 'INVALID_MAC'));
+const Mac = rule(() => n.assert((value: string) => macRegex.test(value), new InvalidMac()));
 
 n.info(Mac)
   .type('string')
@@ -33,8 +55,8 @@ n.info(Mac)
     A rule that checks if the string is a valid MAC address. A valid MAC address follows
     the format xx:xx:xx:xx:xx:xx or xx-xx-xx-xx-xx-xx where each x is a hexadecimal digit.
     This rule supports both colon and hyphen separators. If the string is not a valid MAC
-    address, the rule will return a failure Result with code 'INVALID_MAC'.
+    address, the rule will return a failure Result with code 'String.InvalidMac'.
     `,
   });
 
-export { Mac };
+export { InvalidMac, Mac };

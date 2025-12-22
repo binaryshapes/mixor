@@ -13,17 +13,39 @@ import { n } from '@nuxo/core';
 const cuidRegex = /^[cC][^\s-]{8,}$/;
 
 /**
+ * Invalid CUID failure.
+ *
+ * @internal
+ */
+class InvalidCuid extends n.failure(
+  'String.InvalidCuid',
+  {
+    'en-US': 'The string must be a valid CUID.',
+    'es-ES': 'El texto debe ser un CUID válido.',
+  },
+) {}
+
+// Apply metadata to the InvalidCuid failure.
+n.info(InvalidCuid)
+  .doc({
+    title: 'InvalidCuid Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid CUID.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid CUID.
  *
  * @remarks
  * A valid CUID (Collision-resistant Unique IDentifier) is a string that starts with
  * either 'c' or 'C', followed by at least 8 characters that are not whitespace or
  * hyphens. This format is designed to be collision-resistant and URL-safe.
- * If the string is not a valid CUID, the rule will return an error Result with code 'INVALID_CUID'.
+ * If the string is not a valid CUID, the rule will return an error Result with code 'String.InvalidCuid'.
  *
  * @public
  */
-const Cuid = rule(() => n.assert((value: string) => cuidRegex.test(value), 'INVALID_CUID'));
+const Cuid = rule(() => n.assert((value: string) => cuidRegex.test(value), new InvalidCuid()));
 
 n.info(Cuid)
   .type('string')
@@ -34,8 +56,8 @@ n.info(Cuid)
     A valid CUID is a string that starts with either 'c' or 'C', followed by at least 8
     characters that are not whitespace or hyphens. This format is designed to be
     collision-resistant and URL-safe. If the string is not a valid CUID, the rule will
-    return a failure Result with code 'INVALID_CUID'.
+    return a failure Result with code 'String.InvalidCuid'.
     `,
   });
 
-export { Cuid };
+export { Cuid, InvalidCuid };

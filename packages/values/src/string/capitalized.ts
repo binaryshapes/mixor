@@ -13,18 +13,40 @@ import { n } from '@nuxo/core';
 const capitalizedRegex = /^[A-Z][a-z]*$/;
 
 /**
+ * Not capitalized failure.
+ *
+ * @internal
+ */
+class NotCapitalized extends n.failure(
+  'String.NotCapitalized',
+  {
+    'en-US': 'The string must be properly capitalized.',
+    'es-ES': 'El texto debe estar correctamente capitalizado.',
+  },
+) {}
+
+// Apply metadata to the NotCapitalized failure.
+n.info(NotCapitalized)
+  .doc({
+    title: 'NotCapitalized Failure',
+    body: n.doc`
+    A failure that is returned when the string is not properly capitalized.
+    `,
+  });
+
+/**
  * A rule that checks if the string is properly capitalized.
  *
  * @remarks
  * A capitalized string has the first letter uppercase (A-Z) and the rest lowercase (a-z).
  * Strings that are all lowercase, all uppercase, or have multiple words are rejected.
  * If the string is not properly capitalized, the rule will return an error Result with
- * code 'NOT_CAPITALIZED'.
+ * code 'String.NotCapitalized'.
  *
  * @public
  */
 const Capitalized = rule(() =>
-  n.assert((value: string) => capitalizedRegex.test(value), 'NOT_CAPITALIZED')
+  n.assert((value: string) => capitalizedRegex.test(value), new NotCapitalized())
 );
 
 n.info(Capitalized)
@@ -35,8 +57,8 @@ n.info(Capitalized)
     A rule that checks if the string is properly capitalized. A capitalized string has
     the first letter uppercase (A-Z) and the rest lowercase (a-z). Strings that are all
     lowercase, all uppercase, or have multiple words are rejected. If the string is not
-    properly capitalized, the rule will return a failure Result with code 'NOT_CAPITALIZED'.
+    properly capitalized, the rule will return a failure Result with code 'String.NotCapitalized'.
     `,
   });
 
-export { Capitalized };
+export { Capitalized, NotCapitalized };

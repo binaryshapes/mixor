@@ -10,6 +10,17 @@ import { rule } from '@nuxo/components';
 import { n } from '@nuxo/core';
 
 /**
+ * Result failure for the MinLength rule.
+ */
+class TooShort extends n.failure(
+  'String.TooShort',
+  {
+    'en-US': `The string must be at least {{min | number}} characters long.`,
+    'es-ES': `El texto debe tener al menos {{min | number}} caracteres.`,
+  },
+) {}
+
+/**
  * Creates a rule that checks if the string has a minimum length.
  *
  * @remarks
@@ -22,8 +33,8 @@ import { n } from '@nuxo/core';
  *
  * @public
  */
-const MinLength = rule((minLength: number) =>
-  n.assert((value: string) => value.length >= minLength, 'TOO_SHORT')
+const MinLength = rule(
+  (min: number) => n.assert((value: string) => value.length >= min, new TooShort({ min })),
 );
 
 n.info(MinLength)

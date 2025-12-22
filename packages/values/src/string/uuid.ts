@@ -34,6 +34,28 @@ const uuidRegex = (version?: number): RegExp => {
 };
 
 /**
+ * Invalid UUID failure.
+ *
+ * @internal
+ */
+class InvalidUuid extends n.failure(
+  'String.InvalidUuid',
+  {
+    'en-US': 'The string must be a valid UUID.',
+    'es-ES': 'El texto debe ser un UUID válido.',
+  },
+) {}
+
+// Apply metadata to the InvalidUuid failure.
+n.info(InvalidUuid)
+  .doc({
+    title: 'InvalidUuid Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid UUID.
+    `,
+  });
+
+/**
  * Creates a rule that checks if the string is a valid UUID.
  *
  * @remarks
@@ -41,7 +63,7 @@ const uuidRegex = (version?: number): RegExp => {
  * where x are hexadecimal characters. If a version is specified, only
  * that version is accepted. If no version is specified, any valid UUID
  * version is accepted. If the string is not a valid UUID, the rule will
- * return an error Result with code 'INVALID_UUID'.
+ * return an error Result with code 'String.InvalidUuid'.
  *
  * @param version - The UUID version to validate (1-8, or undefined for any version).
  * @returns A rule that validates UUIDs.
@@ -50,7 +72,7 @@ const uuidRegex = (version?: number): RegExp => {
  */
 const Uuid = rule((version?: number) => {
   const pattern = uuidRegex(version);
-  return n.assert((value: string) => pattern.test(value), 'INVALID_UUID');
+  return n.assert((value: string) => pattern.test(value), new InvalidUuid());
 });
 
 n.info(Uuid)
@@ -63,8 +85,8 @@ n.info(Uuid)
     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx where x are hexadecimal characters. If a version
     is specified, only that version is accepted. If no version is specified, any valid UUID
     version is accepted. If the string is not a valid UUID, the rule will return a failure
-    Result with code 'INVALID_UUID'.
+    Result with code 'String.InvalidUuid'.
     `,
   });
 
-export { Uuid };
+export { InvalidUuid, Uuid };

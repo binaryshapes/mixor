@@ -9,6 +9,30 @@
 import { rule, type Validator, type Value, value } from '@nuxo/components';
 import { n } from '@nuxo/core';
 
+import type { ValidatorsErrorTypes } from './types.ts';
+
+/**
+ * Invalid string failure.
+ *
+ * @internal
+ */
+class InvalidString extends n.failure(
+  'String.InvalidString',
+  {
+    'en-US': 'The value must be a string.',
+    'es-ES': 'El valor debe ser una cadena de texto.',
+  },
+) {}
+
+// Apply metadata to the InvalidString failure.
+n.info(InvalidString)
+  .doc({
+    title: 'InvalidString Failure',
+    body: n.doc`
+    A failure that is returned when the value is not a string.
+    `,
+  });
+
 /**
  * A rule that checks if the value is a string.
  *
@@ -18,7 +42,7 @@ import { n } from '@nuxo/core';
  * @internal
  */
 const IsString = rule(() =>
-  n.assert((value: string) => typeof value === 'string', 'INVALID_STRING' as never)
+  n.assert((value: string) => typeof value === 'string', new InvalidString() as never)
 );
 
 n.info(IsString)
@@ -27,7 +51,7 @@ n.info(IsString)
     title: 'IsString',
     body: n.doc`
     A rule that checks if the value is a string. If the value is not a string, the rule will
-    return the error code 'INVALID_STRING'.
+    return the error code 'String.InvalidString'.
     `,
   });
 
@@ -41,18 +65,15 @@ n.meta(IsString)
  * @remarks
  * This is a value component that represents a string with auto type inference.
  *
- * @typeParam E - The type of the error.
  * @param rules - The rules to apply to the string value.
  * @returns A string value component.
  *
  * @public
  */
-function string(): Value<string, never, true>;
-function string<E extends string>(...rules: Validator<string, E>[]): Value<string, E, true>;
-function string<E extends string | never = never>(
-  ...rules: Validator<string, E>[]
-): Value<string, E, true> {
-  const stringValue = value<string, E>(
+function string<V extends readonly Validator<string, n.Any>[]>(
+  ...rules: V
+): Value<string, ValidatorsErrorTypes<V>, true> {
+  const stringValue = value<string, ValidatorsErrorTypes<V>>(
     ...(rules.length === 0 ? [IsString()] : [IsString(), ...rules]),
   );
 

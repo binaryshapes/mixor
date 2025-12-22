@@ -22,6 +22,28 @@ interface URLOptions {
 }
 
 /**
+ * Invalid URL failure.
+ *
+ * @internal
+ */
+class InvalidUrl extends n.failure(
+  'String.InvalidUrl',
+  {
+    'en-US': 'The string must be a valid URL.',
+    'es-ES': 'El texto debe ser una URL válida.',
+  },
+) {}
+
+// Apply metadata to the InvalidUrl failure.
+n.info(InvalidUrl)
+  .doc({
+    title: 'InvalidUrl Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid URL.
+    `,
+  });
+
+/**
  * Creates a rule that checks if the string is a valid URL.
  *
  * @remarks
@@ -33,7 +55,7 @@ interface URLOptions {
  * - `hostname`: Regex to validate the hostname (e.g., `/^example\.com$/` for specific domain)
  *
  * If the string is not a valid URL, the rule will return an error Result with
- * code 'INVALID_URL'.
+ * code 'String.InvalidUrl'.
  *
  * @param options - Optional validation options for protocol and hostname.
  * @returns A rule that validates URLs.
@@ -62,7 +84,7 @@ const Url = rule((options?: URLOptions) =>
     } catch {
       return false;
     }
-  }, 'INVALID_URL')
+  }, new InvalidUrl())
 );
 
 n.info(Url)
@@ -75,9 +97,9 @@ n.info(Url)
     format and can be parsed by the URL constructor. This rule validates URLs using the native
     URL API for robust validation. You can optionally specify protocol and hostname patterns
     to validate. If the string is not a valid URL, the rule will return a failure Result with
-    code 'INVALID_URL'.
+    code 'String.InvalidUrl'.
     `,
   });
 
-export { Url };
+export { InvalidUrl, Url };
 export type { URLOptions };

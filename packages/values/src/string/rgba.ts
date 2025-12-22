@@ -13,17 +13,39 @@ import { n } from '@nuxo/core';
 const rgbaRegex = /^rgba?\((\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3}),\s*([01]|0\.\d+)\)$/;
 
 /**
+ * Invalid RGBA failure.
+ *
+ * @internal
+ */
+class InvalidRgba extends n.failure(
+  'String.InvalidRgba',
+  {
+    'en-US': 'The string must be a valid RGBA color.',
+    'es-ES': 'El texto debe ser un color RGBA válido.',
+  },
+) {}
+
+// Apply metadata to the InvalidRgba failure.
+n.info(InvalidRgba)
+  .doc({
+    title: 'InvalidRgba Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid RGBA color.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid RGBA color.
  *
  * @remarks
  * A valid RGBA color string follows the format `rgba(r, g, b, a)` where `r`, `g`, `b`
  * are numbers between 0 and 255, and `a` is the alpha channel between 0 and 1.
  * If the string is not a valid RGBA color, the rule will return an error Result with
- * code 'INVALID_RGBA'.
+ * code 'String.InvalidRgba'.
  *
  * @public
  */
-const Rgba = rule(() => n.assert((value: string) => rgbaRegex.test(value), 'INVALID_RGBA'));
+const Rgba = rule(() => n.assert((value: string) => rgbaRegex.test(value), new InvalidRgba()));
 
 n.info(Rgba)
   .type('string')
@@ -33,8 +55,8 @@ n.info(Rgba)
     A rule that checks if the string is a valid RGBA color. A valid RGBA color string follows
     the format rgba(r, g, b, a) where r, g, b are numbers between 0 and 255, and a is the
     alpha channel between 0 and 1. If the string is not a valid RGBA color, the rule will
-    return a failure Result with code 'INVALID_RGBA'.
+    return a failure Result with code 'String.InvalidRgba'.
     `,
   });
 
-export { Rgba };
+export { InvalidRgba, Rgba };

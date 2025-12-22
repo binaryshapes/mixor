@@ -13,17 +13,39 @@ import { n } from '@nuxo/core';
 const uppercaseRegex = /^[A-Z]+$/;
 
 /**
+ * Not uppercase failure.
+ *
+ * @internal
+ */
+class NotUppercase extends n.failure(
+  'String.NotUppercase',
+  {
+    'en-US': 'The string must contain only uppercase letters.',
+    'es-ES': 'El texto debe contener solo letras mayúsculas.',
+  },
+) {}
+
+// Apply metadata to the NotUppercase failure.
+n.info(NotUppercase)
+  .doc({
+    title: 'NotUppercase Failure',
+    body: n.doc`
+    A failure that is returned when the string contains non-uppercase characters.
+    `,
+  });
+
+/**
  * A rule that checks if the string contains only uppercase letters.
  *
  * @remarks
  * A valid uppercase string contains only uppercase letters (A-Z). It rejects lowercase
  * letters, numbers, spaces, symbols, and special characters. If the string contains
- * non-uppercase characters, the rule will return an error Result with code 'NOT_UPPERCASE'.
+ * non-uppercase characters, the rule will return an error Result with code 'String.NotUppercase'.
  *
  * @public
  */
 const Uppercase = rule(() =>
-  n.assert((value: string) => uppercaseRegex.test(value), 'NOT_UPPERCASE')
+  n.assert((value: string) => uppercaseRegex.test(value), new NotUppercase())
 );
 
 n.info(Uppercase)
@@ -34,8 +56,8 @@ n.info(Uppercase)
     A rule that checks if the string contains only uppercase letters. A valid uppercase string
     contains only uppercase letters (A-Z). It rejects lowercase letters, numbers, spaces,
     symbols, and special characters. If the string contains non-uppercase characters, the rule
-    will return a failure Result with code 'NOT_UPPERCASE'.
+    will return a failure Result with code 'String.NotUppercase'.
     `,
   });
 
-export { Uppercase };
+export { Uppercase, NotUppercase };

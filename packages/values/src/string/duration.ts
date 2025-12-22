@@ -28,6 +28,28 @@ const extendedDurationRegex =
   /^[-+]?P(?!$)(?:(?:[-+]?\d+Y)|(?:[-+]?\d+[.,]\d+Y$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:(?:[-+]?\d+W)|(?:[-+]?\d+[.,]\d+W$))?(?:(?:[-+]?\d+D)|(?:[-+]?\d+[.,]\d+D$))?(?:T(?=[\d+-])(?:(?:[-+]?\d+H)|(?:[-+]?\d+[.,]\d+H$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:[-+]?\d+(?:[.,]\d+)?S)?)??$/;
 
 /**
+ * Invalid duration failure.
+ *
+ * @internal
+ */
+class InvalidDuration extends n.failure(
+  'String.InvalidDuration',
+  {
+    'en-US': 'The string must be a valid ISO 8601 duration.',
+    'es-ES': 'El texto debe ser una duración ISO 8601 válida.',
+  },
+) {}
+
+// Apply metadata to the InvalidDuration failure.
+n.info(InvalidDuration)
+  .doc({
+    title: 'InvalidDuration Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid ISO 8601 duration.
+    `,
+  });
+
+/**
  * Creates a rule that checks if the string is a valid ISO 8601 duration.
  *
  * @remarks
@@ -39,7 +61,7 @@ const extendedDurationRegex =
  *
  * The extended version supports negative durations, fractional components, and mixing weeks
  * with other units. If the string is not a valid duration, the rule will return an error
- * Result with code 'INVALID_DURATION'.
+ * Result with code 'String.InvalidDuration'.
  *
  * @param extended - Whether to use the extended ISO 8601-2 format (default: false).
  * @returns A rule function that validates if the string is a valid duration.
@@ -48,7 +70,7 @@ const extendedDurationRegex =
  */
 const Duration = rule((extended: boolean = false) => {
   const pattern = extended ? extendedDurationRegex : durationRegex;
-  return n.assert((value: string) => pattern.test(value), 'INVALID_DURATION');
+  return n.assert((value: string) => pattern.test(value), new InvalidDuration());
 });
 
 n.info(Duration)
@@ -60,8 +82,8 @@ n.info(Duration)
     A rule that checks if the string is a valid ISO 8601 duration. A valid ISO 8601 duration
     follows the format PnYnMnDTnHnMnS. The extended version supports negative durations,
     fractional components, and mixing weeks with other units. If the string is not a valid
-    duration, the rule will return a failure Result with code 'INVALID_DURATION'.
+    duration, the rule will return a failure Result with code 'String.InvalidDuration'.
     `,
   });
 
-export { Duration };
+export { Duration, InvalidDuration };

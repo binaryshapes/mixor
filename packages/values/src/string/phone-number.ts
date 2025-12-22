@@ -14,17 +14,39 @@ import { n } from '@nuxo/core';
 const phoneNumberRegex = /^\+(?:[0-9]){6,14}[0-9]$/;
 
 /**
+ * Invalid phone number failure.
+ *
+ * @internal
+ */
+class InvalidPhoneNumber extends n.failure(
+  'String.InvalidPhoneNumber',
+  {
+    'en-US': 'The string must be a valid phone number.',
+    'es-ES': 'El texto debe ser un número de teléfono válido.',
+  },
+) {}
+
+// Apply metadata to the InvalidPhoneNumber failure.
+n.info(InvalidPhoneNumber)
+  .doc({
+    title: 'InvalidPhoneNumber Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid phone number.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid phone number.
  *
  * @remarks
  * A valid phone number starts with a plus sign (+) followed by 7-15 digits.
  * It rejects invalid phone number formats and non-phone strings. If the string is not
- * a valid phone number, the rule will return an error Result with code 'INVALID_PHONE_NUMBER'.
+ * a valid phone number, the rule will return an error Result with code 'String.InvalidPhoneNumber'.
  *
  * @public
  */
 const PhoneNumber = rule(() =>
-  n.assert((value: string) => phoneNumberRegex.test(value), 'INVALID_PHONE_NUMBER')
+  n.assert((value: string) => phoneNumberRegex.test(value), new InvalidPhoneNumber())
 );
 
 n.info(PhoneNumber)
@@ -35,8 +57,8 @@ n.info(PhoneNumber)
     A rule that checks if the string is a valid phone number. A valid phone number starts
     with a plus sign (+) followed by 7-15 digits. It rejects invalid phone number formats
     and non-phone strings. If the string is not a valid phone number, the rule will return
-    a failure Result with code 'INVALID_PHONE_NUMBER'.
+    a failure Result with code 'String.InvalidPhoneNumber'.
     `,
   });
 
-export { PhoneNumber };
+export { InvalidPhoneNumber, PhoneNumber };

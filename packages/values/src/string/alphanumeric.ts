@@ -13,17 +13,39 @@ import { n } from '@nuxo/core';
 const alphanumericRegex = /^[a-zA-Z0-9]+$/;
 
 /**
+ * Not alphanumeric failure.
+ *
+ * @internal
+ */
+class NotAlphanumeric extends n.failure(
+  'String.NotAlphanumeric',
+  {
+    'en-US': 'The string must contain only alphanumeric characters.',
+    'es-ES': 'El texto debe contener solo caracteres alfanuméricos.',
+  },
+) {}
+
+// Apply metadata to the NotAlphanumeric failure.
+n.info(NotAlphanumeric)
+  .doc({
+    title: 'NotAlphanumeric Failure',
+    body: n.doc`
+    A failure that is returned when the string contains non-alphanumeric characters.
+    `,
+  });
+
+/**
  * A rule that checks if the string contains only alphanumeric characters.
  *
  * @remarks
  * An alphanumeric string contains only letters (a-z, A-Z) and numbers (0-9). Strings
  * with spaces, symbols, or special characters are rejected. If the string contains
- * non-alphanumeric characters, the rule will return an error Result with code 'NOT_ALPHANUMERIC'.
+ * non-alphanumeric characters, the rule will return an error Result with code 'String.NotAlphanumeric'.
  *
  * @public
  */
 const Alphanumeric = rule(() =>
-  n.assert((value: string) => alphanumericRegex.test(value), 'NOT_ALPHANUMERIC')
+  n.assert((value: string) => alphanumericRegex.test(value), new NotAlphanumeric())
 );
 
 n.info(Alphanumeric)
@@ -34,8 +56,8 @@ n.info(Alphanumeric)
     A rule that checks if the string contains only alphanumeric characters (a-z, A-Z, 0-9).
     Strings with spaces, symbols, or special characters are rejected.
     If the string contains non-alphanumeric characters, the rule will return a failure
-    Result with code 'NOT_ALPHANUMERIC'.
+    Result with code 'String.NotAlphanumeric'.
     `,
   });
 
-export { Alphanumeric };
+export { Alphanumeric, NotAlphanumeric };

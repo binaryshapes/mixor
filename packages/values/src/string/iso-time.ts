@@ -16,16 +16,38 @@ const timeRegex = new RegExp(
 );
 
 /**
+ * Invalid ISO time failure.
+ *
+ * @internal
+ */
+class InvalidIsoTime extends n.failure(
+  'String.InvalidIsoTime',
+  {
+    'en-US': 'The string must be a valid ISO time.',
+    'es-ES': 'El texto debe ser una hora ISO válida.',
+  },
+) {}
+
+// Apply metadata to the InvalidIsoTime failure.
+n.info(InvalidIsoTime)
+  .doc({
+    title: 'InvalidIsoTime Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid ISO time.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid ISO time.
  *
  * @remarks
  * A valid ISO time string follows the format HH:MM:SS (e.g., "12:34:56").
  * Strings that don't match this format are rejected. If the string is not a valid ISO time,
- * the rule will return an error Result with code 'INVALID_ISO_TIME'.
+ * the rule will return an error Result with code 'String.InvalidIsoTime'.
  *
  * @public
  */
-const IsoTime = rule(() => n.assert((value: string) => timeRegex.test(value), 'INVALID_ISO_TIME'));
+const IsoTime = rule(() => n.assert((value: string) => timeRegex.test(value), new InvalidIsoTime()));
 
 n.info(IsoTime)
   .type('string')
@@ -35,8 +57,8 @@ n.info(IsoTime)
     A rule that checks if the string is a valid ISO time. A valid ISO time string follows
     the format HH:MM:SS (e.g., "12:34:56"). Strings that don't match this format are rejected.
     If the string is not a valid ISO time, the rule will return a failure Result with code
-    'INVALID_ISO_TIME'.
+    'String.InvalidIsoTime'.
     `,
   });
 
-export { IsoTime };
+export { InvalidIsoTime, IsoTime };

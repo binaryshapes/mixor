@@ -13,16 +13,38 @@ import { n } from '@nuxo/core';
 const hex = /^[0-9a-fA-F]+$/;
 
 /**
+ * Not hexadecimal failure.
+ *
+ * @internal
+ */
+class NotHexadecimal extends n.failure(
+  'String.NotHexadecimal',
+  {
+    'en-US': 'The string must be a valid hexadecimal string.',
+    'es-ES': 'El texto debe ser una cadena hexadecimal válida.',
+  },
+) {}
+
+// Apply metadata to the NotHexadecimal failure.
+n.info(NotHexadecimal)
+  .doc({
+    title: 'NotHexadecimal Failure',
+    body: n.doc`
+    A failure that is returned when the string is not a valid hexadecimal string.
+    `,
+  });
+
+/**
  * A rule that checks if the string is a valid hexadecimal string.
  *
  * @remarks
  * A valid hexadecimal string contains only hexadecimal characters (0-9, A-F, a-f).
  * Strings that don't match this format are rejected. If the string is not a valid
- * hexadecimal string, the rule will return an error Result with code 'NOT_HEXADECIMAL'.
+ * hexadecimal string, the rule will return an error Result with code 'String.NotHexadecimal'.
  *
  * @public
  */
-const Hexadecimal = rule(() => n.assert((value: string) => hex.test(value), 'NOT_HEXADECIMAL'));
+const Hexadecimal = rule(() => n.assert((value: string) => hex.test(value), new NotHexadecimal()));
 
 n.info(Hexadecimal)
   .type('string')
@@ -32,8 +54,8 @@ n.info(Hexadecimal)
     A rule that checks if the string is a valid hexadecimal string. A valid hexadecimal
     string contains only hexadecimal characters (0-9, A-F, a-f). Strings that don't match
     this format are rejected. If the string is not a valid hexadecimal string, the rule
-    will return a failure Result with code 'NOT_HEXADECIMAL'.
+    will return a failure Result with code 'String.NotHexadecimal'.
     `,
   });
 
-export { Hexadecimal };
+export { Hexadecimal, NotHexadecimal };
