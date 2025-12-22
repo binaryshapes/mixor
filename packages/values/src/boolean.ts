@@ -9,6 +9,30 @@
 import { rule, type Validator, type Value, value } from '@nuxo/components';
 import { n } from '@nuxo/core';
 
+import type { ValidatorsErrorTypes } from './types.ts';
+
+/**
+ * Invalid boolean failure.
+ *
+ * @internal
+ */
+class InvalidBoolean extends n.failure(
+  'Boolean.InvalidBoolean',
+  {
+    'en-US': 'The value must be a boolean.',
+    'es-ES': 'El valor debe ser un booleano.',
+  },
+) {}
+
+// Apply metadata to the InvalidBoolean failure.
+n.info(InvalidBoolean)
+  .doc({
+    title: 'InvalidBoolean Failure',
+    body: n.doc`
+    A failure that is returned when the value is not a boolean.
+    `,
+  });
+
 /**
  * A rule that checks if the value is a boolean.
  *
@@ -18,7 +42,7 @@ import { n } from '@nuxo/core';
  * @internal
  */
 const IsBoolean = rule(() =>
-  n.assert((value: boolean) => typeof value === 'boolean', 'INVALID_BOOLEAN' as never)
+  n.assert((value: boolean) => typeof value === 'boolean', new InvalidBoolean() as never)
 );
 
 n.info(IsBoolean)
@@ -27,7 +51,7 @@ n.info(IsBoolean)
     title: 'IsBoolean',
     body: n.doc`
     A rule that checks if the value is a boolean. If the value is not a boolean, the rule will
-    return the error code 'INVALID_BOOLEAN'.
+    return the error code 'Boolean.InvalidBoolean'.
     `,
   });
 
@@ -41,16 +65,15 @@ n.meta(IsBoolean)
  * @remarks
  * This is a value component that represents a boolean with auto type inference.
  *
- * @typeParam E - The type of the error.
  * @param rules - The rules to apply to the boolean value.
  * @returns A boolean value component.
  *
  * @public
  */
-function boolean(): Value<boolean, never, true>;
-function boolean<E extends string>(...rules: Validator<boolean, E>[]): Value<boolean, E, true>;
-function boolean<E extends string | never = never>(...rules: Validator<boolean, E>[]) {
-  const booleanValue = value<boolean, E>(
+function boolean<V extends readonly Validator<boolean, n.Any>[]>(
+  ...rules: V
+): Value<boolean, ValidatorsErrorTypes<V>, true> {
+  const booleanValue = value<boolean, ValidatorsErrorTypes<V>>(
     ...(rules.length === 0 ? [IsBoolean()] : [IsBoolean(), ...rules]),
   );
 
@@ -59,7 +82,7 @@ function boolean<E extends string | never = never>(...rules: Validator<boolean, 
     n.info(booleanValue)
       .doc({
         title: 'boolean',
-        body: 'Represents a boolean value',
+        body: 'A boolean value is a component that validates a boolean using one or more rules',
       });
   }
 
