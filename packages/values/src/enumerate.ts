@@ -123,9 +123,31 @@ const extractEnumValues = <T extends Record<string, string | number>>(enumObj: T
  *
  * @internal
  */
+/**
+ * Invalid enum failure.
+ *
+ * @internal
+ */
+class InvalidEnum extends n.failure(
+  'Enumerate.InvalidEnum',
+  {
+    'en-US': 'The value must be one of the allowed enumeration values.',
+    'es-ES': 'El valor debe ser uno de los valores de enumeración permitidos.',
+  },
+) {}
+
+// Apply metadata to the InvalidEnum failure.
+n.info(InvalidEnum)
+  .doc({
+    title: 'InvalidEnum Failure',
+    body: n.doc`
+    A failure that is returned when the value is not in the enumeration.
+    `,
+  });
+
 const EnumRule = <T extends string>(allowedValues: T[]) => {
   const IsEnum = rule(() =>
-    n.assert((value: T) => allowedValues.includes(value), 'INVALID_ENUM' as never)
+    n.assert((value: T) => allowedValues.includes(value), new InvalidEnum() as never)
   );
 
   // Only set the type and doc if the type is not already set.
@@ -140,7 +162,7 @@ const EnumRule = <T extends string>(allowedValues: T[]) => {
         title: 'IsEnum',
         body: n.doc`
         A rule that checks if the value is in the enumeration. If the value is not in the
-        enumeration, the rule will return the error code 'INVALID_ENUM'.
+        enumeration, the rule will return the error code 'Enumerate.InvalidEnum'.
       `,
       });
 
@@ -187,4 +209,4 @@ const enumerate: EnumerateFactory = <T extends string[] | Record<string, string 
   return enumValue;
 };
 
-export { enumerate, EnumeratePanic };
+export { enumerate, EnumeratePanic, InvalidEnum };
