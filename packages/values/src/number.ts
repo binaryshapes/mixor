@@ -9,6 +9,30 @@
 import { rule, type Validator, type Value, value } from '@nuxo/components';
 import { n } from '@nuxo/core';
 
+import type { ValidatorsErrorTypes } from './types.ts';
+
+/**
+ * Invalid number failure.
+ *
+ * @internal
+ */
+class InvalidNumber extends n.failure(
+  'Number.InvalidNumber',
+  {
+    'en-US': 'The value must be a number.',
+    'es-ES': 'El valor debe ser un número.',
+  },
+) {}
+
+// Apply metadata to the InvalidNumber failure.
+n.info(InvalidNumber)
+  .doc({
+    title: 'InvalidNumber Failure',
+    body: n.doc`
+    A failure that is returned when the value is not a number.
+    `,
+  });
+
 /**
  * A rule that checks if the value is a number.
  *
@@ -18,7 +42,7 @@ import { n } from '@nuxo/core';
  * @internal
  */
 const IsNumber = rule(() =>
-  n.assert((value: number) => typeof value === 'number', 'INVALID_NUMBER' as never)
+  n.assert((value: number) => typeof value === 'number', new InvalidNumber() as never)
 );
 
 n.info(IsNumber)
@@ -27,7 +51,7 @@ n.info(IsNumber)
     title: 'IsNumber',
     body: n.doc`
     A rule that checks if the value is a number. If the value is not a number, the rule will
-    return the error code 'INVALID_NUMBER'.
+    return the error code 'Number.InvalidNumber'.
     `,
   });
 
@@ -41,17 +65,15 @@ n.meta(IsNumber)
  * @remarks
  * This is a value component that represents a number with auto type inference.
  *
- * @typeParam E - The type of the error.
  * @param rules - The rules to apply to the number value.
  * @returns A number value component.
  *
  * @public
  */
-
-function number(): Value<number, never, true>;
-function number<E extends string>(...rules: Validator<number, E>[]): Value<number, E, true>;
-function number<E extends string | never = never>(...rules: Validator<number, E>[]) {
-  const numberValue = value<number, E>(
+function number<V extends readonly Validator<number, n.Any>[]>(
+  ...rules: V
+): Value<number, ValidatorsErrorTypes<V>, true> {
+  const numberValue = value<number, ValidatorsErrorTypes<V>>(
     ...(rules.length === 0 ? [IsNumber()] : [IsNumber(), ...rules]),
   );
 
