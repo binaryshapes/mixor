@@ -6,9 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { config } from './config.ts';
-import { logger } from './logger.ts';
-
 /**
  * A panic represents a runtime error that is not recoverable.
  * It is used to signal that the application is in an invalid state and should be terminated.
@@ -42,16 +39,17 @@ class PanicError<S extends string, T extends string> extends Error {
     super(hint ? `${message} ${hint}` : message);
     this.code = `${scope}.${tag}`;
     this.hint = hint;
+  }
 
-    if (config.get('NUXO_DEBUG')) {
-      // Print the panic error to the console.
-      logger.error(`${tag}: ${message}`);
-
-      // The hint will be printed as a debug message.
-      if (hint) {
-        logger.hint(`Hint: ${hint}`);
-      }
-    }
+  /**
+   * Sets the origin of the panic error.
+   *
+   * @param error - The error that caused the panic.
+   * @returns The panic error.
+   */
+  public origin(error: Error) {
+    super.cause = error;
+    return this;
   }
 
   /**
