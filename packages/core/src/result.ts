@@ -6,8 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { Failure } from './failure.ts';
-import type { Any } from './generics.ts';
+import type { FailureErrorType } from './failure.ts';
 
 /**
  * A function that returns a result.
@@ -76,26 +75,15 @@ function ok<T = void>(value?: T): Result<T, never> {
 }
 
 /**
- * The error type supported by the result.
- * @typeParam L - Error string literal type.
- *
- * @internal
- */
-type ResultError<L extends string> =
-  | InstanceType<Failure<L, Any, Any>>
-  | InstanceType<Failure<L, Any, Any>>[]
-  | Record<string, InstanceType<Failure<L, Any, Any>> | InstanceType<Failure<L, Any, Any>>[]>;
-
-/**
  * Creates a failed result with the given error.
  *
- * @typeParam E - The type of the error. See {@link ResultError}.
+ * @typeParam E - The type of the error. See {@link FailureErrorType}.
  * @param error - The error to wrap in a failed result.
  * @returns A new Err instance containing the error, typed as `Result<never, E>`.
  *
  * @public
  */
-function err<L extends string, E extends ResultError<L>>(error: E): Result<never, E> {
+function err<L extends string, E extends FailureErrorType<L>>(error: E): Result<never, E> {
   return {
     _id: 'Result',
     _tag: 'Err',
@@ -181,7 +169,7 @@ const unwrap = <T, E>(result: Result<T, E>): T | E => (isOk(result) ? result.val
  * @public
  */
 const assert =
-  <T, L extends string, E extends ResultError<L>>(fn: (v: T) => boolean, error: E) =>
+  <T, L extends string, E extends FailureErrorType<L>>(fn: (v: T) => boolean, error: E) =>
   (v: T): Result<T, E> => fn(v) ? ok(v) : err(error);
 
 export { assert, err, isErr, isOk, isResult, ok, unwrap };

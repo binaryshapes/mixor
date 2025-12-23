@@ -282,12 +282,11 @@ class ContractBuilder<
    * This method allows you to specify which error codes are valid for implementations
    * of this contract. These errors will be included in the contract's error type.
    *
-   * @typeParam L - The error code type.
-   * @typeParam EE - The error type.
-   * @param errors - The allowed implementation error codes (as rest parameters).
+   * @typeParam EE - The allowed implementation errors.
+   * @param errors - The allowed implementation errors (as rest parameters).
    * @returns The contract builder with the allowed implementation errors set.
    */
-  public errors<Code extends string, EE extends string[] | Failure<Code, Any, Any, Any>[] = never>(
+  public errors<EE extends Failure<string, Any, Any, Any>[] = never>(
     ...errors: EE
   ): Contract<I, O, EE[number] & {}, A> {
     // TODO: Evaluate use Record instead of array of failures.
@@ -499,6 +498,7 @@ const implementation = <C extends Contract<Any, Any, Any, boolean>>(
   contract: C,
   implementationFn: ImplementationSignature<C>,
 ): Implementation<C> => {
+  // Avoiding to wrap the implementation again.
   if (isImplementation(implementationFn)) {
     throw new ContainerPanic(
       'AlreadyAnImplementation',
@@ -507,41 +507,49 @@ const implementation = <C extends Contract<Any, Any, Any, boolean>>(
     );
   }
 
-  // We don't want to raise runtime errors, so we just log the error and return a failed result.
+  // We want to raise always the same panic error.
   const handlePanic = (error: Any) => {
-    logger.debug(`Original error: ${error instanceof Error ? error.message : String(error)}`);
-    return err(
-      {
-        $panic: new ImplementationPanic(
-          'ImplementationPanic',
-          'An internal error occurred while executing the implementation.',
-          `The original error is: ${error instanceof Error ? error.message : String(error)}`,
-        ),
-      } as Any,
+    // If the error is already an ImplementationPanic, just re-throw it without logging again.
+    // This prevents double logging when the error propagates through multiple implementation layers.
+    if (error instanceof ImplementationPanic) {
+      throw error;
+    }
+
+    logger.debug(
+      `Something went wrong: ${error instanceof Error ? error.message : String(error)}\n`,
     );
+
+    throw new ImplementationPanic(
+      'ImplementationPanic',
+      'An internal error occurred while executing the implementation.',
+    )
+      .origin(error);
   };
 
   // Process the input and output of the contract.
-  const processInputOutput = (input: unknown, fn: (input: unknown) => Result<unknown, unknown>) =>
+  const processInputOutput = (
+    input: unknown,
+    fn: (input: unknown) => Result<unknown, Failure<string, Any, Any, Any>['Type']>,
+  ): Result<unknown, Failure<string, Any, Any, Any>['Type']> =>
     typeof fn === 'function' ? isResult(fn(input)) ? fn(input) : ok(input) : ok(input);
 
   const asyncFn = async (input: ContractParams<C>) => {
     const implementationFlow = flow<typeof input>()
       // 1. If the contract input is a function, call it.
       .map((input) => processInputOutput(input, contract.in))
-      .mapErr((error) => err(failureAs(error, '$input') as Any))
+      .mapErr((error) => err(failureAs(error, '$input')))
       // 2. Call the implementation.
       .map(async (input) => await implementationFn(input as ContractParams<C>) as Any)
-      .mapErr((error) => err(failureAs(error, '$logic') as Any))
+      .mapErr((error) => err(failureAs(error, '$logic')))
       // 3. If the implementation returns a value, call the contract output (if exists).
       .map((input) => processInputOutput(input, contract.out))
-      .mapErr((error) => err(failureAs(error, '$output') as Any))
+      .mapErr((error) => err(failureAs(error, '$output')))
       .build();
 
     try {
       return await implementationFlow(input);
     } catch (error) {
-      return handlePanic(error);
+      handlePanic(error);
     }
   };
 
@@ -549,19 +557,19 @@ const implementation = <C extends Contract<Any, Any, Any, boolean>>(
     const implementationFlow = flow<typeof input>()
       // 1. If the contract input is a function, call it.
       .map((input) => processInputOutput(input, contract.in))
-      .mapErr((error) => err(failureAs(error, '$input') as Any))
+      .mapErr((error) => err(failureAs(error, '$input')))
       // 2. Call the implementation.
       .map((input) => implementationFn(input as ContractParams<C>) as Any)
-      .mapErr((error) => err(failureAs(error, '$logic') as Any))
+      .mapErr((error) => err(failureAs(error, '$logic')))
       // 3. If the implementation returns a value, call the contract output (if exists).
       .map((input) => processInputOutput(input, contract.out))
-      .mapErr((error) => err(failureAs(error, '$output') as Any))
+      .mapErr((error) => err(failureAs(error, '$output')))
       .build();
 
     try {
       return implementationFlow(input);
     } catch (error) {
-      return handlePanic(error);
+      handlePanic(error);
     }
   };
 
@@ -1382,6 +1390,7 @@ export {
   contract,
   di,
   implementation,
+  ImplementationPanic,
   isImplementation,
   isProvider,
   port,

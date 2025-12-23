@@ -10,6 +10,7 @@ import { type Component, component } from './component.ts';
 import type { Provider } from './container.ts';
 import type { Any, IsEmptyObject, MergeUnion, Pretty, RemovePrefix } from './generics.ts';
 import { type I18n, i18n, type I18nLanguage, type I18nTranslations } from './i18n.ts';
+import { logger } from './logger.ts';
 import type { ResultFunction } from './result.ts';
 
 /**
@@ -48,13 +49,6 @@ const OUTPUT_FAILURES_KEY = `${FAILURE_PREFIX}output` as const;
 const LOGIC_FAILURES_KEY = `${FAILURE_PREFIX}logic` as const;
 
 /**
- * The key for panic failures in the error object structure.
- *
- * @public
- */
-const PANIC_FAILURES_KEY = `${FAILURE_PREFIX}panic` as const;
-
-/**
  * Union type representing all possible failure keys in the error object structure.
  *
  * @internal
@@ -62,8 +56,7 @@ const PANIC_FAILURES_KEY = `${FAILURE_PREFIX}panic` as const;
 type FailureKeys =
   | typeof INPUT_FAILURES_KEY
   | typeof OUTPUT_FAILURES_KEY
-  | typeof LOGIC_FAILURES_KEY
-  | typeof PANIC_FAILURES_KEY;
+  | typeof LOGIC_FAILURES_KEY;
 
 /**
  * Extracts all failures from a given errors object and flattens them into a union type.
@@ -207,8 +200,8 @@ class FailureClass<
    *
    * @public
    */
-  public as<T extends FailureKeys>(target: T): ReturnType<typeof failureAs<typeof this, T>> {
-    return failureAs(this, target);
+  public as<T extends FailureKeys>(target: T): FailureAsReturn<this, T> {
+    return failureAs(this, target) as FailureAsReturn<this, T>;
   }
 }
 
@@ -259,8 +252,38 @@ type Failure<
 > = Component<
   typeof FAILURE_TAG,
   IsEmptyObject<Params> extends true ? new () => FailureClass<Code, Languages, Templates>
-    : new (params: Params) => FailureClass<Code, Languages, Templates>
+    : new (params: Params) => FailureClass<Code, Languages, Templates>,
+  InstanceType<typeof FailureClass<Code, Languages, Templates>>
 >;
+
+/**
+ * The error type supported by failures in results.
+ *
+ * This type represents all valid error formats that can be used in a Result:
+ * - A single failure instance
+ * - An array of failure instances
+ * - A record with failure keys ($input, $output, $logic) where values are failure instances or arrays of failure instances
+ *
+ * @typeParam L - Error string literal type.
+ *
+ * @public
+ */
+type FailureErrorType<L extends string> =
+  | InstanceType<Failure<L, Any, Any>>
+  | InstanceType<Failure<L, Any, Any>>[]
+  | Record<FailureKeys, InstanceType<Failure<L, Any, Any>> | InstanceType<Failure<L, Any, Any>>[]>;
+
+/**
+ * Helper type to infer the return type of failureAs when called with specific arguments.
+ * This type ensures the return value is compatible with FailureErrorType<string>.
+ *
+ * @typeParam F - The failure type.
+ * @typeParam T - The target failure key.
+ * @returns The formatted failure type compatible with FailureErrorType<string>.
+ *
+ * @internal
+ */
+type FailureAsReturn<F, T extends FailureKeys> = { [K in T]: F } & FailureErrorType<string>;
 
 /**
  * Formats the failures for the contract depending on the target failure type.
@@ -270,48 +293,47 @@ type Failure<
  * If the failures are already properly structured, they are returned as-is.
  * If they are a plain object, they are wrapped with the appropriate key.
  *
- * @param failures - The failures to format. Must be an object (either a plain
- * object or an already-structured failure object).
+ * @param failures - The failures to format. Can be a failure instance, a record of failures,
+ * a FailureErrorType, or an already-structured failure object.
  * @param target - The target failure type key (`$input`, `$output`, `$logic`, or `$panic`).
  * @returns The formatted failures with the appropriate structure.
  *
  * @internal
  */
 const failureAs = <
-  F,
   T extends FailureKeys,
-  E = { [K in T]: F },
->(failures: F, target: T): E => {
-  // FIXME: This is a temporary fix to allow the failure API to be used with strings.
-  if (typeof failures !== 'object' || failures === null) {
-    throw new Error('Failures must be an object');
+>(
+  failures: unknown,
+  target: T,
+): FailureAsReturn<FailureErrorType<string>, T> => {
+  logger.assert(failures !== null, 'The failures object is null');
+  logger.assert(typeof failures === 'object', 'The failures object is not an object');
+
+  // Type narrowing: failures is now known to be an object
+  const failuresObj = failures as Record<string, unknown>;
+
+  // Handle arrays - wrap them in the target key
+  if (Array.isArray(failures)) {
+    return { [target]: failures } as FailureAsReturn<FailureErrorType<string>, T>;
   }
 
-  // FIXME: remove this once the failure API is fully implemented. This should be a failure instance.
-  if (typeof failures === 'string') {
-    return { [target]: failures } as E;
+  // Check if the target key already exists in the failures object
+  if (target in failuresObj) {
+    return failuresObj as FailureAsReturn<FailureErrorType<string>, T>;
   }
 
-  if (target === INPUT_FAILURES_KEY) {
-    return (typeof failures === 'object' && INPUT_FAILURES_KEY in failures)
-      ? failures as E
-      : { [INPUT_FAILURES_KEY]: failures } as E;
+  // Check if any failure key exists (meaning it's already structured)
+  const hasAnyFailureKey = INPUT_FAILURES_KEY in failuresObj ||
+    OUTPUT_FAILURES_KEY in failuresObj ||
+    LOGIC_FAILURES_KEY in failuresObj;
+
+  if (hasAnyFailureKey) {
+    // If it's already structured but with a different key, wrap it
+    return { [target]: failuresObj } as FailureAsReturn<FailureErrorType<string>, T>;
   }
 
-  if (target === LOGIC_FAILURES_KEY) {
-    return ((INPUT_FAILURES_KEY in failures) || (LOGIC_FAILURES_KEY in failures)
-      ? failures as E
-      : { [LOGIC_FAILURES_KEY]: failures } as E);
-  }
-
-  if (target === OUTPUT_FAILURES_KEY) {
-    return ((INPUT_FAILURES_KEY in failures) || (OUTPUT_FAILURES_KEY in failures) ||
-        (LOGIC_FAILURES_KEY in failures)
-      ? failures as E
-      : { [OUTPUT_FAILURES_KEY]: failures } as E);
-  }
-
-  return failures as E;
+  // Otherwise, wrap the failures in the target key
+  return { [target]: failuresObj } as FailureAsReturn<FailureErrorType<string>, T>;
 };
 
 /**
@@ -361,7 +383,6 @@ const unwrapFailure = <F extends Record<string, Any>>(
     INPUT_FAILURES_KEY,
     OUTPUT_FAILURES_KEY,
     LOGIC_FAILURES_KEY,
-    PANIC_FAILURES_KEY,
   ].includes(
     failureKey,
   );
@@ -439,7 +460,6 @@ export {
   INPUT_FAILURES_KEY,
   LOGIC_FAILURES_KEY,
   OUTPUT_FAILURES_KEY,
-  PANIC_FAILURES_KEY,
   unwrapFailure,
 };
-export type { Failure, FailureKeys, FlatFailures, GroupFailures, InferFailure };
+export type { Failure, FailureErrorType, FailureKeys, FlatFailures, GroupFailures, InferFailure };
