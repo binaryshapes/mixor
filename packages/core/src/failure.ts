@@ -195,13 +195,13 @@ class FailureClass<
   /**
    * Formats the failure as a specific target.
    *
-   * @param target - The target failure key (`$input`, `$output`, `$logic`, or `$panic`).
+   * @param target - The target failure key (`$input`, `$output` or `$logic`).
    * @returns The formatted failure with the appropriate structure.
    *
    * @public
    */
-  public as<T extends FailureKeys>(target: T): FailureAsReturn<this, T> {
-    return failureAs(this, target) as FailureAsReturn<this, T>;
+  public as<T extends FailureKeys>(target: T): { [K in T]: this } {
+    return failureAs(this, target) as { [K in T]: this };
   }
 }
 
@@ -260,42 +260,32 @@ type Failure<
  * The error type supported by failures in results.
  *
  * This type represents all valid error formats that can be used in a Result:
- * - A single failure instance
- * - An array of failure instances
- * - A record with failure keys ($input, $output, $logic) where values are failure instances or arrays of failure instances
+ * - A single failure instance.
+ * - An array of failure instances.
+ * - A record with any subset of failure keys (`$input`, `$output`, `$logic`) where values are
+ *   failure instances or arrays of failure instances.
  *
  * @typeParam L - Error string literal type.
  *
  * @public
  */
 type FailureErrorType<L extends string> =
-  | InstanceType<Failure<L, Any, Any>>
-  | InstanceType<Failure<L, Any, Any>>[]
-  | Record<FailureKeys, InstanceType<Failure<L, Any, Any>> | InstanceType<Failure<L, Any, Any>>[]>;
-
-/**
- * Helper type to infer the return type of failureAs when called with specific arguments.
- * This type ensures the return value is compatible with FailureErrorType<string>.
- *
- * @typeParam F - The failure type.
- * @typeParam T - The target failure key.
- * @returns The formatted failure type compatible with FailureErrorType<string>.
- *
- * @internal
- */
-type FailureAsReturn<F, T extends FailureKeys> = { [K in T]: F } & FailureErrorType<string>;
+  | Failure<L, Any, Any>['Type']
+  | Failure<L, Any, Any>['Type'][]
+  | Partial<Record<FailureKeys, Failure<L, Any, Any>['Type'] | Failure<L, Any, Any>['Type'][]>>;
 
 /**
  * Formats the failures for the contract depending on the target failure type.
  *
  * This function ensures that failures are properly structured with the correct
- * failure key (`$input`, `$output`, `$logic`, or `$panic`) based on the target.
+ * failure key (`$input`, `$output` or `$logic`) based on the target.
  * If the failures are already properly structured, they are returned as-is.
  * If they are a plain object, they are wrapped with the appropriate key.
  *
+ * @typeParam T - The target failure type key.
  * @param failures - The failures to format. Can be a failure instance, a record of failures,
  * a FailureErrorType, or an already-structured failure object.
- * @param target - The target failure type key (`$input`, `$output`, `$logic`, or `$panic`).
+ * @param target - The target failure type key (`$input`, `$output` or `$logic`).
  * @returns The formatted failures with the appropriate structure.
  *
  * @internal
@@ -305,7 +295,7 @@ const failureAs = <
 >(
   failures: unknown,
   target: T,
-): FailureAsReturn<FailureErrorType<string>, T> => {
+): FailureErrorType<string> => {
   logger.assert(failures !== null, 'The failures object is null');
   logger.assert(typeof failures === 'object', 'The failures object is not an object');
 
@@ -314,12 +304,12 @@ const failureAs = <
 
   // Handle arrays - wrap them in the target key
   if (Array.isArray(failures)) {
-    return { [target]: failures } as FailureAsReturn<FailureErrorType<string>, T>;
+    return { [target]: failures };
   }
 
   // Check if the target key already exists in the failures object
   if (target in failuresObj) {
-    return failuresObj as FailureAsReturn<FailureErrorType<string>, T>;
+    return failuresObj;
   }
 
   // Check if any failure key exists (meaning it's already structured)
@@ -329,11 +319,11 @@ const failureAs = <
 
   if (hasAnyFailureKey) {
     // If it's already structured but with a different key, wrap it
-    return { [target]: failuresObj } as FailureAsReturn<FailureErrorType<string>, T>;
+    return { [target]: failuresObj };
   }
 
   // Otherwise, wrap the failures in the target key
-  return { [target]: failuresObj } as FailureAsReturn<FailureErrorType<string>, T>;
+  return { [target]: failuresObj };
 };
 
 /**
