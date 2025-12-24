@@ -352,7 +352,8 @@ const failureAs = <T extends FailureKeys>(
  */
 const unwrapFailure = <
   L extends string,
-  F extends Partial<
+  F extends // Record of failures.
+  | Partial<
     Record<
       FailureKeys,
       | Failure<L, Any, string, Any>['Type']
@@ -362,7 +363,10 @@ const unwrapFailure = <
         Failure<L, Any, string, Any>['Type']
       >
     >
-  >,
+  >
+  // Single failure instance.
+  | Failure<L, Any, string, Any>['Type']
+  | Failure<L, Any, string, Any>['Type'][],
 >(
   failure: F,
   language: GetFailureLanguages<FlatFailures<F>>,
