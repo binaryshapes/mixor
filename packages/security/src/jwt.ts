@@ -11,19 +11,43 @@ import { decodeProtectedHeader, type JWTPayload, jwtVerify, SignJWT } from 'jose
 import { JOSEError } from 'jose/errors';
 
 /**
- * Error code for when the JWT algorithm is invalid.
+ * The error class for when the JWT algorithm is invalid.
+ *
+ * @public
  */
-const JWT_INVALID_ALGORITHM_ERROR = 'JWT_INVALID_ALGORITHM_ERROR' as const;
+class JwtInvalidAlgorithm extends n.failure(
+  'Jwt.InvalidAlgorithm',
+  {
+    'en-US': 'The JWT algorithm is invalid.',
+    'es-ES': 'El algoritmo del JWT es inválido.',
+  },
+) {}
 
 /**
- * Error code for when the JWT cannot be verified.
+ * The error class for when the JWT cannot be verified.
+ *
+ * @public
  */
-const JWT_CANNOT_VERIFY_ERROR = 'JWT_CANNOT_VERIFY_ERROR' as const;
+class JwtCannotVerify extends n.failure(
+  'Jwt.CannotVerify',
+  {
+    'en-US': 'The JWT cannot be verified.',
+    'es-ES': 'El JWT no puede ser verificado.',
+  },
+) {}
 
 /**
- * Error code for when the JWT cannot be created.
+ * The error class for when the JWT cannot be created.
+ *
+ * @public
  */
-const JWT_CANNOT_CREATE_ERROR = 'JWT_CANNOT_CREATE_ERROR' as const;
+class JwtCannotCreate extends n.failure(
+  'Jwt.CannotCreate',
+  {
+    'en-US': 'The JWT cannot be created.',
+    'es-ES': 'El JWT no puede ser creado.',
+  },
+) {}
 
 /**
  * Type of the algorithm used to sign the JWT.
@@ -75,14 +99,14 @@ type JwtOptions = {
  * Type of the errors of the JWT creation.
  */
 type JwtCreateErrors = {
-  $error: typeof JWT_CANNOT_CREATE_ERROR;
+  [n.LOGIC_FAILURES_KEY]: JwtCannotCreate;
 };
 
 /**
  * Type of the errors of the JWT verification.
  */
 type JwtVerifyErrors = {
-  $error: typeof JWT_INVALID_ALGORITHM_ERROR | typeof JWT_CANNOT_VERIFY_ERROR;
+  [n.LOGIC_FAILURES_KEY]: JwtInvalidAlgorithm | JwtCannotVerify;
 };
 
 /**
@@ -184,7 +208,7 @@ class JwtProvider {
         n.logger.debug(`JWT creation error: ${error.code} ${error.message}`);
       }
 
-      return n.err({ $error: JWT_CANNOT_CREATE_ERROR });
+      return n.err(new JwtCannotCreate().as('$logic'));
     }
   }
 
@@ -204,7 +228,7 @@ class JwtProvider {
 
       // Check algorithm before attempting verification
       if (protectedHeader.alg !== this.alg) {
-        return n.err({ $error: JWT_INVALID_ALGORITHM_ERROR });
+        return n.err(new JwtInvalidAlgorithm().as('$logic'));
       }
 
       // Now verify the token with the correct algorithm
@@ -217,7 +241,7 @@ class JwtProvider {
       if (error instanceof JOSEError) {
         n.logger.debug(`JWT verification error: ${error.code} ${error.message}`);
       }
-      return n.err({ $error: JWT_CANNOT_VERIFY_ERROR });
+      return n.err(new JwtCannotVerify().as('$logic'));
     }
   }
 }
@@ -248,4 +272,4 @@ const Jwt = (secret: string, options: JwtOptions = DEFAULT_JWT_OPTIONS) => {
   return jwtProvider;
 };
 
-export { Jwt, JwtAlgorithm };
+export { Jwt, JwtAlgorithm, JwtCannotCreate, JwtCannotVerify, JwtInvalidAlgorithm };

@@ -8,9 +8,16 @@
 
 import { n } from '@nuxo/core';
 import { assertEquals, assertExists } from '@std/assert';
+import { expect } from '@std/expect';
 import type { JWTPayload } from 'jose';
 
-import { Jwt, JwtAlgorithm } from '../src/jwt.ts';
+import {
+  Jwt,
+  JwtAlgorithm,
+  JwtCannotCreate,
+  JwtCannotVerify,
+  JwtInvalidAlgorithm,
+} from '../src/jwt.ts';
 
 n.config.set('NUXO_DEBUG', false);
 
@@ -85,7 +92,7 @@ Deno.test('JWT - should return error when verifying JWT with invalid algorithm',
 
     assertEquals(n.isErr(verifyResult), true);
     const error = n.unwrap(verifyResult);
-    assertEquals(error.$error, 'JWT_INVALID_ALGORITHM_ERROR');
+    expect(error[n.LOGIC_FAILURES_KEY]).toBeInstanceOf(JwtInvalidAlgorithm);
   }
 });
 
@@ -98,7 +105,7 @@ Deno.test('JWT - should return error when verifying invalid or tampered JWT', as
 
   assertEquals(n.isErr(verifyResult), true);
   const error = n.unwrap(verifyResult);
-  assertEquals(error.$error, 'JWT_CANNOT_VERIFY_ERROR');
+  expect(error[n.LOGIC_FAILURES_KEY]).toBeInstanceOf(JwtCannotVerify);
 });
 
 Deno.test('JWT - should create and verify JWT all supported algorithms successfully', async () => {
@@ -182,6 +189,6 @@ Deno.test('JWT - should fail to create JWT with invalid algorithm', async () => 
 
   if (n.isErr(createResult)) {
     const error = createResult.error;
-    assertEquals(error.$error, 'JWT_CANNOT_CREATE_ERROR');
+    expect(error[n.LOGIC_FAILURES_KEY]).toBeInstanceOf(JwtCannotCreate);
   }
 });
