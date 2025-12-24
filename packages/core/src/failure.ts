@@ -11,6 +11,7 @@ import type { Provider } from './container.ts';
 import type { Any, IsEmptyObject, MergeUnion, Pretty, RemovePrefix } from './generics.ts';
 import { type I18n, i18n, type I18nLanguage, type I18nTranslations } from './i18n.ts';
 import { logger } from './logger.ts';
+import { panic } from './panic.ts';
 import type { ResultFunction } from './result.ts';
 
 /**
@@ -70,7 +71,7 @@ type FailureKeys =
  * @typeParam LogicFailures - The logic failures extracted from the `$logic` key (inferred).
  * @returns A union type of all flattened failure types (Input, Output, or Logic).
  *
- * @public
+ * @internal
  */
 type FlatFailures<
   F extends Record<string, Any>,
@@ -102,10 +103,7 @@ type GetFailureCodes<F> = F extends { code: infer C } ? C : never;
  *
  * @internal
  */
-type GetFailureLanguages<F> = F extends { t: (l: infer L) => string } ? L
-  : FlatFailures<F extends Record<string, Any> ? F : never> extends { t: (l: infer L) => string }
-    ? L
-  : never;
+type GetFailureLanguages<F> = F extends Failure<Any, infer LL, Any>['Type'] ? LL : never;
 
 /**
  * Groups failures into a structured error object with the appropriate keys.
@@ -159,53 +157,6 @@ type InferFailure<T> = T extends { Errors: infer E }
   : never;
 
 /**
- * The type for the failure class.
- *
- * @typeParam Code - The unique code identifier for the failure.
- * @typeParam Languages - The supported languages for translations.
- * @typeParam Templates - The template strings used in translations.
- * @returns The failure class type.
- *
- * @public
- */
-class FailureClass<
-  Code extends string,
-  Languages extends I18nLanguage,
-  Templates extends string,
-> extends Error {
-  public readonly code: Code;
-  public readonly params: I18n<Code, Languages, Templates>['Params'];
-  public readonly t: (language: I18nLanguage) => string;
-
-  public constructor(
-    code: Code,
-    tr: (
-      code: Code,
-      params: I18n<Code, Languages, Templates>['Params'],
-      language?: Languages,
-    ) => string,
-    params: I18n<Code, Languages, Templates>['Params'],
-  ) {
-    super(tr(code, params));
-    this.code = code;
-    this.params = params;
-    this.t = (l: I18nLanguage) => tr(code, params, l as Languages);
-  }
-
-  /**
-   * Formats the failure as a specific target.
-   *
-   * @param target - The target failure key (`$input`, `$output` or `$logic`).
-   * @returns The formatted failure with the appropriate structure.
-   *
-   * @public
-   */
-  public as<T extends FailureKeys>(target: T): { [K in T]: this } {
-    return failureAs(this, target) as { [K in T]: this };
-  }
-}
-
-/**
  * The type for the failure info.
  *
  * @typeParam F - The failures object type.
@@ -226,6 +177,24 @@ type FailureInfo<
   message: string;
   params: Record<string, unknown>;
 }>;
+
+/**
+ * The error type supported by failures in results.
+ *
+ * This type represents all valid error formats that can be used in a Result:
+ * - A single failure instance.
+ * - An array of failure instances.
+ * - A record with any subset of failure keys (`$input`, `$output`, `$logic`) where values are
+ *   failure instances or arrays of failure instances.
+ *
+ * @typeParam L - Error string literal type.
+ *
+ * @public
+ */
+type FailureErrorType<L extends string> =
+  | Failure<L, Any, Any>['Type']
+  | Failure<L, Any, Any>['Type'][]
+  | Partial<Record<FailureKeys, Failure<L, Any, Any>['Type'] | Failure<L, Any, Any>['Type'][]>>;
 
 /**
  * The type for the failure component.
@@ -257,22 +226,58 @@ type Failure<
 >;
 
 /**
- * The error type supported by failures in results.
- *
- * This type represents all valid error formats that can be used in a Result:
- * - A single failure instance.
- * - An array of failure instances.
- * - A record with any subset of failure keys (`$input`, `$output`, `$logic`) where values are
- *   failure instances or arrays of failure instances.
- *
- * @typeParam L - Error string literal type.
+ * The panic error for the failure module.
  *
  * @public
  */
-type FailureErrorType<L extends string> =
-  | Failure<L, Any, Any>['Type']
-  | Failure<L, Any, Any>['Type'][]
-  | Partial<Record<FailureKeys, Failure<L, Any, Any>['Type'] | Failure<L, Any, Any>['Type'][]>>;
+class FailurePanic extends panic<typeof FAILURE_TAG, 'CannotUnwrapFailure'>(FAILURE_TAG) {}
+
+/**
+ * The type for the failure class.
+ *
+ * @typeParam Code - The unique code identifier for the failure.
+ * @typeParam Languages - The supported languages for translations.
+ * @typeParam Templates - The template strings used in translations.
+ * @returns The failure class type.
+ *
+ * @public
+ */
+class FailureClass<
+  Code extends string,
+  Languages extends I18nLanguage,
+  Templates extends string,
+> extends Error {
+  public readonly code: Code;
+  public readonly params: I18n<Code, Languages, Templates>['Params'];
+  public readonly t: (language: Languages) => string;
+
+  public constructor(
+    code: Code,
+    tr: (
+      code: Code,
+      params: I18n<Code, Languages, Templates>['Params'],
+      language?: Languages,
+    ) => string,
+    params: I18n<Code, Languages, Templates>['Params'],
+  ) {
+    super(tr(code, params));
+    this.code = code;
+    this.params = params;
+    this.t = (l: I18nLanguage) => tr(code, params, l as Languages);
+  }
+
+  /**
+   * Formats the failure as a specific target.
+   *
+   * @param target - The target failure key (`$input`, `$output` or `$logic`).
+   * @returns The formatted failure with the appropriate structure.
+   *
+   * @public
+   */
+  public as<T extends FailureKeys>(target: T): { [K in T]: this } {
+    return failureAs(this, target) as { [K in T]: this };
+  }
+}
 
 /**
  * Formats the failures for the contract depending on the target failure type.
@@ -288,18 +293,16 @@ type FailureErrorType<L extends string> =
  * @param target - The target failure type key (`$input`, `$output` or `$logic`).
  * @returns The formatted failures with the appropriate structure.
  *
- * @internal
+ * @public
  */
-const failureAs = <
-  T extends FailureKeys,
->(
+const failureAs = <T extends FailureKeys>(
   failures: unknown,
   target: T,
 ): FailureErrorType<string> => {
   logger.assert(failures !== null, 'The failures object is null');
   logger.assert(typeof failures === 'object', 'The failures object is not an object');
 
-  // Type narrowing: failures is now known to be an object
+  // Type narrowing: failures is now known to be an object.
   const failuresObj = failures as Record<string, unknown>;
 
   // Handle arrays - wrap them in the target key
@@ -307,22 +310,29 @@ const failureAs = <
     return { [target]: failures };
   }
 
-  // Check if the target key already exists in the failures object
+  // Check if the target key already exists in the failures object.
   if (target in failuresObj) {
     return failuresObj;
   }
 
-  // Check if any failure key exists (meaning it's already structured)
-  const hasAnyFailureKey = INPUT_FAILURES_KEY in failuresObj ||
-    OUTPUT_FAILURES_KEY in failuresObj ||
-    LOGIC_FAILURES_KEY in failuresObj;
-
-  if (hasAnyFailureKey) {
-    // If it's already structured but with a different key, wrap it
-    return { [target]: failuresObj };
+  // Check if any failure key exists (meaning it's already structured).
+  // If so, extract the value from the existing key and create a new structure with the target.
+  if (INPUT_FAILURES_KEY in failuresObj) {
+    // Extract the value from $input and create new structure with target.
+    return { [target]: failuresObj[INPUT_FAILURES_KEY] };
   }
 
-  // Otherwise, wrap the failures in the target key
+  if (OUTPUT_FAILURES_KEY in failuresObj) {
+    // Extract the value from $output and create new structure with target
+    return { [target]: failuresObj[OUTPUT_FAILURES_KEY] };
+  }
+
+  if (LOGIC_FAILURES_KEY in failuresObj) {
+    // Extract the value from $logic and create new structure with target.
+    return { [target]: failuresObj[LOGIC_FAILURES_KEY] };
+  }
+
+  // Otherwise, it's a plain failure instance or object - wrap it in the target key.
   return { [target]: failuresObj };
 };
 
@@ -340,7 +350,20 @@ const failureAs = <
  *
  * @public
  */
-const unwrapFailure = <F extends Record<string, Any>>(
+const unwrapFailure = <
+  L extends string,
+  F extends Partial<
+    Record<
+      FailureKeys,
+      | Failure<L, Any, string, Any>['Type']
+      | Failure<L, Any, string, Any>['Type'][]
+      | Record<
+        string,
+        Failure<L, Any, string, Any>['Type']
+      >
+    >
+  >,
+>(
   failure: F,
   language: GetFailureLanguages<FlatFailures<F>>,
 ): FailureInfo<F> => {
@@ -349,20 +372,52 @@ const unwrapFailure = <F extends Record<string, Any>>(
     let failureType = failureKey.replace(FAILURE_PREFIX, '');
     failureType = failureType.charAt(0).toUpperCase() + failureType.slice(1);
 
-    // Try to get the message from the failure value.
-    const message = (typeof failureValue?.t === 'function')
-      ? failureValue.t(language)
-      : failureValue?.message ??
-        failureValue?.code ??
-        failureValue ??
+    // Handle Record types (e.g., { status: SomeFailure }) - extract the first failure.
+    let actualFailure: Any = failureValue;
+    if (
+      typeof failureValue === 'object' &&
+      failureValue !== null &&
+      !Array.isArray(failureValue) &&
+      !('t' in failureValue) &&
+      !('code' in failureValue) &&
+      !('message' in failureValue)
+    ) {
+      // It's a Record with field failures, extract the first failure.
+      const recordValue = failureValue as Record<string, Any>;
+      const firstKey = Object.keys(recordValue)[0];
+      if (firstKey && recordValue[firstKey]) {
+        actualFailure = recordValue[firstKey];
+      }
+    }
+
+    // Handle arrays - take the first element.
+    if (Array.isArray(actualFailure) && actualFailure.length > 0) {
+      actualFailure = actualFailure[0];
+    }
+
+    // Avoid unwrapping a object that is not an instance of Failure.
+    if (!(actualFailure instanceof FailureClass)) {
+      throw new FailurePanic(
+        'CannotUnwrapFailure',
+        'Cannot unwrap a object that is not an instance of Failure',
+      );
+    }
+
+    // Try to get the message from the actual failure.
+    const message = (typeof actualFailure?.t === 'function')
+      ? actualFailure.t(language as I18nLanguage)
+      : actualFailure?.message ??
+        actualFailure?.code ??
+        (typeof actualFailure === 'string' ? actualFailure : String(actualFailure)) ??
         // FIXME: This is a temporary fix to handle unexpected errors (hate hardcoded messages).
         'Something went wrong. Please contact support if the problem persists.';
 
     return {
       type: failureType as FailureInfo<F>['type'],
-      code: failureValue.code ?? failureValue,
+      code: actualFailure?.code ??
+        (typeof actualFailure === 'string' ? actualFailure : String(actualFailure)),
       message,
-      params: failureValue.params ?? {},
+      params: actualFailure?.params ?? {},
     };
   };
 
@@ -452,4 +507,4 @@ export {
   OUTPUT_FAILURES_KEY,
   unwrapFailure,
 };
-export type { Failure, FailureErrorType, FailureKeys, FlatFailures, GroupFailures, InferFailure };
+export type { Failure, FailureErrorType, FailureKeys, GroupFailures, InferFailure };
