@@ -103,7 +103,7 @@ type GetFailureCodes<F> = F extends { code: infer C } ? C : never;
  *
  * @internal
  */
-type GetFailureLanguages<F> = F extends Failure<Any, infer LL, Any>['Type'] ? LL : never;
+type GetFailureLanguages<F> = F extends Failure<Any, infer LL, Any>['Type'] ? LL : I18nLanguage;
 
 /**
  * Groups failures into a structured error object with the appropriate keys.
