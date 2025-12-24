@@ -24,6 +24,26 @@ class EnumeratePanic extends n.panic<
 >('Enumerate') {}
 
 /**
+ * Invalid enum failure.
+ *
+ * @internal
+ */
+class InvalidEnum extends n.failure(
+  'Enumerate.InvalidEnum',
+  {
+    'en-US': 'Only the following values are allowed: {{allowedValues | string}}.',
+    'es-ES': 'Solo los siguientes valores son permitidos: {{allowedValues | string}}.',
+  },
+) {}
+
+// Apply metadata to the InvalidEnum failure.
+n.info(InvalidEnum)
+  .doc({
+    title: 'InvalidEnum Failure',
+    body: 'A failure that is returned when the value is not in the enumeration.',
+  });
+
+/**
  * Interface for the enumerate factory function.
  * Supports both array-based and enum-based enumerations.
  *
@@ -40,7 +60,9 @@ interface EnumerateFactory {
    *
    * @public
    */
-  <T extends Record<string, string | number>>(enumObj: T): Value<keyof T, 'INVALID_ENUM'>;
+  <T extends Record<string, string | number>>(
+    enumObj: T,
+  ): Value<keyof T, InstanceType<typeof InvalidEnum>>;
 
   /**
    * Creates an enumeration value from an array of values.
@@ -52,7 +74,7 @@ interface EnumerateFactory {
    *
    * @public
    */
-  <T extends string>(values: T[]): Value<T, 'INVALID_ENUM'>;
+  <T extends string>(values: T[]): Value<T, InstanceType<typeof InvalidEnum>>;
 }
 
 /**
@@ -123,31 +145,12 @@ const extractEnumValues = <T extends Record<string, string | number>>(enumObj: T
  *
  * @internal
  */
-/**
- * Invalid enum failure.
- *
- * @internal
- */
-class InvalidEnum extends n.failure(
-  'Enumerate.InvalidEnum',
-  {
-    'en-US': 'The value must be one of the allowed enumeration values.',
-    'es-ES': 'El valor debe ser uno de los valores de enumeración permitidos.',
-  },
-) {}
-
-// Apply metadata to the InvalidEnum failure.
-n.info(InvalidEnum)
-  .doc({
-    title: 'InvalidEnum Failure',
-    body: n.doc`
-    A failure that is returned when the value is not in the enumeration.
-    `,
-  });
-
 const EnumRule = <T extends string>(allowedValues: T[]) => {
   const IsEnum = rule(() =>
-    n.assert((value: T) => allowedValues.includes(value), new InvalidEnum() as never)
+    n.assert(
+      (value: T) => allowedValues.includes(value),
+      new InvalidEnum({ allowedValues: allowedValues.join(', ') }),
+    )
   );
 
   // Only set the type and doc if the type is not already set.
@@ -191,10 +194,13 @@ const enumerate: EnumerateFactory = <T extends string[] | Record<string, string 
   allowedValues: T,
 ) => {
   const enumValue = Array.isArray(allowedValues)
-    ? (value(EnumRule(validateEnumArray(allowedValues))) as unknown as Value<T, 'INVALID_ENUM'>)
+    ? (value(EnumRule(validateEnumArray(allowedValues))) as unknown as Value<
+      T,
+      InstanceType<typeof InvalidEnum>
+    >)
     : (value(EnumRule(extractEnumValues(allowedValues))) as unknown as Value<
       keyof T,
-      'INVALID_ENUM'
+      InstanceType<typeof InvalidEnum>
     >);
 
   n.info(enumValue)
