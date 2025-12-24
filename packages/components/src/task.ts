@@ -420,7 +420,7 @@ const taskFn = <
       throw new TaskPanic('CallerNotSet', 'Caller function not set');
     }
 
-    let lastError: n.PanicError<string, string> | undefined = undefined;
+    let lastError: n.ImplementationPanic | TaskPanic;
     let attempt = 0;
 
     while (attempt < taskBuilder.maxRetries + 1) {
@@ -429,28 +429,24 @@ const taskFn = <
       try {
         // This call automatically applies the contract input and output validation.
         // Remember the task caller function is wrapped in a contract implementation.
-        const result = await taskBuilder.callerFn(input);
-
-        if (n.isErr(result)) {
-          const error = result.error as n.Any;
-
-          if (error.$error === 'PANIC_ERROR') {
-            throw new Error(error.$error);
-          }
-        }
-
-        return result;
+        return await taskBuilder.callerFn(input);
       } catch (error) {
+        // Debugging assertion to ensure the error is an ImplementationPanic.
+        n.logger.assert(
+          error instanceof n.ImplementationPanic,
+          'The task handler function threw an error that is not an ImplementationPanic',
+        );
+
         // Use fallbackHandler if configured for cleanup.
-        lastError = error instanceof Error
-          ? new TaskPanic('HandlerError', error.message)
+        lastError = error instanceof n.ImplementationPanic
+          ? error
           : new TaskPanic('HandlerError', 'Handler function failed with unknown error');
 
         attempt++;
 
         // If we still have retries left, wait and retry.
         if (attempt < taskBuilder.maxRetries + 1) {
-          n.logger.debug(`Attempt ${attempt} of ${taskBuilder.maxRetries}`);
+          n.logger.warn(`Retry attempt ${attempt} of ${taskBuilder.maxRetries}`);
 
           const delayMs = taskBuilder.delay * Math.pow(2, attempt - 1); // Exponential backoff
           await delay(delayMs);
@@ -477,23 +473,14 @@ const taskFn = <
 
             n.logger.debug(`Fallback handler failed: ${fallbackError.message}`);
 
-            if (taskBuilder.throwOnError) {
-              throw fallbackError;
-            }
-
-            return n.err({ $error: fallbackError.code });
+            throw fallbackError;
           }
-
-          if (taskBuilder.throwOnError) {
-            throw lastError;
-          }
-
-          return n.err({ $error: lastError.code });
         }
+
+        // After all retries are exhausted (and fallback executed if configured), throw the error.
+        throw lastError;
       }
     }
-
-    return n.err({ $error: lastError?.message ?? 'PANIC_ERROR' });
   };
 
   return fn;
