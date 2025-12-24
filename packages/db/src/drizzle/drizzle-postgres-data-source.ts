@@ -6,12 +6,12 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import { AlreadyExists, NotFound, type Repository } from '@nuxo/components';
 import { n } from '@nuxo/core';
 import { count as drizzleCount, type SQL } from 'drizzle-orm';
 import type { drizzle } from 'drizzle-orm/node-postgres';
 import type { IndexColumn, PgTable } from 'drizzle-orm/pg-core';
 
-import type { Repository } from '@nuxo/components';
 import { DrizzleTransformer } from './drizzle-transformer.ts';
 import {
   debugDrizzleError,
@@ -116,36 +116,21 @@ const DrizzlePostgresDataSource = <
     {
       match: n.implementation(dataSource.match, async (criteria) => {
         const condition = DrizzleTransformer(criteria, getColumn);
+        const result = await db.select().from(table).where(condition).limit(1);
 
-        if (!condition) {
-          return n.err({ $error: 'PANIC_ERROR' });
+        if (result.length === 0) {
+          return n.err(new NotFound().as('$logic'));
         }
 
-        try {
-          const result = await db.select().from(table).where(condition).limit(1);
-
-          if (result.length === 0) {
-            return n.err({ $error: 'NOT_FOUND' });
-          }
-
-          return n.ok(dbRowToEntity(result[0]));
-        } catch (error) {
-          console.error('Query error:', error);
-          throw error;
-        }
+        return n.ok(dbRowToEntity(result[0]));
       }),
 
       matchAll: n.implementation(dataSource.matchAll, async (criteria) => {
         const condition = DrizzleTransformer(criteria, getColumn);
-
-        if (!condition) {
-          return n.err({ $error: 'PANIC_ERROR' });
-        }
-
         const result = await db.select().from(table).where(condition);
 
         if (result.length === 0) {
-          return n.err({ $error: 'NOT_FOUND' });
+          return n.err(new NotFound().as('$logic'));
         }
 
         return n.ok(result.map(dbRowToEntity));
@@ -194,23 +179,19 @@ const DrizzlePostgresDataSource = <
           debugDrizzleError(e);
 
           if (e.code === DrizzlePostgresErrorCodes.UNIQUE_CONSTRAINT_ERROR_CODE) {
-            return n.err({ $error: 'ALREADY_EXISTS' });
+            return n.err(new AlreadyExists().as('$logic'));
           }
 
-          return n.err({ $error: 'PANIC_ERROR' });
+          throw error;
         }
       }),
 
       delete: n.implementation(dataSource.delete, async (criteria) => {
         const condition = DrizzleTransformer(criteria, getColumn);
-        if (!condition) {
-          return n.err({ $error: 'PANIC_ERROR' });
-        }
-
         const existing = await db.select().from(table).where(condition).limit(1);
 
         if (existing.length === 0) {
-          return n.err({ $error: 'NOT_FOUND' });
+          return n.err(new NotFound().as('$logic'));
         }
 
         await db.delete(table).where(condition);
@@ -229,9 +210,6 @@ const DrizzlePostgresDataSource = <
 
       exists: n.implementation(dataSource.exists, async (criteria) => {
         const condition = DrizzleTransformer(criteria, getColumn);
-        if (!condition) {
-          return n.err({ $error: 'PANIC_ERROR' });
-        }
 
         const result = await db
           .select({ count: drizzleCount() })
