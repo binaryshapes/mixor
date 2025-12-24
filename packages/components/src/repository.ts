@@ -31,6 +31,32 @@ type RepositoryCriteria<S extends SchemaValues, E extends Schema<S> = Schema<S>>
 >;
 
 /**
+ * The failure for when a record is not found in the repository.
+ *
+ * @public
+ */
+class NotFound extends n.failure(
+  'Repository.NotFound',
+  {
+    'en-US': 'The record was not found in the repository.',
+    'es-ES': 'El registro no fue encontrado en el repositorio.',
+  },
+) {}
+
+/**
+ * The failure for when a record already exists in the repository.
+ *
+ * @public
+ */
+class AlreadyExists extends n.failure(
+  'Repository.AlreadyExists',
+  {
+    'en-US': 'The record already exists in the repository.',
+    'es-ES': 'El registro ya existe en el repositorio.',
+  },
+) {}
+
+/**
  * Creates a data source port for the repository.
  *
  * @remarks
@@ -51,10 +77,20 @@ const createDataSource = <S extends SchemaValues>(entity: Schema<S>) => {
     n.assert((value: number) => typeof value === 'number', 'INVALID_NUMBER' as never)
   );
 
+  // Set the type for the IsNumber rule if not already set.
+  if (!n.info(IsNumber).props.type) {
+    n.info(IsNumber).type('number');
+  }
+
   // Dummy rule to check if the value is a boolean.
   const IsBoolean = rule(() =>
     n.assert((value: boolean) => typeof value === 'boolean', 'INVALID_BOOLEAN' as never)
   );
+
+  // Set the type for the IsBoolean rule if not already set.
+  if (!n.info(IsBoolean).props.type) {
+    n.info(IsBoolean).type('boolean');
+  }
 
   type EntityArray<T> = n.Component<'EntityArray', T[]>;
 
@@ -76,7 +112,7 @@ const createDataSource = <S extends SchemaValues>(entity: Schema<S>) => {
     match: n.contract()
       .input(c)
       .output(entity)
-      .errors('NOT_FOUND')
+      .errors(NotFound)
       .async()
       .build(),
 
@@ -89,7 +125,7 @@ const createDataSource = <S extends SchemaValues>(entity: Schema<S>) => {
     matchAll: n.contract()
       .input(c)
       .output(arraySchema(entity))
-      .errors('NOT_FOUND')
+      .errors(NotFound)
       .async()
       .build(),
 
@@ -103,7 +139,7 @@ const createDataSource = <S extends SchemaValues>(entity: Schema<S>) => {
      */
     save: n.contract()
       .input(entity)
-      .errors('ALREADY_EXISTS')
+      .errors(AlreadyExists)
       .async()
       .build(),
 
@@ -117,7 +153,7 @@ const createDataSource = <S extends SchemaValues>(entity: Schema<S>) => {
      */
     delete: n.contract()
       .input(c)
-      .errors('NOT_FOUND')
+      .errors(NotFound)
       .async()
       .build(),
 
@@ -320,5 +356,5 @@ const repository = <
     .provide(({ DataSource }) => createRepository(DataSource));
 };
 
-export { repository };
+export { AlreadyExists, NotFound, repository };
 export type { Repository };
