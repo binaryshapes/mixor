@@ -9,6 +9,7 @@
 export * from './component.ts';
 export * from './config.ts';
 export * from './container.ts';
+export * from './contract.ts';
 export * from './data.ts';
 export * from './failure.ts';
 export * from './flow.ts';
@@ -19,6 +20,9 @@ export * from './pipe.ts';
 export * from './registry.ts';
 export * from './result.ts';
 export * from './utils.ts';
+export * from './adapter.ts';
+export * from './port.ts';
+export * from './provider.ts';
 
 export type * from './generics.ts';
 export type * from './types.ts';
