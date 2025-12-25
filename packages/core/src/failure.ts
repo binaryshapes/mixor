@@ -7,11 +7,11 @@
  */
 
 import { type Component, component } from './component.ts';
-import type { Provider } from './container.ts';
 import type { Any, IsEmptyObject, MergeUnion, Pretty, RemovePrefix } from './generics.ts';
 import { type I18n, i18n, type I18nLanguage, type I18nTranslations } from './i18n.ts';
 import { logger } from './logger.ts';
 import { panic } from './panic.ts';
+import type { Provider } from './provider.ts';
 import type { ResultFunction } from './result.ts';
 
 /**
