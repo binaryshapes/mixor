@@ -1,0 +1,7 @@
+{
+  "name": "nuxo",
+  "private": true,
+  "license": "MIT",
+  "packageManager": "pnpm@10.26.2",
+  "scripts": {}
+}
