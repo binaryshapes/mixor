@@ -84,11 +84,11 @@ type TaskDependencies =
 type TaskHandler<
   C extends TaskContract,
   D extends TaskDependencies,
-> = [D] extends [never] ? () => n.Implementation<C> : (
+> = [D] extends [never] ? () => C['Implementation'] : (
   deps: {
     [K in keyof D]: D[K]['Type'];
   },
-) => n.Implementation<C>;
+) => C['Implementation'];
 
 /**
  * Task component type that represents a configurable task.
@@ -178,7 +178,7 @@ class TaskBuilder<
   /**
    * The caller function that is used to call the task.
    */
-  public callerFn?: n.Implementation<C>;
+  public callerFn?: C['Implementation'];
 
   /**
    * The fallback handler function that processes the unexpected errors.
@@ -351,7 +351,7 @@ class TaskBuilder<
       const callerFn = this.handlerFn(deps as D);
       this.callerFn = n.isImplementation(callerFn)
         ? callerFn
-        : n.implementation(this.contract, callerFn);
+        : this.contract.implementation(callerFn);
 
       // Create the task component and add the contract as a child.
       const taskComponent = n.component(

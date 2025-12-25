@@ -29,7 +29,8 @@ const WORKFLOW_TAG = 'Workflow' as const;
  *
  * @internal
  */
-type WorkflowDetail<T> = T extends n.Provider<Task<infer C, infer D>, infer D> ? {
+type WorkflowDetail<T> = T extends n.Provider<Task<infer C extends TaskContract, infer D>, infer D>
+  ? {
     /**
      * The name of the task in the workflow context.
      */
@@ -100,7 +101,7 @@ type WorkflowTasks = Record<string, n.Any>;
  * @internal
  */
 type WorkflowInput<T extends WorkflowTasks> = n.FirstElement<T> extends
-  n.Provider<Task<infer C, infer D>, infer D> ? Task<C, D>['Input']
+  n.Provider<Task<infer C extends TaskContract, infer D>, infer D> ? Task<C, D>['Input']
   : never;
 
 /**
@@ -116,7 +117,7 @@ type WorkflowInput<T extends WorkflowTasks> = n.FirstElement<T> extends
  * @internal
  */
 type WorkflowOutput<T extends WorkflowTasks> = n.LastElement<T> extends
-  n.Provider<Task<infer C, infer D>, infer D> ? Task<C, D>['Output']
+  n.Provider<Task<infer C extends TaskContract, infer D>, infer D> ? Task<C, D>['Output']
   : never;
 
 /**
@@ -134,7 +135,8 @@ type WorkflowOutput<T extends WorkflowTasks> = n.LastElement<T> extends
  */
 type WorkflowErrors<T extends WorkflowTasks> = n.MergeUnion<
   {
-    [K in keyof T]: T[K] extends n.Provider<Task<infer C, infer D>, infer D> ? Task<C, D>['Errors']
+    [K in keyof T]: T[K] extends n.Provider<Task<infer C extends TaskContract, infer D>, infer D>
+      ? Task<C, D>['Errors']
       : never;
   }[keyof T]
 >;
