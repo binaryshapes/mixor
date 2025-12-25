@@ -114,7 +114,7 @@ const DrizzlePostgresDataSource = <
   const dataSourceAdapter = n.adapter(
     dataSource,
     {
-      match: n.implementation(dataSource.match, async (criteria) => {
+      match: dataSource.match.implementation(async (criteria) => {
         const condition = DrizzleTransformer(criteria, getColumn);
         const result = await db.select().from(table).where(condition).limit(1);
 
@@ -125,7 +125,7 @@ const DrizzlePostgresDataSource = <
         return n.ok(dbRowToEntity(result[0]));
       }),
 
-      matchAll: n.implementation(dataSource.matchAll, async (criteria) => {
+      matchAll: dataSource.matchAll.implementation(async (criteria) => {
         const condition = DrizzleTransformer(criteria, getColumn);
         const result = await db.select().from(table).where(condition);
 
@@ -136,7 +136,7 @@ const DrizzlePostgresDataSource = <
         return n.ok(result.map(dbRowToEntity));
       }),
 
-      save: n.implementation(dataSource.save, async (item) => {
+      save: dataSource.save.implementation(async (item) => {
         const dbRow = entityToDbRow(item) as Record<string, unknown>;
         const { primaryKey } = getTableKeys(table);
 
@@ -186,7 +186,7 @@ const DrizzlePostgresDataSource = <
         }
       }),
 
-      delete: n.implementation(dataSource.delete, async (criteria) => {
+      delete: dataSource.delete.implementation(async (criteria) => {
         const condition = DrizzleTransformer(criteria, getColumn);
         const existing = await db.select().from(table).where(condition).limit(1);
 
@@ -198,17 +198,17 @@ const DrizzlePostgresDataSource = <
         return n.ok();
       }),
 
-      count: n.implementation(dataSource.count, async () => {
+      count: dataSource.count.implementation(async () => {
         const result = await db.select({ count: drizzleCount() }).from(table);
         return n.ok(result[0]?.count ?? 0);
       }),
 
-      all: n.implementation(dataSource.all, async () => {
+      all: dataSource.all.implementation(async () => {
         const result = await db.select().from(table);
         return n.ok(result.map(dbRowToEntity));
       }),
 
-      exists: n.implementation(dataSource.exists, async (criteria) => {
+      exists: dataSource.exists.implementation(async (criteria) => {
         const condition = DrizzleTransformer(criteria, getColumn);
 
         const result = await db
