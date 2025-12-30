@@ -1,1 +1,1 @@
-extends: '../../node_modules/@nuxo/moon/tasks/typescript/tags/tsup.yml'
+extends: '../../node_modules/@nuxo/tools/dist/src/moon/typescript/tags/tsup.yml'

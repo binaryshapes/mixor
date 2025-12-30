@@ -1,0 +1,1 @@
+extends: '../../node_modules/@nuxo/tools/dist/src/moon/typescript/configuration.yml'

@@ -1,0 +1,3 @@
+{
+  "extends": "@nuxo/tools/typescript/workspace.tsconfig.json"
+}

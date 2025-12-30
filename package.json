@@ -3,5 +3,13 @@
   "private": true,
   "license": "MIT",
   "packageManager": "pnpm@10.26.2",
-  "scripts": {}
+  "scripts": {
+    "clean": "pnpx rimraf node_modules packages/*/node_modules pnpm-lock.yaml",
+    "sync-release-please": "sync-release-please --dry-run",
+    "commitlint": "commitlint --edit",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@nuxo/tools": "workspace:*"
+  }
 }

@@ -1,2 +1,13 @@
 packages:
-  - 'packages/*'
+  - packages/*
+  - examples/*
+
+autoInstallPeers: true
+
+onlyBuiltDependencies:
+  - esbuild
+  - nx
+
+shamefullyHoist: true
+
+strictPeerDependencies: true

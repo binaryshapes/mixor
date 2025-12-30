@@ -1,5 +1,4 @@
 projects:
-  - './examples/*'
   - './packages/*'
 
 vcs:
