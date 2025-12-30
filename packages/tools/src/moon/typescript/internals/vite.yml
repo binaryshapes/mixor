@@ -1,0 +1,21 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+tasks:
+  vite/build:
+    description: 'Builds the project using vite'
+    command: 'vite build'
+    type: build
+    options:
+      internal: true
+    inputs:
+      - '@group(src)'
+      - 'vite.config.ts'
+    outputs:
+      - '@group(dist)'

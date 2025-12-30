@@ -1,0 +1,81 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+fileGroups:
+  # Coverage output files.
+  coverage:
+    - 'coverage/**/*'
+
+tasks:
+  vitest/base:
+    description: 'Runs tests using Vitest'
+    command: 'vitest'
+    args:
+      - '--typecheck'
+      - '--coverage'
+      - '--hideSkippedTests'
+      - '--bail'
+      - '1'
+    type: test
+    options:
+      mergeInputs: append
+      mergeArgs: append
+      internal: true
+    inputs:
+      - '@group(src)'
+      - '@group(tests)'
+    outputs:
+      - '@group(coverage)'
+
+  vitest/test:
+    extends: 'vitest/base'
+    description: 'Runs tests using Vitest'
+    options:
+      runInCI: affected
+
+  vitest/watch:
+    extends: 'vitest/test'
+    description: 'Runs tests using Vitest in watch mode'
+    args:
+      - '--watch'
+    options:
+      runInCI: false
+      persistent: true
+
+  vitest/coverage:
+    extends: 'vitest/test'
+    description: 'Runs tests using Vitest with coverage'
+    args:
+      - '--coverage'
+    options:
+      runInCI: false
+
+  vitest/ui:
+    extends: 'vitest/watch'
+    description: 'Runs tests using Vitest with UI'
+    args:
+      - '--ui'
+      - '--watch'
+    options:
+      runInCI: false
+
+  vitest/project:
+    # A project can have a different kind of configuration so we activate typecheck and coverage.
+    extends: 'vitest/base'
+    description: 'Runs tests using Vitest with a specific project'
+    args:
+      - '--project'
+
+  vitest/types:
+    # Types does not have coverage support.
+    extends: 'vitest/base'
+    description: 'Runs tests using Vitest with types'
+    args:
+      - '--project'
+      - 'types'

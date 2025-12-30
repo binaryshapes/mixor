@@ -1,0 +1,19 @@
+id: '@nuxo/tools'
+language: typescript
+type: configuration
+tags:
+  - tsup
+
+project:
+  name: Nuxo Tools Package
+  owner: binaryshapes
+  description: Nuxo Tools Package with common configurations for development tools
+  maintainers:
+    - Carlos Cosming
+  metadata:
+    license: MIT
+    public: true
+    repository:
+      type: git
+      url: https://github.com/binaryshapes/nuxo
+      directory: packages/tools

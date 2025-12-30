@@ -1,0 +1,47 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+tasks:
+  prettier/check:
+    description: 'Checks code formatting using Prettier'
+    command: 'prettier'
+    args:
+      - '@group(src)'
+      - '@group(tests)'
+      - '--check'
+      - '--log-level'
+      - 'error'
+    type: run
+    options:
+      internal: true
+      runInCI: always
+      mergeInputs: append
+      mergeArgs: prepend
+    inputs:
+      - '@group(src)'
+      - '@group(tests)'
+
+  prettier/fix:
+    description: 'Formats code using Prettier'
+    command: 'prettier'
+    args:
+      - '@group(src)'
+      - '@group(tests)'
+      - '--write'
+      - '--log-level'
+      - 'error'
+    type: run
+    options:
+      internal: true
+      runInCI: false
+      mergeInputs: append
+      mergeArgs: prepend
+    inputs:
+      - '@group(src)'
+      - '@group(tests)'

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./base.tsconfig.json",
+  "compilerOptions": {
+    "emitDeclarationOnly": false,
+    "forceConsistentCasingInFileNames": true,
+    "types": [
+      "node"
+    ],
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
+    "declarationMap": false
+  },
+  "exclude": [
+    "${configDir}/tests/**/*.ts",
+    "${configDir}/examples/**/*.ts"
+  ],
+  "references": []
+}

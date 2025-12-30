@@ -1,0 +1,17 @@
+{
+  "extends": "./base.tsconfig.json",
+  "include": [
+    // The workspace includes all possible tools used in a project.
+    "${configDir}/eslint.config.ts",
+    "${configDir}/prettier.config.mjs",
+    "${configDir}/prettier.config.mts",
+    "${configDir}/commitlint.config.ts",
+    "${configDir}/vitest.config.ts",
+    "${configDir}/vite.config.ts",
+    "${configDir}/tsup.config.ts",
+    "${configDir}/jest.config.ts",
+
+    // XXX: In the future, we want put all the tools in a single directory.
+    "${configDir}/.tools/*.{ts,mjs,mts}"
+  ]
+}

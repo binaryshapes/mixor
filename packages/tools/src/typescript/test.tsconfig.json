@@ -1,0 +1,14 @@
+{
+  "extends": "./base.json",
+  "compilerOptions": {
+    "types": [
+      "vitest/globals"
+    ],
+    "forceConsistentCasingInFileNames": true
+  },
+  "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    }
+  ]
+}

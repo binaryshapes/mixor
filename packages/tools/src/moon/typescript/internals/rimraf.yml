@@ -1,0 +1,18 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+tasks:
+  rimraf:
+    description: 'Cleans the the given directory using rimraf'
+    command: 'rimraf'
+    type: run
+    options:
+      internal: true
+      mergeInputs: replace
+      mergeArgs: replace

@@ -1,0 +1,21 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+tasks:
+  tsup/build:
+    description: 'Builds the project using tsup'
+    command: 'tsup'
+    type: build
+    options:
+      internal: true
+    inputs:
+      - '@group(src)'
+      - 'tsup.config.ts'
+    outputs:
+      - '@group(dist)'

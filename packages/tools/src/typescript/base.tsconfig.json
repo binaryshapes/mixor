@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "rootDir": "${configDir}",
+    "baseUrl": "${configDir}",
+    "outDir": "${configDir}/dist",
+    "lib": [
+      "ESNext"
+    ],
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "sourceMap": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "isolatedModules": true,
+    "noEmitOnError": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "strict": true,
+    "customConditions": [
+      "development"
+    ],
+    // Personal taste.
+    "resolveJsonModule": true
+  },
+  "include": [
+    // Typical presets for all sources.
+    "${configDir}/src/**/*.ts",
+    "${configDir}/bin/**/*.ts",
+    "${configDir}/tests/**/*.ts",
+    "${configDir}/examples/**/*.ts"
+  ],
+  // Typical exclude for all packages.
+  "exclude": [
+    "${configDir}/node_modules",
+    "${configDir}/dist",
+    "${configDir}/coverage",
+    "${configDir}/linting"
+  ]
+}

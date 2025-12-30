@@ -1,0 +1,24 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+extends:
+  - '../file-groups/src.yml'
+  - '../internals/tsup.yml'
+
+tasks:
+  build:
+    extends: 'tsup/build'
+    deps:
+      - 'lint'
+      - 'format'
+      - 'clean'
+    options:
+      internal: false
+      mergeDeps: append
+      runDepsInParallel: false

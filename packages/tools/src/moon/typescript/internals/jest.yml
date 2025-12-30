@@ -1,0 +1,54 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+fileGroups:
+  # Coverage output files.
+  coverage:
+    - 'coverage/**/*'
+
+tasks:
+  jest/base:
+    description: 'Runs tests using Jest'
+    command: 'jest'
+    type: test
+    options:
+      mergeInputs: append
+      mergeArgs: append
+      internal: true
+    inputs:
+      - '@group(src)'
+      - '@group(tests)'
+    outputs:
+      - '@group(coverage)'
+
+  jest/test:
+    extends: 'jest/base'
+    description: 'Runs tests using Jest'
+    args:
+      - '--verbose'
+      - '--coverage'
+    options:
+      runInCI: affected
+
+  jest/watch:
+    extends: 'jest/test'
+    description: 'Runs tests using Jest in watch mode'
+    args:
+      - '--watch'
+    options:
+      runInCI: false
+      persistent: true
+
+  jest/coverage:
+    extends: 'jest/test'
+    description: 'Runs tests using Jest with coverage'
+    args:
+      - '--coverage'
+    options:
+      runInCI: false

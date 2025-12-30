@@ -1,0 +1,43 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+extends:
+  - '../file-groups/tests.yml'
+  - '../internals/vitest.yml'
+
+tasks:
+  test:
+    extends: 'vitest/test'
+    options:
+      internal: false
+
+  test-watch:
+    extends: 'vitest/watch'
+    options:
+      internal: false
+
+  test-coverage:
+    extends: 'vitest/coverage'
+    options:
+      internal: false
+
+  test-ui:
+    extends: 'vitest/ui'
+    options:
+      internal: false
+
+  test-project:
+    extends: 'vitest/project'
+    options:
+      internal: false
+
+  test-types:
+    extends: 'vitest/types'
+    options:
+      internal: false

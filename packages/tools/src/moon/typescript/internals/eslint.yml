@@ -1,0 +1,32 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+tasks:
+  eslint/check:
+    description: 'Checks code quality using ESLint'
+    command: 'eslint'
+    args:
+      # Only src/**/*.{ts,tsx} or *.config.{mjs,ts,js} files.
+      - '@globs(src)'
+      # All tests/**/*.{ts,tsx} files.
+      - '@group(tests)'
+    type: run
+    options:
+      internal: true
+      mergeInputs: append
+      mergeArgs: append
+    inputs:
+      - '@group(src)'
+      - '@group(tests)'
+
+  eslint/fix:
+    description: 'Fixes ESLint issues'
+    extends: 'eslint/check'
+    args:
+      - '--fix'

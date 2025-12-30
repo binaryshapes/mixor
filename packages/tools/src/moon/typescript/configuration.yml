@@ -1,0 +1,50 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+extends:
+  # File groups for project files.
+  - './file-groups/src.yml'
+  - './file-groups/dist.yml'
+
+  # Tasks for internal use.
+  - './internals/rimraf.yml'
+  - './internals/eslint.yml'
+  - './internals/prettier.yml'
+
+fileGroups:
+  tests: []
+
+tasks:
+  clean:
+    description: 'Cleans the dist directory'
+    extends: 'rimraf'
+    args:
+      - '@group(dist)'
+    inputs:
+      - '@group(dist)'
+
+  lint:
+    extends: 'eslint/check'
+    options:
+      internal: false
+
+  lint-fix:
+    extends: 'eslint/fix'
+    options:
+      internal: false
+
+  format:
+    extends: 'prettier/check'
+    options:
+      internal: false
+
+  format-fix:
+    extends: 'prettier/fix'
+    options:
+      internal: false

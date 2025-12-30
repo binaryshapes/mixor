@@ -1,0 +1,39 @@
+#
+# This file is part of the Nuxo project.
+#
+# Copyright (c) 2025, Binary Shapes.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+tasks:
+  node/dev:
+    description: 'Runs the project in development mode'
+    command: 'node'
+    args:
+      - '--unhandled-rejections=throw'
+      - '--import'
+      - 'tsx'
+      - '--conditions'
+      - 'development'
+      - 'src/index.ts'
+    type: run
+    options:
+      internal: true
+      runInCI: false
+      cache: false
+      mergeArgs: prepend
+
+  node/watch:
+    extends: 'node/dev'
+    description: 'Runs the project in watch mode'
+    args:
+      - '--watch'
+    preset: watcher
+    options:
+      mergeEnv: append
+    env:
+      # This is a workaround to pass the WATCH_MODE environment variable to the child process.
+      # It could be useful for CLI tools.
+      WATCH_MODE: 'true'
